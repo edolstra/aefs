@@ -205,13 +205,12 @@ CoreResult coreMoveDirEntry(
    char * pszSrcName,
    CryptedFileID idSrcDir,
    char * pszDstName,
-   CryptedFileID idDstDir,
-   CryptedDirEntry * * ppEntry)
+   CryptedFileID idDstDir)
 {
    CoreResult cr;
    CryptedDirEntry * pSrcEntries, * pEntry;
-
-   if (ppEntry) *ppEntry = 0;
+   CryptedFileID idFile;
+   CryptedFileInfo info;
 
    /* Query the contents of the source directory. */
    cr = coreQueryDirEntries(pVolume, idSrcDir, &pSrcEntries);
@@ -245,15 +244,25 @@ CoreResult coreMoveDirEntry(
       }
    }
 
-   if (ppEntry)
-      *ppEntry = pEntry;
-   else
-      coreFreeDirEntries(pEntry);
+   idFile = pEntry->idFile;
+   coreFreeDirEntries(pEntry);
    
    /* Update the source directory. */
    cr = coreSetDirEntries(pVolume, idSrcDir, pSrcEntries);
    coreFreeDirEntries(pSrcEntries);
    if (cr) return cr;
+
+   /* If the moved file is a directory, we have to update its parent
+      field. */
+   if ((idSrcDir != idDstDir) && idDstDir) {
+      cr = coreQueryFileInfo(pVolume, idFile, &info);
+      if (cr) return cr;
+      if (CFF_ISDIR(info.flFlags)) {
+          info.idParent = idDstDir;
+          cr = coreSetFileInfo(pVolume, idFile, &info);
+          if (cr) return cr;
+      }
+   }
 
    return CORERC_OK;
 }

@@ -35,8 +35,7 @@ CoreResult coreMoveDirEntry(
    char * pszSrcName,
    CryptedFileID idSrcDir,
    char * pszDstName,
-   CryptedFileID idDstDir,
-   CryptedDirEntry * * ppEntry);
+   CryptedFileID idDstDir);
 
 
 #endif /* !_COREUTILS_H */

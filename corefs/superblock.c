@@ -168,32 +168,51 @@ static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
 }
 
 
+/* Open the encrypted superblock file. */
+static CoreResult openSuperBlock2(SuperBlock * pSuperBlock,
+   CryptedVolumeParms * pParms, Bool fCreate)
+{
+   char szFileName[MAX_VOLUME_BASE_PATH_NAME + 128];
+
+   if (pSuperBlock->pSB2File) return CORERC_OK;
+
+   if (snprintf(szFileName, sizeof(szFileName), "%s" SUPERBLOCK2_NAME,
+      pSuperBlock->pszBasePath) >= sizeof(szFileName))
+      return CORERC_INVALID_PARAMETER;
+
+   pSuperBlock->pSB2File = sysOpenFile(szFileName,
+      (fCreate ? SOF_CREATE_IF_NEW : 0) | 
+      (pParms->fReadOnly 
+         ? SOF_READONLY | SOF_DENYWRITE
+         : SOF_READWRITE | SOF_DENYALL),
+      pParms->cred);
+   if (!pSuperBlock->pSB2File) return CORERC_STORAGE;
+
+   return CORERC_OK;
+}
+
+
 /* Read the info in the encrypted superblock file into pSuperBlock. */
 static CoreResult readSuperBlock2(SuperBlock * pSuperBlock,
    CryptedVolumeParms * pParms)
 {
    CoreResult cr;
-   char szFileName[MAX_VOLUME_BASE_PATH_NAME + 128];
-   FILE * file;
+   FilePos cbRead;
    octet abSector[SECTOR_SIZE];
    CryptedSectorData sector;
    SuperBlock2OnDisk * pOnDisk =
       (SuperBlock2OnDisk *) &sector.payload;
+
+   cr = openSuperBlock2(pSuperBlock, pParms, FALSE);
+   if (cr) return cr;
+
+   if (!sysSetFilePos(pSuperBlock->pSB2File, 0)) 
+       return CORERC_STORAGE;
    
-   if (snprintf(szFileName, sizeof(szFileName), "%s" SUPERBLOCK2_NAME,
-      pSuperBlock->pszBasePath) >= sizeof(szFileName))
-      return CORERC_INVALID_PARAMETER;
-
-   file = fopen(szFileName, "rb");
-   if (!file) return CORERC_STORAGE;
-
-   if (fread(abSector, sizeof(abSector), 1, file) < 1) {
-      fclose(file);
+   if (!sysReadFromFile(pSuperBlock->pSB2File, sizeof(abSector),
+       abSector, &cbRead)) 
       return CORERC_STORAGE;
-   }
    
-   if (fclose(file) == EOF) return CORERC_STORAGE;
-
    cr = coreDecryptSectorData(abSector, &sector,
       pSuperBlock->pKey, pParms->flCryptoFlags);
    
@@ -244,6 +263,7 @@ CoreResult coreReadSuperBlock(char * pszBasePath, char * pszKey,
    pSuperBlock->pszBasePath = sizeof(SuperBlock) +
       (char *) pSuperBlock;
    strcpy(pSuperBlock->pszBasePath, pszBasePath);
+   pSuperBlock->pSB2File = 0;
 
    if (cr = readSuperBlock1(pSuperBlock, pszKey, pParms, papCipher)) {
       sysFreeSecureMem(pSuperBlock);
@@ -278,9 +298,10 @@ CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, int flags)
    CryptedSectorData sector;
    SuperBlock2OnDisk * pOnDisk =
       (SuperBlock2OnDisk *) &sector.payload;
-   int cbWritten;
+   FilePos cbWritten;
    CryptedVolumeParms * pParms =
       coreQueryVolumeParms(pSuperBlock->pVolume);
+   CoreResult cr;
 
    if (pParms->fReadOnly) return CORERC_READ_ONLY;
 
@@ -317,13 +338,6 @@ CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, int flags)
 
    /* Write the encrypted part of the superblock. */
 
-   if (snprintf(szFileName, sizeof(szFileName), "%s" SUPERBLOCK2_NAME,
-      pSuperBlock->pszBasePath) >= sizeof(szFileName))
-      return CORERC_INVALID_PARAMETER;
-
-   file = fopen(szFileName, "w+b");
-   if (!file) return CORERC_STORAGE;
-
    memset(sector.payload, 0, sizeof(sector.payload));
 
    sysGetRandomBits(sizeof(sector.random) * 8, sector.random);
@@ -337,15 +351,16 @@ CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, int flags)
    
    coreEncryptSectorData(&sector, (octet *) &sector,
       pSuperBlock->pKey, pParms->flCryptoFlags);
+
+   cr = openSuperBlock2(pSuperBlock, pParms, TRUE);
+   if (cr) return cr;
+
+   if (!sysSetFilePos(pSuperBlock->pSB2File, 0)) 
+       return CORERC_STORAGE;
    
-   cbWritten = fwrite(&sector, sizeof(sector), 1, file);
-   if (cbWritten != 1) {
-      fclose(file);
-      return CORERC_STORAGE;
-   }
-   
-   if (fclose(file) == EOF)
-      return CORERC_STORAGE;
+   if (!sysWriteToFile(pSuperBlock->pSB2File, 
+       sizeof(sector), (octet *) &sector, &cbWritten)) 
+       return CORERC_STORAGE;
 
    pSuperBlock->version = SBV_CURRENT;
    pSuperBlock->magic = SUPERBLOCK2_MAGIC;
@@ -360,6 +375,9 @@ CoreResult coreDropSuperBlock(SuperBlock * pSuperBlock)
    
    cr = coreDropVolume(pSuperBlock->pVolume);
    if (cr) return cr;
+
+   if (pSuperBlock->pSB2File)
+       sysCloseFile(pSuperBlock->pSB2File);
 
    cryptDestroyKey(pSuperBlock->pKey);
 

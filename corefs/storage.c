@@ -180,6 +180,7 @@ void coreSetDefVolumeParms(CryptedVolumeParms * pParms)
    pParms->flCryptoFlags = 0;
    pParms->flOpenFlags = SOF_READWRITE | SOF_DENYWRITE |
       SOF_RANDOMSEQUENTIAL;
+   memset(&pParms->cred, 0, sizeof(pParms->cred));
    pParms->fReadOnly = FALSE;
    pParms->cMaxCryptedFiles = 512;
    pParms->cMaxOpenStorageFiles = 8;
@@ -495,12 +496,14 @@ static CoreResult openStorageFile(CryptedFile * pFile, Bool fCreate,
    
    makeStoragePathName(pFile->pVolume, pFile->id, szPathName);
 
-   pFile->pStorageFile = sysOpenFile(szPathName,
-      pFile->pVolume->parms.flOpenFlags |
-      (fCreate
-         ? SOF_FAIL_IF_EXISTS | SOF_CREATE_IF_NEW
-         : SOF_OPEN_IF_EXISTS | SOF_FAIL_IF_NEW),
-      (fCreate ? cbInitialSize : 0));
+   if (fCreate)
+       pFile->pStorageFile = sysCreateFile(szPathName,
+           pFile->pVolume->parms.flOpenFlags, cbInitialSize, 
+           pFile->pVolume->parms.cred);
+   else
+       pFile->pStorageFile = sysOpenFile(szPathName,
+           pFile->pVolume->parms.flOpenFlags,
+           pFile->pVolume->parms.cred);
    
    if (!pFile->pStorageFile)
       return CORERC_STORAGE;
@@ -648,7 +651,7 @@ CoreResult coreDestroyFile(CryptedVolume * pVolume, CryptedFileID id)
    cr = accessFile(pVolume, id, &pFile);
    if (cr) return cr;
 
-   makeStoragePathName(pFile->pVolume, pFile->id, szPathName);
+   makeStoragePathName(pVolume, pFile->id, szPathName);
 
    /* Delete all the file's sectors from the cache without flushing to
       disk. */
@@ -659,7 +662,7 @@ CoreResult coreDestroyFile(CryptedVolume * pVolume, CryptedFileID id)
    if (cr) return cr;
 
    /* Delete the storage file. */
-   if (!sysDeleteFile(szPathName, TRUE))
+   if (!sysDeleteFile(szPathName, TRUE, pVolume->parms.cred))
       return CORERC_STORAGE;
 
    return CORERC_OK;

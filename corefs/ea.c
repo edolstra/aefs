@@ -310,6 +310,7 @@ static CoreResult storeEAs(CryptedVolume * pVolume,
          info2.cRefs = 1;
          info2.cbFileSize = cbEAs;
          info2.idParent = id;
+         /* Note that the uid/gid are always 0 for EA files. */
          cr = coreCreateBaseFile(pVolume, &info2, &info.idEAFile);
          if (cr) return cr;
          info.flFlags |= CFF_EXTEAS;

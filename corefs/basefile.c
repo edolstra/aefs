@@ -114,6 +114,8 @@ CoreResult coreQueryFileInfo(CryptedVolume * pVolume,
    pInfo->idParent = bytesToInt32(infoOnDisk.idParent);
    pInfo->cbEAs = bytesToInt32(infoOnDisk.cbEAs);
    pInfo->idEAFile = bytesToInt32(infoOnDisk.idEAFile);
+   pInfo->uid = bytesToInt32(infoOnDisk.uid);
+   pInfo->gid = bytesToInt32(infoOnDisk.gid);
 
    /* Perform a few checks. */
    if ((bytesToInt32(infoOnDisk.magic) != INFOSECTOR_MAGIC_INUSE) ||
@@ -150,8 +152,8 @@ CoreResult coreSetFileInfo(CryptedVolume * pVolume,
    /* Set other stuff. */
    int32ToBytes(INFOSECTOR_MAGIC_INUSE, infoOnDisk.magic);
    int32ToBytes(id, infoOnDisk.id);
-   int32ToBytes(0, infoOnDisk.uid);
-   int32ToBytes(0, infoOnDisk.gid);
+   int32ToBytes(pInfo->uid, infoOnDisk.uid);
+   int32ToBytes(pInfo->gid, infoOnDisk.gid);
 
    /* Rewrite the file's info sector. */
    cr = coreSetSectorData(pVolume, INFOSECTORFILE_ID,

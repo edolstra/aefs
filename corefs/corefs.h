@@ -93,6 +93,7 @@ CoreResult coreDecryptSectorData(octet * pabSrc,
 typedef struct {
       int flCryptoFlags; /* CCRYPT_* */
       int flOpenFlags; /* SOF_* */
+      Cred cred;
       int fReadOnly;
       int cMaxCryptedFiles; /* > 0 */
       int cMaxOpenStorageFiles; /* > 0, <= cMaxCryptedFiles */
@@ -290,6 +291,8 @@ typedef struct {
       
       CryptedFilePos cbEAs; /* ignored */
       CryptedFileID idEAFile; /* ignored */
+
+      uint32 uid, gid;
 } CryptedFileInfo;
 
 

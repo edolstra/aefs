@@ -64,7 +64,9 @@ typedef struct {
       char szLabel[12]; /* DOS disk label */
       char szDescription[128];
 
-      uint32 magic; 
+      uint32 magic;
+
+      File * pSB2File;
 } SuperBlock;
 
 
