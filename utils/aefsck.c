@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsck.c,v 1.23 2002/01/14 21:34:28 eelco Exp $
+   $Id: aefsck.c,v 1.24 2002/01/21 20:33:40 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1340,11 +1340,14 @@ static int isBadEntry(State * pState, FSItem * fsi,
 }
 
 
+static CoreNameComp comp; /* grrr...  */
+
+
 static int dirEntryComparator(const void * x1, const void * x2)
 {
    CryptedDirEntry * p1 = * (CryptedDirEntry * *) x1;
    CryptedDirEntry * p2 = * (CryptedDirEntry * *) x2;
-   return stricmp(p1->pszName, p2->pszName);
+   return comp(p1->pszName, p2->pszName);
 }
 
 
@@ -1354,6 +1357,9 @@ static int checkDirEntryNamesInDir(State * pState, FSItem * fsi)
    CryptedDirEntry * pCur, * * ppCur, * pPrev, * pNext;
    CryptedDirEntry * * papEntries;
    unsigned int cChildren = 0, i;
+   int sign;
+
+   comp = coreQueryVolumeParms(pState->pVolume)->nameComp;
 
    for (ppCur = &fsi->pChildren, pCur = *ppCur; pCur; ) {
       pNext = pCur->pNext;
@@ -1380,14 +1386,24 @@ static int checkDirEntryNamesInDir(State * pState, FSItem * fsi)
         pCur = pCur->pNext, i++)
       papEntries[i] = pCur;
 
+#ifndef CHECK_SORT_ORDER
    qsort(papEntries, cChildren, sizeof(CryptedDirEntry *),
       dirEntryComparator);
+#endif   
 
    fsi->pChildren = 0;
    for (pPrev = 0, i = 0; i < cChildren; i++) {
       pCur = papEntries[i];
       pCur->pNext = 0;
-      if (!pPrev || dirEntryComparator(&pPrev, &pCur) != 0) {
+      sign = -1;
+      if (!pPrev || (sign = comp(pPrev->pszName, pCur->pszName)) != 0) {
+#ifdef CHECK_SORT_ORDER
+         if (sign > 0) {
+            printf("%s: directory is incorrectly sorted: `%s' listed before `%s'\n",
+               printFileName(pState, fsi->id), pPrev->pszName, pCur->pszName);
+            /* !!! sort and rewrite */
+         }
+#endif   
          if (pPrev)
             pPrev->pNext = pCur;
          else
