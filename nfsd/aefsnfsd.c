@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.5 2000/12/26 21:37:45 eelco Exp $
+   $Id: aefsnfsd.c,v 1.6 2000/12/27 18:45:29 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -649,7 +649,7 @@ static int run()
         /* Lazy writer.  Should we flush now?  Determine the time-out
            for select(). */
         timeCur = time(0);
-        if (timeCur > timeFlush + maxAge) {
+        if (timeCur >= timeFlush + maxAge) {
             logMsg(LOG_DEBUG, "flushing everything");
             commitAll();
             timeFlush = timeCur;
