@@ -446,6 +446,8 @@ int main(int argc, char * * argv)
     unmount_cmd = getenv(FUSE_UMOUNT_CMD_ENV);
     dprintf("unmount_cmd: `%s', \n", unmount_cmd);
 
+    if (!dupFuseFD()) return 1;
+
     sysInitPRNG();
 
     coreSetDefVolumeParms(&parms);
@@ -460,7 +462,13 @@ int main(int argc, char * * argv)
         }
     }
 
-    /* Read the superblock, initialize volume structures. */
+#ifdef HAVE_DAEMON
+    if (!fDebug) daemon(0, 0);
+#endif
+    
+    /* Read the superblock, initialize volume structures.  Note: we
+       cannot call daemon() after coreReadSuperBlock(), since daemon()
+       works by forking and children do not inherit file locks. */
 retry:
     cr = coreReadSuperBlock(szBasePath, pszPassPhrase,
         cipherTable, &parms, &pSuperBlock);
@@ -470,20 +478,13 @@ retry:
             parms.fReadOnly = true;
             goto retry;
         }
-        fprintf(stderr, "unable to load superblock, cr = %d\n", cr);
-        assert(0);
+	fprintf(stderr, "%s: unable to read superblock: %s\n", 
+	    pszProgramName, core2str(cr));
+        return 1;
     }
     
     pVolume = pSuperBlock->pVolume;
 
-#ifdef HAVE_DAEMON
-    if (!fDebug) {
-	close(1);
-	close(2);
-	daemon(0, 1);
-    }
-#endif
-    
     runLoop();
 
     cleanup();

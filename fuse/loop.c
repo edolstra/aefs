@@ -3,6 +3,9 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "sysdep.h"
 
@@ -192,4 +195,27 @@ void runLoop()
         }
         processCommand();
     }
+}
+
+
+bool dupFuseFD()
+{
+    int fd, fd2;
+    fd = dup(fdFuse);
+    if (fd == -1) {
+	fprintf(stderr, "cannot dup fuse fd: %s", strerror(errno));
+	return false;
+    }
+    if (fdFuse < 3) {
+	fd2 = open("/dev/null", O_RDONLY);
+	if (fd == -1) {
+	    fprintf(stderr, "cannot dup /dev/null: %s", strerror(errno));
+	    return false;
+	}
+	dup2(fd2, fdFuse);
+	close(fd2);
+    } else
+	close(fdFuse);
+    fdFuse = fd;
+    return true;
 }
