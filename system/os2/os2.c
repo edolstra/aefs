@@ -30,41 +30,89 @@ struct _File {
 };
 
 
-File * sysOpenFile(char * pszName, int flFlags,
-   FilePos cbInitialSize)
+static ULONG makeOS2Flags(int flFlags)
+{
+   ULONG f = 0;
+   
+   switch (flFlags & SOF_RWMASK) {
+      case SOF_READONLY:  f |= OPEN_ACCESS_READONLY;  break;
+      case SOF_WRITEONLY: f |= OPEN_ACCESS_WRITEONLY; break;
+      case SOF_READWRITE: f |= OPEN_ACCESS_READWRITE; break;
+      default: return 0;
+   }
+
+   switch (flFlags & SOF_SHMASK) {
+      case SOF_DENYALL:   f |= OPEN_SHARE_DENYREADWRITE; break;
+      case SOF_DENYWRITE: f |= OPEN_SHARE_DENYWRITE; break;
+      case SOF_DENYNONE:  f |= OPEN_SHARE_DENYNONE; break;
+      default: return 0;
+   }
+
+   switch (flFlags & SOF_LCMASK) {
+      case SOF_NO_LOCALITY:      f |= OPEN_FLAGS_NO_LOCALITY; break;
+      case SOF_SEQUENTIAL:       f |= OPEN_FLAGS_SEQUENTIAL; break;
+      case SOF_RANDOM:           f |= OPEN_FLAGS_RANDOM; break;
+      case SOF_RANDOMSEQUENTIAL: f |= OPEN_FLAGS_RANDOMSEQUENTIAL; break;
+      default: return 0;
+   }
+
+   if (flFlags & SOF_NO_CACHE)      f |= OPEN_FLAGS_NO_CACHE;
+   if (flFlags & SOF_WRITE_THROUGH) f |= OPEN_FLAGS_WRITE_THROUGH;
+
+   return f;
+}
+
+
+File * sysOpenFile(char * pszName, int flFlags, Cred cred)
 {
    APIRET rc;
    HFILE h;
    ULONG ulAction;
    File * pFile;
-   LONG cExtra = 16;
-   ULONG cCur;
-   int retry = 1;
+   ULONG f = makeOS2Flags(flFlags), g = 0;
+   if (!f) return 0;
+   
+   if (flFlags & SOF_TRUNC_IF_EXISTS)
+      g |= OPEN_ACTION_REPLACE_IF_EXISTS;
+   else
+      g |= OPEN_ACTION_OPEN_IF_EXISTS;
+   if (flFlags & SOF_CREATE_IF_NEW)
+      g |= OPEN_ACTION_CREATE_IF_NEW;
+   else
+      g |= OPEN_ACTION_FAIL_IF_NEW;
 
-again:
-   if ((rc = DosOpen((PSZ) pszName, &h, &ulAction, cbInitialSize,
+   if ((rc = DosOpen((PSZ) pszName, &h, &ulAction, 0,
       FILE_NORMAL | FILE_ARCHIVED,
-      flFlags >> 16,
-      (flFlags & 0xffff) | OPEN_FLAGS_FAIL_ON_ERROR |
-      OPEN_FLAGS_NOINHERIT, 0)))
-   {
-      /* Increasing the number of handles seems to be incompatible
-         with EMX.  Better use a large enough value for the `-h' EMX
-         option. */
-#if 0
-      if (rc == ERROR_TOO_MANY_OPEN_FILES && retry) {
-         fprintf(stderr, "increasing fh count\n");
-         fflush(stderr);
-         if (DosSetRelMaxFH(&cExtra, &cCur)) return 0;
-         retry = 0;
-         goto again;
-      }
-      fprintf(stderr, "DosOpen rc=%ld\n", rc);
-      fflush(stderr);
-#endif      
+      g, f | OPEN_FLAGS_FAIL_ON_ERROR | OPEN_FLAGS_NOINHERIT, 0)))
+      return 0;
+   
+   pFile = malloc(sizeof(File));
+   if (!pFile) {
+      DosClose(h);
       return 0;
    }
+   pFile->h = h;
 
+   return pFile;
+}
+
+
+File * sysCreateFile(char * pszName, int flFlags, 
+   FilePos cbInitialSize, Cred cred)
+{
+   APIRET rc;
+   HFILE h;
+   ULONG ulAction;
+   File * pFile;
+   ULONG f = makeOS2Flags(flFlags);
+   if (!f) return 0;
+   
+   if ((rc = DosOpen((PSZ) pszName, &h, &ulAction, cbInitialSize,
+      FILE_NORMAL | FILE_ARCHIVED,
+      OPEN_ACTION_CREATE_IF_NEW | OPEN_ACTION_FAIL_IF_EXISTS,
+      f | OPEN_FLAGS_FAIL_ON_ERROR | OPEN_FLAGS_NOINHERIT, 0)))
+      return 0;
+   
    pFile = malloc(sizeof(File));
    if (!pFile) {
       DosClose(h);
@@ -131,7 +179,7 @@ Bool sysQueryFileSize(File * pFile, FilePos * pcbSize)
 }
 
 
-Bool sysDeleteFile(char * pszName, Bool fFastDelete)
+Bool sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred)
 {
    return fFastDelete
       ? !DosForceDelete((PSZ) pszName)

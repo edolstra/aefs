@@ -1,7 +1,7 @@
 /* sysspec.h -- OS/2 (EMX)-specific definitions. 
    Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: sysspec.h,v 1.3 2000/12/26 17:14:26 eelco Exp $
+   $Id: sysspec.h,v 1.4 2000/12/28 21:01:33 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -35,6 +35,7 @@ extern int cSecureFreed;
 
 /* OS/2 is not multi-user. */
 typedef struct {
+      int _dummy_; /* to silence warnings */
 } Cred;
 
 
