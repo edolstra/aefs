@@ -1,7 +1,7 @@
 /* basefile.c -- File I/O.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: basefile.c,v 1.8 2001/09/23 13:30:10 eelco Exp $
+   $Id: basefile.c,v 1.9 2003/01/24 13:28:17 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,6 +16,8 @@
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
    Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
+
+#include <string.h>
 
 #include "corefs.h"
 
@@ -297,29 +299,46 @@ CoreResult coreWriteToFile(CryptedVolume * pVolume, CryptedFileID id,
 
    /* Write the data. */
    while (cbLength) {
-      
-      /* Make room in the cache for at most csIOGranularity sectors
-         (and read from disk those sectors that are going to be
-         partially overwritten). */
 
+      /* Fetch at most csIOGranularity sectors.  To cluster potential
+         I/O, all sectors in the extent should *either* not be
+         initialised or about to be completely overwritten, *or*
+         should be initialised and be about to be partially written
+         to. */
       flFlags = CFETCH_NO_READ;
       csExtent = (offset + cbLength - 1) / PAYLOAD_SIZE + 1;
-      if ((sCurrent < info.csSet) &&
-          (offset != 0 || cbLength < PAYLOAD_SIZE)) {
-         if (offset + cbLength > PAYLOAD_SIZE &&
-             offset + cbLength < 2 * PAYLOAD_SIZE &&
-             sCurrent + 1 < info.csSet)
-            csExtent = 2;
-         else
-            csExtent = 1;
-         flFlags = 0;
+
+      if (sCurrent < info.csSet) {
+
+         /* Partial write to start of first sector? */
+         if (offset != 0) 
+            /* Optimisation: if we are writing partially to exactly
+               two sectors that are completely contained in the
+               initialised area, read them in one go. */
+            if (offset + cbLength > PAYLOAD_SIZE &&
+                offset + cbLength < 2 * PAYLOAD_SIZE &&
+                sCurrent + 2 <= info.csSet)
+               csExtent = 2, flFlags = 0;
+            else
+               csExtent = 1, flFlags = 0;
+         /* No, but maybe partial write to end of first sector? */
+         else if (cbLength < PAYLOAD_SIZE)
+            csExtent = 1, flFlags = 0;
+         /* Multiple sectors, starting at offset 0 of first.  Partial
+            write to end of last sector? */
+         else if (cbLength % PAYLOAD_SIZE != 0 &&
+            sCurrent + csExtent <= info.csSet)
+            csExtent--; /* do last sector separately */
+         else /* no need to read anything */ ;
+   
       }
+      
       if (csExtent > pParms->csIOGranularity)
          csExtent = pParms->csIOGranularity;
 
       cr = coreFetchSectors(pVolume, id, sCurrent, csExtent, flFlags);
       if (cr) {
-         if (fChanged) 
+         if (fChanged)
             coreSetFileInfo(pVolume, id, &info); /* commit successful writes */
          return cr;
       }
