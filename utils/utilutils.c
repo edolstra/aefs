@@ -26,39 +26,20 @@
 
 int readKey(char * pszPrompt, int cbBuffer, char * pszBuffer)
 {
-   struct termios termios, oldtermios;
-   int rc;
    char * p, * envstr;
-   int fEchoOff = 0;
    
-   fprintf(stderr, pszPrompt);
-   fflush(stderr);
-
-   if (isatty(STDIN_FILENO)) {
-      envstr = getenv("AEFS_ECHO");
-      if (!envstr || !(strcmp(envstr, "1") == 0)) {
-         if (tcgetattr(STDIN_FILENO, &termios)) return 1;
-         oldtermios = termios;
-         termios.c_lflag &= !ECHO;
-         if (tcsetattr(STDIN_FILENO, TCSANOW, &termios)) return 1;
-         fEchoOff = 1;
-      }
-   }
-
-   if (!fgets(pszBuffer, cbBuffer, stdin)) 
-      rc = 1;
-   else {
-      rc = 0;
+   envstr = getenv("AEFS_ECHO");
+   if (envstr && (strcmp(envstr, "1") == 0)) {
+      fprintf(stderr, "%s", pszPrompt);
+      if (!fgets(pszBuffer, cbBuffer, stdin)) return 1;
       for (p = pszBuffer; *p && *p != '\n'; p++) ;
       *p = 0;
+   } else {
+      p = getpass(pszPrompt);
+      if (!p) return 1;
+      strcpy(pszBuffer, p);
+      memset(p, 0, strlen(p));
    }
-   
-   fprintf(stderr, "\n");
-
-   if (fEchoOff) {
-      if (tcsetattr(STDIN_FILENO, TCSANOW, &oldtermios)) return 1;
-   }
-   
    return 0;
 }
 
