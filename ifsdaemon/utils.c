@@ -83,14 +83,15 @@ APIRET coreResultToOS2(CoreResult cr)
 {
    switch (cr) {
       case CORERC_OK: return NO_ERROR;
-      case CORERC_NOT_ENOUGH_MEMORY: return ERROR_NOT_ENOUGH_MEMORY;
       case CORERC_FILE_NOT_FOUND: return ERROR_FILE_NOT_FOUND;
+      case CORERC_NOT_ENOUGH_MEMORY: return ERROR_NOT_ENOUGH_MEMORY;
       case CORERC_FILE_EXISTS: return ERROR_FILE_EXISTS;
       case CORERC_INVALID_PARAMETER: return ERROR_INVALID_PARAMETER;
       case CORERC_INVALID_NAME: return ERROR_INVALID_NAME;
       case CORERC_BAD_CHECKSUM: return ERROR_CRC;
       case CORERC_STORAGE: return ERROR_SEEK;
       case CORERC_NOT_DIRECTORY: return ERROR_PATH_NOT_FOUND;
+      case CORERC_READ_ONLY: return ERROR_WRITE_PROTECT;
       default: return ERROR_AEFS_BASE + 100 + cr;
    }
 }
@@ -169,7 +170,6 @@ void coreToSffsi(Bool fHidden, CryptedFileInfo * pInfo,
    coreTimeToOS2(pInfo->timeWrite,
       (FDATE *) &psffsi->sfi_mdate, (FTIME *) &psffsi->sfi_mtime);
    psffsi->sfi_size = pInfo->cbFileSize;
-   psffsi->sfi_position = 0;
    psffsi->sfi_type = (psffsi->sfi_type & STYPE_FCB) | STYPE_FILE;
    psffsi->sfi_DOSattr &= ~FILE_NON83;
    psffsi->sfi_DOSattr |= makeDOSAttr(fHidden, pInfo);
@@ -288,7 +288,7 @@ CoreResult findFromCurDir(VolData * pVolData, char * szPath,
    cr = coreQueryIDFromPath(
       pVolData->pVolume, idStart,
       szDir, pidDir, 0);
-   if (cr) return coreResultToOS2(cr);
+   if (cr) return cr;
 
    /* Does the file appear in the directory? */
    return coreQueryIDFromPath(

@@ -320,8 +320,6 @@ APIRET doFileInfo(struct sffsi * psffsi,
 
       /* Set file info. */
 
-      if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
-   
       switch (ulLevel) {
 
          case FIL_STANDARD: /* Set file info. */
@@ -503,8 +501,6 @@ APIRET fsFileAttribute(ServerData * pServerData,
       
       /* Set the file attributes. */
       
-      if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
-      
       /* Update the hidden flag in the directory, if necessary. */
       if (!beq(fHidden, pfileattribute->fsAttr & FILE_HIDDEN)) {
          cr = setHiddenFlag(pVolume, idDir, idFile,
@@ -516,8 +512,7 @@ APIRET fsFileAttribute(ServerData * pServerData,
       info2 = info;
       extractDOSAttr(pfileattribute->fsAttr, &info2);
 
-      if (info2.flFlags != info.flFlags)
-      {
+      if (info2.flFlags != info.flFlags) {
          cr = coreSetFileInfo(pVolume, idFile, &info2);
          if (cr) return coreResultToOS2(cr);
       }

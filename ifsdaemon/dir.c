@@ -129,7 +129,6 @@ APIRET fsMkDir(ServerData * pServerData, struct mkdir * pmkdir)
    if (cr != CORERC_FILE_NOT_FOUND) return coreResultToOS2(cr);
 
    /* No.  Create a new directory. */
-   if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
    memset(&info, 0, sizeof(info));
    info.flFlags = CFF_IFDIR | 0700; /* rwx for user */
    info.cRefs = 1;
@@ -194,7 +193,6 @@ APIRET fsRmDir(ServerData * pServerData, struct rmdir * prmdir)
    /* The directory is empty, so we can proceed with the deletion. */
 
    /* Remove the directory from its parent directory. */
-   if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
    cr = coreMoveDirEntry(pVolume, szName, idDir, 0, 0, 0);
    if (cr) return coreResultToOS2(cr);
 

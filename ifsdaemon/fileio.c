@@ -75,8 +75,6 @@ APIRET fsWrite(ServerData * pServerData, struct write * pwrite)
       cbLen, pwrite->fsIOFlag);
    logsffsi(&pwrite->sffsi);
 
-   if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
-
    cr = coreWriteToFile(pVolume, pOpenFileData->idFile,
       pwrite->sffsi.sfi_position, cbLen,
       (octet *) pServerData->pData, &cbWritten);
@@ -89,6 +87,8 @@ APIRET fsWrite(ServerData * pServerData, struct write * pwrite)
    pwrite->cbLen = (USHORT) cbWritten;
    pwrite->sffsi.sfi_position += cbWritten;
    pwrite->sffsi.sfi_tstamp |= (ST_SWRITE | ST_PWRITE);
+   if (pwrite->sffsi.sfi_position > pwrite->sffsi.sfi_size)
+       pwrite->sffsi.sfi_size = pwrite->sffsi.sfi_position;
 
    return NO_ERROR;
 }
@@ -107,6 +107,8 @@ APIRET fsChgFilePtr(ServerData * pServerData,
    switch (pchgfileptr->usType) {
 
       case FILE_BEGIN:
+         if (pchgfileptr->ibOffset < 0)
+            return ERROR_NEGATIVE_SEEK;
          pchgfileptr->sffsi.sfi_position = pchgfileptr->ibOffset;
          return NO_ERROR;
 
@@ -149,12 +151,12 @@ APIRET fsNewSize(ServerData * pServerData, struct newsize * pnewsize)
       pnewsize->cbLen, pnewsize->fsIOFlag);
    logsffsi(&pnewsize->sffsi);
 
-   if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
    cr = coreSetFileSize(pVolume, pOpenFileData->idFile,
       pnewsize->cbLen);
    if (cr) return coreResultToOS2(cr);
 
    pnewsize->sffsi.sfi_size = pnewsize->cbLen;
+   pnewsize->sffsi.sfi_tstamp |= (ST_SWRITE | ST_PWRITE);
 
    return NO_ERROR;
 }

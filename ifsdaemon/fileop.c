@@ -48,14 +48,13 @@ APIRET deleteFile(VolData * pVolData, char * pszFullName)
       return ERROR_ACCESS_DENIED;
 
    /* Remove the file from its parent directory. */
-   if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
    cr = coreMoveDirEntry(pVolume, szName, idDir, 0, 0, 0);
    if (cr) return coreResultToOS2(cr);
 
    /* Lower the file's reference count.  If it dropped to zero, delete
       the file. */
    info.cRefs--;
-   if (!info.cRefs) {
+   if (info.cRefs == 0) {
       cr = coreDeleteFile(pVolume, idFile);
       if (cr) return coreResultToOS2(cr);
    } else {
@@ -141,7 +140,6 @@ APIRET fsMove(ServerData * pServerData, struct move * pmove)
    if (cr) return coreResultToOS2(cr);
    
    /* Perform the move operation. */
-   if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
    cr = coreMoveDirEntry(pVolume, szSrcName,
       idSrcDir, szDstName, idDstDir, &pEntry);
    if (cr) return coreResultToOS2(cr);

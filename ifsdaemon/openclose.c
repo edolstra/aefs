@@ -38,6 +38,7 @@ static APIRET finalizeOpen(struct opencreate * popencreate,
 
    /* Fill in the sffsi structure. */
    coreToSffsi(fHidden, pInfo, &popencreate->sffsi);
+   popencreate->sffsi.sfi_position = 0;
    if (hasNon83Name(pszName))
       popencreate->sffsi.sfi_DOSattr |= FILE_NON83;
    logsffsi(&popencreate->sffsi);
@@ -60,7 +61,6 @@ static APIRET createFile(struct opencreate * popencreate,
    CryptedFileInfo info;
 
    /* Create a new regular file with the requested initial size. */
-   if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
    memset(&info, 0, sizeof(info));
    info.flFlags = CFF_IFREG | 0600; /* rw for user */
    info.cRefs = 1;

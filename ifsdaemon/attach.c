@@ -208,9 +208,7 @@ static APIRET attachVolume(ServerData * pServerData,
 
    /* Open the volume. */
    coreSetDefVolumeParms(&vparms);
-   if (pVolData->fReadOnly)
-      vparms.flOpenFlags = (vparms.flOpenFlags & ~SOF_RWMASK) |
-         SOF_READONLY;
+   vparms.fReadOnly = fReadOnly;
    vparms.cMaxCryptedFiles = pServerData->cMaxCryptedFiles;
    vparms.cMaxOpenStorageFiles = pServerData->cMaxOpenStorageFiles;
    vparms.csMaxCached = pServerData->csMaxCached;
@@ -319,10 +317,15 @@ static APIRET detachVolume(ServerData * pServerData,
    static AEFS_DETACH defparms = { 0 };
 
    if (pattach->cbParm != sizeof(AEFS_DETACH)) parms = &defparms;
-      
-   GET_VOLUME(pattach);
 
    logMsg(L_DBG, "detaching drive, flFlags=%lx", parms->flFlags);
+
+   pVolData = pServerData->paVolumes[pattach->vpfsd.data[0]];
+   if (!pVolData) {
+       logMsg(L_EVIL,
+           "drive is unknown (left over from previous server?)");
+       return NO_ERROR;
+   }
 
    /* Open files or searches? */
    if (pVolData->cOpenFiles) {
@@ -471,7 +474,6 @@ static APIRET getSetVolSer(ServerData * pServerData,
           (pvollabel->cch > 11))
          return ERROR_INVALID_PARAMETER;
       else {
-         if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
          strcpy(pszLabel, pvollabel->szVolLabel);
          pszLabel[pvollabel->cch] = 0;
          logMsg(L_DBG, "new volume label: %s", pszLabel);
