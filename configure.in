@@ -1,7 +1,7 @@
 dnl configure.in   -*-shell-script-*-
 dnl Process this file with autoconf to produce a configure script. 
 
-AC_INIT(Makefile.incl.in)
+AC_INIT(Makefile.conf.in)
 AC_CONFIG_HEADER(config.h)
 
 AC_CANONICAL_SYSTEM
@@ -64,4 +64,4 @@ AC_SUBST(OPTFLAGS)
 
 AC_SUBST(SHELL)
 
-AC_OUTPUT(Makefile.incl)
+AC_OUTPUT(Makefile.conf)
