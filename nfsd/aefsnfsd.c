@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.19 2001/03/04 22:54:14 eelco Exp $
+   $Id: aefsnfsd.c,v 1.20 2001/03/04 23:10:10 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -271,7 +271,7 @@ static void freeDirCacheEntry(DirCacheEntry * pEntry)
 }
 
 
-#define DIRCACHE_SIZE 1
+#define DIRCACHE_SIZE 32
 static DirCacheEntry * dirCache[DIRCACHE_SIZE];
 
 
@@ -300,9 +300,7 @@ static nfsstat queryDirEntries(fsid fs, CryptedFileID idDir,
             (dirCache[i]->idDir == idDir)) {
             /* Move pEntry to the front of the MRU list. */
             pEntry = dirCache[i];
-            for (j = i + 1; j < DIRCACHE_SIZE; j++)
-                dirCache[j - 1] = dirCache[j];
-            for (j = DIRCACHE_SIZE - 1; j > 0; j++)
+            for (j = i; j > 0; j--)
                 dirCache[j] = dirCache[j - 1];
             dirCache[0] = pEntry;
             *ppEntry = pEntry;
@@ -347,7 +345,7 @@ static nfsstat queryDirEntries(fsid fs, CryptedFileID idDir,
     
     if (dirCache[DIRCACHE_SIZE - 1])
         freeDirCacheEntry(dirCache[DIRCACHE_SIZE - 1]);
-    for (j = DIRCACHE_SIZE - 1; j > 0; j++)
+    for (j = DIRCACHE_SIZE - 1; j > 0; j--)
         dirCache[j] = dirCache[j - 1];
 
     dirCache[0] = pEntry;
@@ -1175,6 +1173,8 @@ static nfsstat createFile(diropargs * where, sattr * attrs,
     cr = coreCreateBaseFile(GET_VOLUME(fs), &info, &idFile);
     if (cr) return core2nfsstat(cr);
 
+    dirtyDir(fs, idDir);
+
     /* Add an entry for the newly created file to the directory. */
     cr = coreAddEntryToDir(GET_VOLUME(fs), idDir, 
         where->name, idFile, 0);
@@ -1182,8 +1182,6 @@ static nfsstat createFile(diropargs * where, sattr * attrs,
 	coreDeleteFile(GET_VOLUME(fs), idFile);
 	return core2nfsstat(cr);
     }
-
-    dirtyDir(fs, idDir);
 
     /* Stamp the directory's mtime. */
     if (res = stampFile(fs, idDir)) return res;
@@ -1261,10 +1259,11 @@ static nfsstat removeFile(fsid fs, CryptedFileID idDir,
     res = havePerm2(1 | 2, pUser, fs, idDir);
     if (res) return res;
 
+    dirtyDir(fs, idDir);
+    dirtyDir(fs, idFile);
+
     cr = coreMoveDirEntry(GET_VOLUME(fs), pszName, idDir, 0, 0);
     if (cr) return core2nfsstat(cr);
-
-    dirtyDir(fs, idDir);
 
     /* Stamp the directory's mtime. */
     if (res = stampFile(fs, idDir)) return res;
@@ -1332,6 +1331,9 @@ nfsstat * nfsproc_rename_2_svc(renameargs * args, struct svc_req * rqstp)
     res = havePerm2(1 | 2, &user, fs, idTo);
     if (res) return &res;
 
+    dirtyDir(fs, idFrom);
+    dirtyDir(fs, idTo);
+
     cr = coreMoveDirEntry(GET_VOLUME(fs),
         args->from.name, idFrom,
         args->to.name, idTo);
@@ -1340,9 +1342,6 @@ nfsstat * nfsproc_rename_2_svc(renameargs * args, struct svc_req * rqstp)
         return &res;
     }
     
-    dirtyDir(fs, idFrom);
-    dirtyDir(fs, idTo);
-
     /* Stamp the mtimes of the directories. */
     if (res = stampFile(fs, idFrom)) return &res;
     if (res = stampFile(fs, idTo)) return &res;
@@ -1378,6 +1377,8 @@ nfsstat * nfsproc_link_2_svc(linkargs * args, struct svc_req * rqstp)
         return &res;
     }
     
+    dirtyDir(fs, idDir);
+
     cr = coreAddEntryToDir(GET_VOLUME(fs),
         idDir, args->to.name, idFile, 0);
     if (cr) {
@@ -1386,8 +1387,6 @@ nfsstat * nfsproc_link_2_svc(linkargs * args, struct svc_req * rqstp)
     }
 
     /* !!! inc ref count */
-
-    dirtyDir(fs, idDir);
 
     res = volumeDirty(fs);
     if (res) return &res;
