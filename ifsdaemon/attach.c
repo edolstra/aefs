@@ -1,7 +1,7 @@
 /* attach.h -- Handles (at|de)tachments and other volume stuff.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: attach.c,v 1.8 2001/09/23 13:30:13 eelco Exp $
+   $Id: attach.c,v 1.9 2001/11/30 21:05:10 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -158,7 +158,7 @@ static APIRET attachVolume(ServerData * pServerData,
 
    /* The base path must be absolute. */
    if ((strncmp(parms->szBasePath, "\\\\", 2) != 0) && /* UNC */
-       (strncmp(parms->szBasePath, "////", 2) != 0) && /* UNC */
+       (strncmp(parms->szBasePath, "//",   2) != 0) && /* UNC */
        ((strlen(parms->szBasePath) < 3) ||
         (!isalpha((unsigned char) parms->szBasePath[0])) ||
         (parms->szBasePath[1] != ':') ||
@@ -424,7 +424,7 @@ static APIRET getSetAllocInfo(ServerData * pServerData,
 
       /* Query info about the underlying file system. */
       rc = DosQueryFSInfo(
-         toupper(pVolData->pSuperBlock->pszBasePath[0]) - 64,
+         toupper(pVolData->pSuperBlock->szBasePath[0]) - 64,
          FSIL_ALLOC,
          &fsallocReal,
          sizeof(fsallocReal));
