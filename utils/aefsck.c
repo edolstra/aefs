@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsck.c,v 1.6 2000/12/26 21:53:43 eelco Exp $
+   $Id: aefsck.c,v 1.7 2000/12/26 21:57:11 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1601,7 +1601,7 @@ static int followExtEAFile(State * pState, FSItem * fsi)
 
       /* If the EAs are bad, checkEAs() will have detached the current
          EA file and created a new one.  In that case, the old one
-         must be moved to `/lost_found' (so we shouldn't increase it's
+         must be moved to `/lost+found' (so we shouldn't increase it's
          reference count). */ 
 
       if (fsi->info.idEAFile == fsic->id)
