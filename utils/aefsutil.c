@@ -2,7 +2,7 @@
    directories from an AEFS file system.
    Copyright (C) 2001 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsutil.c,v 1.4 2001/03/06 14:22:03 eelco Exp $
+   $Id: aefsutil.c,v 1.5 2001/03/06 15:10:32 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -49,6 +49,7 @@ char * pszProgramName;
 #define FL_LONG         2
 #define FL_PRESERVE     4
 #define FL_VERYLONG     8
+#define FL_FORCE       16
 
 
 static void printUsage(int status);
@@ -59,6 +60,32 @@ static void paramError()
    fprintf(stderr, "%s: missing or too many parameters\n",
       pszProgramName);
    printUsage(1);
+}
+
+
+static int showInfo(SuperBlock * pSuperBlock, unsigned int flFlags)
+{
+   printf("\
+    Version: %d.%d.%d\n\
+    Root ID: %08lx\n\
+  DOS label: \"%s\"\n\
+Description: \"%s\"\n\
+      Flags: %s\n\
+Cipher type: %s-%d-%d (%s)\n\
+",
+      (pSuperBlock->version >> 16) & 0xff,
+      (pSuperBlock->version >> 8) & 0xff,
+      pSuperBlock->version & 0xff,
+      pSuperBlock->idRoot,
+      pSuperBlock->szLabel,
+      pSuperBlock->szDescription,
+      pSuperBlock->flFlags & SBF_DIRTY ? "dirty " : "",
+      pSuperBlock->pKey->pCipher->pszID,
+      pSuperBlock->pKey->cbKey * 8,
+      pSuperBlock->pKey->cbBlock * 8,
+      pSuperBlock->pKey->pCipher->pszDescription
+      );
+   return 0;
 }
 
 
@@ -372,14 +399,18 @@ static int doCommand(char * pszKey, char * pszBasePath,
    cr = coreReadSuperBlock(szBasePath, pszKey, cipherTable, 
       &parms, &pSuperBlock);
    if (cr) {
-      if (pSuperBlock) coreDropSuperBlock(pSuperBlock);
       fprintf(stderr, "%s: unable to read superblock: %s\n", 
          pszProgramName, core2str(cr));
-      return 1;
+      if (!pSuperBlock || !(flFlags & FL_FORCE)) {
+          if (pSuperBlock) coreDropSuperBlock(pSuperBlock);
+          return 1;
+      }
    }
 
-   if (strcmp(pszCommand, "ls") == 0) 
-   {
+   if (strcmp(pszCommand, "info") == 0) {
+      if (argc != 0) paramError();
+      res = showInfo(pSuperBlock, flFlags);
+   } else if (strcmp(pszCommand, "ls") == 0) {
       if (argc != 1) paramError();
       res = listDir(pSuperBlock, argv[0], flFlags);
    } else if (strcmp(pszCommand, "dump") == 0) {
@@ -414,6 +445,7 @@ List directories on or extract files from the AEFS file system stored\n\
 in AEFS-PATH.\n\
 \n\
   -d, --directory    list directory entries instead of contents\n\
+  -f, --force        continue in case of an unreadable superblock\n\
   -k, --key=KEY      use specified key, do not ask\n\
   -l, --long         show detailed file information\n\
       --verylong     show very detailed file information\n\
@@ -423,6 +455,7 @@ in AEFS-PATH.\n\
 \n\
 COMMAND is one of the following:\n\
 \n\
+  info               show information about the file system\n\
   ls PATH            list directory contents\n\
   dump PATH          extract recursively to the current directory\n\
   cat PATH           extract file to standard output\n\
@@ -456,6 +489,7 @@ int main(int argc, char * * argv)
       { "version", no_argument, 0, 2 },
       { "key", required_argument, 0, 'k' },
       { "directory", no_argument, 0, 'd' },
+      { "force", no_argument, 0, 'f' },
       { "long", no_argument, 0, 'l' },
       { "verylong", no_argument, 0, 3 },
       { "preserve", no_argument, 0, 'p' },
@@ -464,7 +498,7 @@ int main(int argc, char * * argv)
 
    pszProgramName = argv[0];
 
-   while ((c = getopt_long(argc, argv, "k:dlp", options, 0)) != EOF) {
+   while ((c = getopt_long(argc, argv, "k:dflp", options, 0)) != EOF) {
       switch (c) {
          case 0:
             break;
@@ -484,6 +518,10 @@ int main(int argc, char * * argv)
 
          case 'd': /* --directory */
             flFlags |= FL_DIR;
+            break;
+
+         case 'f': /* --force */
+            flFlags |= FL_FORCE;
             break;
 
          case 'l': /* --long */
