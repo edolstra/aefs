@@ -6,9 +6,12 @@ import ../corefs;
 
 default = utils;
 
-utils = [mkaefs];
+activate = map ({p}: activateExec (p), utils);
+
+utils = [mkaefs aefsck];
 
 mkaefs = put (./mkaefs, makeProgram ([./mkaefs.c ./utilutils.c]));
+aefsck = put (./aefsck, makeProgram ([./aefsck.c ./utilutils.c]));
 
 makeProgram = {srcs}: link 
   { in = srcs
