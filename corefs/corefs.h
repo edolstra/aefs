@@ -1,7 +1,7 @@
 /* corefs.h -- Header file to the system-independent FS code.
-   Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
+   Copyright (C) 1999, 2002 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: corefs.h,v 1.11 2001/12/28 19:21:02 eelco Exp $
+   $Id: corefs.h,v 1.12 2002/01/21 20:48:18 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -380,8 +380,15 @@ struct _CryptedDirEntry {
    The file name may not contain a null byte.  Other than that, the
    corefs places no discipline on file names (they may be encoded in 
    ASCII or UTF-8, for example).
+
    The list of entries is zero-terminated.  A zero-length directory
-   file denotes an empty directory. */
+   file denotes an empty directory.
+
+   Note: the file names do not need to be sorted.  addToList() in
+   coreutils.c does try to keep them sorted w.r.t. the current
+   comparator, but don't count on it.  If upper layers expect them
+   sorted, you must sort the output of coreQueryDirEntries() yourself.
+*/
 
 /* Flags for CryptedDirEntry.flFlags. */
 #define CDF_NOT_EOL           1 /* on-disk only */
