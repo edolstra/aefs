@@ -8,7 +8,7 @@ ifeq ($(SYSTEM), os2)
 
 PROGS = mntaefs.c umntaefs.c aefsparm.c
 
-LIBS = $(BASE)/misc/getopt.a $(BASE)/utils/utilutils.o
+LIBS = $(BASE)/misc/misc.a $(BASE)/utils/utilutils.o
 
 all: $(PROGS:.c=$(EXE))
 

@@ -16,7 +16,7 @@ SRCS = aefsdmn.c attach.c find.c misc.c dir.c openclose.c \
  fileio.c fileinfo.c fileop.c ea.c utils.c
 
 LIBS = $(BASE)/corefs/corefs.a $(BASE)/ciphers/ciphers.a \
- $(BASE)/misc/getopt.a \
+ $(BASE)/misc/misc.a \
  $(BASE)/system/$(SYSTEM)/sysdep.a
 
 all: aefsdmn$(EXE)

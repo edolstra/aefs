@@ -11,9 +11,9 @@ PROGS = mkaefs.c aefsck.c aefsdump.c
 
 SRCS = $(PROGS) utilutils.c
 
-LIBS = utilutils.o $(BASE)/misc/getopt.a \
+LIBS = utilutils.o \
  $(BASE)/corefs/corefs.a $(BASE)/ciphers/ciphers.a \
- $(BASE)/system/$(SYSTEM)/sysdep.a 
+ $(BASE)/system/$(SYSTEM)/sysdep.a $(BASE)/misc/misc.a
 
 all: $(PROGS:.c=$(EXE))
 
