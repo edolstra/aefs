@@ -76,7 +76,7 @@ static CoreResult decodeDir(CryptedFilePos cbDir,
       cbName = bytesToInt32(pabDir + 4);
       cbDir -= 8, pabDir += 8;
       pszName = pabDir;
-      if (cbDir < cbName) return CORERC_BAD_EAS;
+      if (cbDir < cbName) return CORERC_BAD_DIRECTORY;
       cbDir -= cbName, pabDir += cbName;
       
       /* Create a new directory entry structure. */
