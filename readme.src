@@ -15,6 +15,33 @@
   names and extended attributes.  It's also reasonably fast.
 
 
+þh2 Changes in version 0.2
+
+  The following bugs were fixed:
+
+þitemize
+
+þitem
+
+  The FSD didn't correctly deal with interrupted client processes.
+  If a process waiting for the FSD to complete a request would receive
+  a signal (e.g. break or kill), then the daemon might corrupt the
+  next request or even crash.
+
+þitem
+
+  Seeks relative to the end of the file didn't work properly because
+  the FS_WRITE operation forgot to update the size field of the
+  kernel's sffsi data structure.  This causes e.g. gnutar to fail.
+
+þitem
+
+  Setting file info on an open file (DosSetFileInfo) would
+  reset the file position to 0.
+
+þenditemize
+
+
 þh2 Requirements
 
   This software requires the EMX runtime.  It can be downloaded from:
