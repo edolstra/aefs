@@ -1,7 +1,7 @@
 /* utils.c -- Helper routines for the daemon.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: utils.c,v 1.10 2001/09/23 13:56:30 eelco Exp $
+   $Id: utils.c,v 1.11 2002/01/21 19:43:41 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -49,7 +49,7 @@ int verifyPathName(char * pszName)
 
 /* Invalid characters for DOS file names (from CP Guide & Reference,
    "File Names in the FAT File System"). */
-#define DOSBADCHARS "<>|+=:;,.\"/\\[]"
+static char DOSBADCHARS[] = "<>|+=:;,.\"/\\[]";
 
 
 /* Return true iff the specified name is not a valid DOS (that is,
