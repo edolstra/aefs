@@ -24,9 +24,9 @@
 Cipher * cipherTable[] =
 {
    /* The first cipher is the default for mkaefs. */
+   &cipherRijndael,
    &cipherTwofish,
    &cipherTwofish2,
-   &cipherRijndael,
    &cipherIdentity,
    0 
 };
