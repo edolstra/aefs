@@ -89,8 +89,8 @@ static Key * makeKey(char * pszCipher, char * pszKey)
    cr = coreHashKey(pszKey, abKey, cbKey);
    memset(szKey, 0, sizeof(szKey)); /* burn */
    if (cr) {
-      fprintf(stderr, "%s: error hashing key, cr = %d\n",
-         pszProgramName, cr);
+      fprintf(stderr, "%s: error hashing key: %s\n",
+         pszProgramName, core2str(cr));
       return 0;
    }
 
@@ -147,15 +147,15 @@ int createISF(CryptedVolume * pVolume)
    
    cr = coreCreateFile(pVolume, INFOSECTORFILE_ID, 1);
    if (cr) {
-      fprintf(stderr, "%s: unable to init info sector file, cr = %d\n",
-         pszProgramName, cr);
+      fprintf(stderr, "%s: unable to init info sector file: %s\n",
+         pszProgramName, core2str(cr));
       return 1;
    }
    
    cr = coreInitISF(pVolume);
    if (cr) {
-      fprintf(stderr, "%s: unable to init info sector file, cr = %d\n",
-         pszProgramName, cr);
+      fprintf(stderr, "%s: unable to init info sector file: %s\n",
+         pszProgramName, core2str(cr));
       return 1;
    }
 
@@ -177,8 +177,8 @@ int initVolume(char * pszBasePath, Key * pKey,
    /* Create the root directory. */
    cr = makeRootDir(pVolume, &idRootDir);
    if (cr) {
-      fprintf(stderr, "%s: unable to create root directory, cr = %d\n",
-         pszProgramName, cr);
+      fprintf(stderr, "%s: unable to create root directory: %s\n",
+         pszProgramName, core2str(cr));
       return 1;
    }
 
@@ -199,8 +199,8 @@ int initVolume(char * pszBasePath, Key * pKey,
    /* Write the superblock. */
    cr = coreWriteSuperBlock(&superblock, 0);
    if (cr) {
-      fprintf(stderr, "%s: unable to write the superblocks, cr = %d\n",
-         pszProgramName, cr);
+      fprintf(stderr, "%s: unable to write the superblocks: %s\n",
+         pszProgramName, core2str(cr));
       return 1;
    }
 
@@ -249,8 +249,8 @@ int createVolumeInPath(char * pszBasePath, Key * pKey,
    
    cr = coreAccessVolume(szBasePath, pKey, &parms, &pVolume);
    if (cr) {
-      fprintf(stderr, "%s: unable to create superblock, cr = %d\n",
-         pszProgramName, cr);
+      fprintf(stderr, "%s: unable to create superblock: %s\n",
+         pszProgramName, core2str(cr));
       return 1;
    }
 
@@ -261,8 +261,8 @@ int createVolumeInPath(char * pszBasePath, Key * pKey,
    /* Drop the volume, commit all writes. */
    cr = coreDropVolume(pVolume);
    if (cr) {
-      fprintf(stderr, "%s: unable to commit volume, cr = %d\n",
-         pszProgramName, cr);
+      fprintf(stderr, "%s: unable to commit volume: %s\n",
+         pszProgramName, core2str(cr));
       res = 1;
    }
 

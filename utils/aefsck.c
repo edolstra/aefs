@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsck.c,v 1.8 2000/12/27 15:50:51 eelco Exp $
+   $Id: aefsck.c,v 1.9 2000/12/30 21:26:22 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -136,7 +136,7 @@ static int writeSuperBlock(SuperBlock * pSuperBlock)
 {
    CoreResult cr;
    if (cr = coreWriteSuperBlock(pSuperBlock, 0)) {
-      printf("superblock: error writing, cr = %d\n", cr);
+      printf("superblock: error writing: %s\n", core2str(cr));
       return AEFSCK_ABORT;
    }
    return 0;
@@ -162,9 +162,9 @@ static int checkSuperBlock(State * pState)
       case CORERC_OK:
          break;
 
-      case CORERC_STORAGE:
+      case CORERC_FILE_NOT_FOUND:
          res |= AEFSCK_ERRORFOUND;
-         printf("superblock: I/O error reading encrypted part\n");
+         printf("superblock: encrypted part doesn't exist\n");
          if ((pState->flags & FSCK_FORCEFIX) &&
              ask("Attemp superblock reconstruction?  %s", szKeyWarning)
                 == ASK_YES)
@@ -225,8 +225,8 @@ static int checkSuperBlock(State * pState)
          break;
          
       default:
-         printf("superblock: unexpected error, cr = %d\n",
-            pState->readcr);
+         printf("superblock: cannot access superblock: %s\n",
+            core2str(pState->readcr));
          return AEFSCK_FAIL;
    }
 
@@ -489,16 +489,16 @@ static int scanFile(State * pState, FSItem * fsi)
                   0, 0); /* writing 0 bytes will dirty the sector */
                cr = coreFlushSector(pState->pVolume, fsi->id, cs);
                if (cr) {
-                  printf("%s: unable to flush sector %ld, cr = %d\n",
-                     printFileName(pState, fsi->id), cs, cr);
+                  printf("%s: unable to flush sector %ld: %s\n",
+                     printFileName(pState, fsi->id), cs, core2str(cr));
                   res |= AEFSCK_ABORT;
                }
             } else printf("\n");
             break;
 
          default:
-            printf("%s: cannot read sector %ld, cr = %d\n",
-               printFileName(pState, fsi->id), cs, cr);
+            printf("%s: cannot read sector %ld: %s\n",
+               printFileName(pState, fsi->id), cs, core2str(cr));
             res |= AEFSCK_ERRORFOUND | AEFSCK_NOTFIXED;
       }
       
@@ -533,7 +533,7 @@ static int createInfoSector(State * pState, FSItem * fsi)
       cr = coreSetFileAllocation(pState->pVolume,
          INFOSECTORFILE_ID, fsi->id + 1);
       if (cr) {
-         printf("isf: cannot resize, cr = %d\n", cr);
+         printf("isf: cannot resize: %s\n", core2str(cr));
          return res | AEFSCK_ABORT;
       }
       pState->csISFSize = fsi->id + 1;
@@ -541,7 +541,7 @@ static int createInfoSector(State * pState, FSItem * fsi)
 
    cr = coreSetFileInfo(pState->pVolume, fsi->id, &fsi->info);
    if (cr) {
-      printf("isf: cannot resize, cr = %d\n", cr);
+      printf("isf: cannot resize: %s\n", core2str(cr));
       return res | AEFSCK_ABORT;
    }
 
@@ -573,8 +573,8 @@ static int checkInfoSector(State * pState, FSItem * fsi)
    cr = coreQueryFileInfo(pState->pVolume, fsi->id, &fsi->info);
    if (cr) {
       res |= AEFSCK_ERRORFOUND;
-      printf("file %08lx: cannot read info sector, cr = %d",
-         fsi->id, cr);
+      printf("file %08lx: cannot read info sector: %s",
+         fsi->id, core2str(cr));
       makeDefaultFileInfo(pState, fsi);
       if (pState->flags & FSCK_FIX) {
          printf(", rewriting with default values\n");
@@ -638,7 +638,7 @@ static int checkFreeList(State * pState)
    cr = coreQuerySectorData(pState->pVolume, INFOSECTORFILE_ID, 0,
       0, sizeof(sentinel), 0, &sentinel);
    if (cr) {
-      printf("isf: cannot read free list sentinel, cr = %d\n", cr);
+      printf("isf: cannot read free list sentinel: %s\n", core2str(cr));
       return AEFSCK_ERRORFOUND;
    }
    
@@ -738,8 +738,8 @@ static int rewriteFreeList(State * pState)
          
       cr = coreFlushSector(pState->pVolume, INFOSECTORFILE_ID, idCur);
       if (cr) {
-         printf("isf: unable to write free list entry %08lx, cr = %d\n",
-            idCur, cr);
+         printf("isf: unable to write free list entry %08lx: %s\n",
+            idCur, core2str(cr));
          return AEFSCK_ABORT;
       }
 
@@ -784,12 +784,12 @@ retry:
       printf(", recreating\n");
       cr = coreCreateFile(pState->pVolume, INFOSECTORFILE_ID, 1);
       if (cr) {
-         printf("isf: cannot create, cr = %d\n", cr);
+         printf("isf: cannot create: %s\n", core2str(cr));
          return res | AEFSCK_ABORT;
       }
       cr = coreInitISF(pState->pVolume);
       if (cr) {
-         printf("isf: cannot init, cr = %d\n", cr);
+         printf("isf: cannot init: %s\n", core2str(cr));
          return res | AEFSCK_ABORT;
       }
 
@@ -813,7 +813,7 @@ retry:
          cr = coreSetFileAllocation(pState->pVolume,
             INFOSECTORFILE_ID, st.st_size / SECTOR_SIZE);
          if (cr) {
-            printf("isf: cannot truncate, cr = %d\n", cr);
+            printf("isf: cannot truncate: %s\n", core2str(cr));
             return res | AEFSCK_ABORT;
          }
          goto retry;
@@ -883,7 +883,7 @@ static int createRoot(State * pState)
    cr = coreCreateBaseFile(pState->pVolume, &info,
       &pState->pSuperBlock->idRoot);
    if (cr) {
-      printf("root: cannot create, cr = %d\n", cr);
+      printf("root: cannot create: %s\n", core2str(cr));
       return res | AEFSCK_ABORT;
    }
 
@@ -910,8 +910,8 @@ static int writeFileInfo(State * pState, FSItem * fsi)
    CoreResult cr;
    cr = coreSetFileInfo(pState->pVolume, fsi->id, &fsi->info);
    if (cr) {
-      printf("%s: cannot write file info, cr = %d\n",
-         printFileName(pState, fsi->id), cr);
+      printf("%s: cannot write file info: %s\n",
+         printFileName(pState, fsi->id), core2str(cr));
       return AEFSCK_ABORT;
    }
    return 0;
@@ -1046,8 +1046,8 @@ static int checkEAs(State * pState, FSItem * fsi)
    if (cr) {
       
       res |= AEFSCK_ERRORFOUND;
-      printf("%s: error reading EAs, cr = %d",
-         printFileName(pState, fsi->id), cr);
+      printf("%s: error reading EAs: %s",
+         printFileName(pState, fsi->id), core2str(cr));
       
       if (pState->flags & FSCK_FIX) {
          printf(", rewriting salvaged EAs\n");
@@ -1057,8 +1057,8 @@ static int checkEAs(State * pState, FSItem * fsi)
          
          cr = coreSetEAs(pState->pVolume, fsi->id, pFirstEA);
          if (cr) {
-            printf("file %08lx: cannot write EAs, cr = %d\n",
-               fsi->id, cr);
+            printf("file %08lx: cannot write EAs: %s\n",
+               fsi->id, core2str(cr));
             coreFreeEAs(pFirstEA);
             return res | AEFSCK_ABORT;
          }
@@ -1067,8 +1067,8 @@ static int checkEAs(State * pState, FSItem * fsi)
             coreSetEAs(). */
          cr = coreQueryFileInfo(pState->pVolume, fsi->id, &fsi->info);
          if (cr) {
-            printf("%s: cannot read file info, cr = %d\n", 
-               printFileName(pState, fsi->id), cr);
+            printf("%s: cannot read file info: %s\n", 
+               printFileName(pState, fsi->id), core2str(cr));
             return res | AEFSCK_ABORT;
          }
          
@@ -1147,14 +1147,14 @@ static int checkFileInfo(State * pState, FSItem * fsi)
          cr = coreSetFileSize(pState->pVolume, fsi->id,
             fsi->info.cbFileSize);
          if (cr) {
-            printf("%s: cannot set size, cr = %d\n", 
-               printFileName(pState, fsi->id), cr);
+            printf("%s: cannot set size: %s\n", 
+               printFileName(pState, fsi->id), core2str(cr));
             return res | AEFSCK_ABORT;
          }
          cr = coreQueryFileInfo(pState->pVolume, fsi->id, &fsi->info);
          if (cr) {
-            printf("%s: cannot read file info, cr = %d\n", 
-               printFileName(pState, fsi->id), cr);
+            printf("%s: cannot read file info: %s\n", 
+               printFileName(pState, fsi->id), core2str(cr));
             return res | AEFSCK_ABORT;
          }
       } else printf("\n");
@@ -1245,8 +1245,8 @@ static int readDirectory(State * pState, FSItem * fsi)
       &fsi->pChildren);
    if (cr) {
       res |= AEFSCK_ERRORFOUND;
-      printf("directory %08lx: error reading contents, cr = %d",
-         fsi->id, cr);
+      printf("directory %08lx: error reading contents: %s",
+         fsi->id, core2str(cr));
       if (pState->flags & FSCK_FIX) {
          printf(", will rewrite salvaged entries\n");
          fsi->flags |= FSI_REWRITEDIR;
@@ -1637,7 +1637,7 @@ static int createLostFoundDir(State * pState)
    /* uid and gid are set to 0 */
    cr = coreCreateBaseFile(pState->pVolume, &info, &id);
    if (cr) {
-      printf("lost+found: cannot create, cr = %d\n", cr);
+      printf("lost+found: cannot create: %s\n", core2str(cr));
       return res | AEFSCK_ABORT;
    }
 
@@ -1649,8 +1649,8 @@ static int createLostFoundDir(State * pState)
          szName, id, 0);
       if (!cr) break;
       if (cr != CORERC_FILE_EXISTS) {
-         printf("root: cannot add file `%s' to root, cr = %d\n",
-            szName, cr);
+         printf("root: cannot add file `%s' to root: %s\n",
+            szName, core2str(cr));
          return res | AEFSCK_ABORT;
       }
    }
@@ -1678,7 +1678,7 @@ static int findLostFoundDir(State * pState)
    if (cr) {
       
       if (cr != CORERC_FILE_NOT_FOUND) {
-         printf("root: cannot find lost+found, cr = %d\n", cr);
+         printf("root: cannot find lost+found: %s\n", core2str(cr));
          return res | AEFSCK_ABORT;
       }
       
@@ -1686,7 +1686,7 @@ static int findLostFoundDir(State * pState)
 
       cr = coreQueryFileInfo(pState->pVolume, id, &info);
       if (cr) {
-         printf("lost+found: cannot query file info, cr = %d\n", cr);
+         printf("lost+found: cannot query file info: %s\n", core2str(cr));
          return res | AEFSCK_ABORT;
       }
 
@@ -1740,8 +1740,8 @@ static int moveToLostFoundDir(State * pState, FSItem * fsi)
          szName, fsi->id, 0);
       if (!cr) break;
       if (cr != CORERC_FILE_EXISTS) {
-         printf("%s: cannot add to lost+found, cr = %d\n",
-            printFileName(pState, fsi->id), cr);
+         printf("%s: cannot add to lost+found: %s\n",
+            printFileName(pState, fsi->id), core2str(cr));
          return res | AEFSCK_ABORT;
       }
    }
@@ -1825,8 +1825,8 @@ static int writeDirectory(State * pState, FSItem * fsi)
    cr = coreSetDirEntries(pState->pVolume, fsi->id,
       fsi->pChildren);
    if (cr) {
-      printf("%s: cannot rewrite directory entries, cr = %d\n",
-         printFileName(pState, fsi->id), cr);
+      printf("%s: cannot rewrite directory entries: %s\n",
+         printFileName(pState, fsi->id), core2str(cr));
       return res | AEFSCK_ABORT;
    }
 
@@ -1957,7 +1957,7 @@ static int checkFS2(int flags, char * pszBasePath, char * pszKey)
    cr = coreReadSuperBlock(szBasePath, pszKey, cipherTable, &parms,
       &state.pSuperBlock);
    if (!state.pSuperBlock) {
-      printf("superblock: unable to read, cr = %d\n", cr);
+      printf("superblock: unable to read: %s\n", core2str(cr));
       return AEFSCK_ABORT;
    }
    state.pVolume = state.pSuperBlock->pVolume;
@@ -1968,8 +1968,8 @@ static int checkFS2(int flags, char * pszBasePath, char * pszKey)
    cr = coreDropSuperBlock(state.pSuperBlock);
    if (cr) {
       printf(
-         "filesystem: cannot close (error committing changes), "
-         "cr = %d\n", cr);
+         "filesystem: cannot close (error committing changes): %s\n",
+         core2str(cr));
       res |= AEFSCK_ABORT;
    }
 

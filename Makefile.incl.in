@@ -16,6 +16,11 @@ INSTALL_DIR = $(INSTALL) -d
 INSTALL_PROGRAM = @INSTALL_PROGRAM@ -s
 INSTALL_DATA = @INSTALL_DATA@
 
+CC = @CC@
+CP = @CP@
+RM = @RM@
+EXE = @EXEEXT@
+
 DEFS = -DSYSTEM_$(SYSTEM) -DAEFS_VERSION=$(AEFS_VERSION)
 
 SYSINCL = @SYSINCL@
@@ -27,8 +32,10 @@ ifneq ($(DEBUG),1)
 OPTFLAGS = @OPTFLAGS@
 endif
 SYSCFLAGS = @SYSCFLAGS@
-CFLAGS = -Wall -Wno-parentheses -pedantic \
- $(SYSINCL) $(INCL) $(SYSCFLAGS) $(OPTFLAGS) $(DEFS)
+ifeq ($(CC),gcc)
+CFLAGS += -Wall -Wno-parentheses
+endif
+CFLAGS += $(SYSINCL) $(INCL) $(SYSCFLAGS) $(OPTFLAGS) $(DEFS)
 
 SYSLDFLAGS = @SYSLDFLAGS@
 LDFLAGS = $(SYSLDFLAGS)
@@ -39,27 +46,21 @@ CFLAGS += -g
 LDFLAGS += -g
 endif
 
-CC = @CC@
-CP = @CP@
-RM = @RM@
-EXE = @EXEEXT@
-
-
 %.d: %.c
 	$(CC) $(CFLAGS) -MM -MG $< \
 		| sed "s/\($*\)\.o[ :]*/\1.o $@ : /g" > $@
 
 %.h: %.x
-	rpcgen -h $^ > $@
+	rpcgen -C -h $^ > $@
 
 %_xdr.c: %.x
-	rpcgen -c $^ > $@
+	rpcgen -C -c $^ > $@
 
 %_clnt.c: %.x
-	rpcgen -l $^ > $@
+	rpcgen -C -l $^ > $@
 
 %_svc.c: %.x
-	rpcgen -m $^ > $@
+	rpcgen -C -m $^ > $@
 
 
 default: all

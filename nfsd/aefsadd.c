@@ -1,7 +1,7 @@
 /* aefsadd.c -- Utility to add file systems to the AEFS NFS server.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsadd.c,v 1.8 2000/12/30 12:36:49 eelco Exp $
+   $Id: aefsadd.c,v 1.9 2000/12/30 21:26:18 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -315,19 +315,11 @@ int main(int argc, char * * argv)
             ret = 0;
             break;
         case ADDFS_CORE:
-            switch (res->cr) {
-                case CORERC_BAD_CHECKSUM:
-                    fprintf(stderr, "%s: invalid key\n",
-                        pszProgramName);
-                    break;
-                case CORERC_STORAGE:
-                    fprintf(stderr, "%s: I/O error "
-                        "accessing the ciphertext\n",
-                        pszProgramName);
-                    break;
-                default:
-                    fprintf(stderr, "%s: aefsnfsd returned core error %d\n",
-                        pszProgramName, res->cr);
+            if (res->cr == CORERC_BAD_CHECKSUM) {
+                fprintf(stderr, "%s: invalid key\n", pszProgramName);
+            } else {
+                fprintf(stderr, "%s: aefsnfsd returned error: %s\n",
+                    pszProgramName, core2str(res->cr));
             }
             break;
         case ADDFS_DIRTY:

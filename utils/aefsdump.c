@@ -152,8 +152,8 @@ int main(int argc, char * * argv)
 
    cr = coreHashKey(pszKey, abKey, cbKey);
    if (cr) {
-      fprintf(stderr, "%s: error hashing key, cr = %d\n",
-         pszProgramName, cr);
+      fprintf(stderr, "%s: error hashing key: %s\n",
+         pszProgramName, core2str(cr));
       return 0;
    }
 
