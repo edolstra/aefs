@@ -250,11 +250,11 @@
   þtt{--fix} is specified, it will rewrite sectors with wrong
   checksums.
 
-þitem þsy{--verbose, -v}
+þitem þsy{--quiet, -q}
 
-  Report on the several phases that þtt{aefsck} goes through.  Without
-  this flag, þtt{aefsck} will run silently, only reporting errors and
-  the actions subsequently taken.
+  Run silently; only report errors and the actions subsequently taken.
+  If this flag is not given, then þtt{aefsck} will report the several
+  phases that it goes through.
 
 þenddescription
 

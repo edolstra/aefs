@@ -1,6 +1,8 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: aefsck.c,v 1.6 2000/12/26 21:53:43 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -2029,8 +2031,8 @@ onto DRIVE-LETTER.\n\
   -f, --fix          fix errors (default is check only)\n\
       --force-fix    fix unreadable superblocks\n\
   -k, --key=KEY      use specified key, do not ask\n\
+  -q, --quiet        don't show progress\n\
   -s, --scan         perform a `surface scan'\n\
-  -v, --verbose      show progress\n\
       --help         display this help and exit\n\
       --version      output version information and exit\n\
 \n\
@@ -2073,7 +2075,7 @@ The return code is the bitwise OR of the following values:\n\
 int main(int argc, char * * argv)
 {
    char * pszKey = 0, * pszBasePath;
-   int flags = 0;
+   int flags = FSCK_VERBOSE;
    int c;
    
    struct option const options[] =
@@ -2084,7 +2086,7 @@ int main(int argc, char * * argv)
       { "fix", no_argument, 0, 'f' },
       { "force-fix", no_argument, 0, 3 },
       { "scan", no_argument, 0, 's' },
-      { "verbose", no_argument, 0, 'v' },
+      { "quiet", no_argument, 0, 'q' },
       { 0, 0, 0, 0 } 
    };
 
@@ -2097,7 +2099,7 @@ int main(int argc, char * * argv)
    
    pszProgramName = argv[0];
 
-   while ((c = getopt_long(argc, argv, "k:fsv", options, 0)) != EOF) {
+   while ((c = getopt_long(argc, argv, "k:fsq", options, 0)) != EOF) {
       switch (c) {
          case 0:
             break;
@@ -2127,8 +2129,8 @@ int main(int argc, char * * argv)
             flags |= FSCK_SURFACESCAN;
             break;
 
-         case 'v': /* --verbose */
-            flags |= FSCK_VERBOSE;
+         case 'q': /* --quiet */
+            flags &= ~FSCK_VERBOSE;
             break;
 
          default:
