@@ -48,6 +48,7 @@ Decrypt encrypted storage files to stdout.\n\
       --help           display this help and exit\n\
       --version        output version information and exit\n\
 \n\
+Specify `-' to read from standard input.\n\
 Note: if the storage file is piped in through stdin, you should use\n\
 `-k', since the key would otherwise be read from stdin as well.\n\
 ",
@@ -126,6 +127,11 @@ int main(int argc, char * * argv)
       }
    }
 
+   if (optind == argc) {
+      fprintf(stderr, "%s: missing parameters\n", pszProgramName);
+      printUsage(1);
+   }
+
    if (!pszCipher) pszCipher = (*cipherTable)->pszID;
    
    pCipher = findCipher(cipherTable, pszCipher,
@@ -158,11 +164,6 @@ int main(int argc, char * * argv)
          "(use `--help' to see a list of known ciphers)\n",
          pszProgramName, pszCipher);
       return 0;
-   }
-
-   if (optind == argc) {
-      fprintf(stderr, "%s: missing parameters\n", pszProgramName);
-      printUsage(1);
    }
 
 #ifdef __EMX__
