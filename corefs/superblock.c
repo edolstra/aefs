@@ -1,7 +1,7 @@
 /* superblock.c -- Superblock code.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: superblock.c,v 1.13 2001/12/28 19:31:11 eelco Exp $
+   $Id: superblock.c,v 1.14 2002/01/14 22:01:14 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -488,8 +488,6 @@ CoreResult coreWriteDataKey(SuperBlock * pSuperBlock,
    File * pFile;
    FilePos cbWritten;
 
-   printf("pass phrase: `%s'\n", pszPassPhrase);
-
    /* Hash the pass phrase into the pass key. */
    cr = coreHashPhrase(pszPassPhrase, abPassKey, cbKey);
    if (cr) return cr;
@@ -504,7 +502,6 @@ CoreResult coreWriteDataKey(SuperBlock * pSuperBlock,
 
    /* Encrypt the data key. */
    cbEncDataKey = ROUND_UP(cbKey, cbBlock);
-   printf("%d\n", cbEncDataKey);
    /* this is just to pad with random bits to prevent known
       plaintext attacks against the key file */
    sysGetRandomBits(cbEncDataKey * 8, abEncDataKey);
