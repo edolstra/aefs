@@ -1,7 +1,8 @@
-/* aefsutil.c -- 
+/* aefsutil.c -- List directories, extract files, or dump entire
+   directories from an AEFS file system.
    Copyright (C) 2001 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsutil.c,v 1.1 2001/01/02 13:29:08 eelco Exp $
+   $Id: aefsutil.c,v 1.2 2001/02/21 21:43:03 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,6 +31,8 @@
 #include <fcntl.h>
 #include <utime.h>
 #include <errno.h>
+#include <pwd.h>
+#include <grp.h>
 
 #include "getopt.h"
 #include "corefs.h"
@@ -45,19 +48,10 @@ char * pszProgramName;
 #define FL_DIR          1
 #define FL_LONG         2
 #define FL_PRESERVE     4
+#define FL_VERYLONG     8
 
 
-static void printUsage(int status)
-{
-   if (status)
-      fprintf(stderr,
-         "\nTry `%s --help' for more information.\n",
-         pszProgramName);
-   else {
-      printf("!!!\n");
-   }
-   exit(status);
-}
+static void printUsage(int status);
 
 
 static void paramError()
@@ -69,15 +63,18 @@ static void paramError()
 
 
 static int showFile(CryptedVolume * pVolume, 
-   CryptedFileID id, char * pszName, int flFlags)
+   CryptedFileID id, char * pszName, int flFlags, int flDirFlags)
 {
    CryptedFileInfo info;
    CoreResult cr;
-   char bits[12], date[100];
+   char bits[14], date[100];
    time_t t;
    struct tm * tm;
+   struct passwd * pw;
+   struct group * gr;
+   char pwn[40], grn[40];
 
-   if (!(flFlags & FL_LONG)) {
+   if (!(flFlags & (FL_LONG | FL_VERYLONG))) {
       printf("%s\n", pszName);
    } else {
       
@@ -110,14 +107,30 @@ static int showFile(CryptedVolume * pVolume,
       if (info.flFlags & CFF_ISUID) bits[3] = 's';
       if (info.flFlags & CFF_ISGID) bits[6] = 's';
       if (info.flFlags & CFF_ISVTX) bits[9] = 't';
-      bits[10] = 0;
+      bits[10] = info.flFlags & CFF_OS2S ? 'S' : '-';
+      bits[11] = flDirFlags & CDF_HIDDEN ? 'H' : '-';
+      bits[12] = info.flFlags & CFF_OS2A ? 'A' : '-';
+      bits[13] = 0;
 
+      /* !!! TODO: a way to display creation / access time */
       t = (time_t) info.timeWrite;
       tm = localtime(&t);
       strftime(date, sizeof(date), "%b %d %Y %H:%M:%S", tm);
 
-      printf("%8lx %s %10ld  %s %s\n", 
-         id, bits, info.cbFileSize, date, pszName);
+      sprintf(pwn, "%-8d", info.uid);
+      pw = getpwuid(info.uid);
+      sprintf(grn, "%-8d", info.gid);
+      gr = getgrgid(info.gid);
+      
+      if (flFlags & FL_LONG)
+         printf("%s %-8s %-8s %10ld %s %s\n", 
+            bits, pw ? pw->pw_name : pwn, gr ? gr->gr_name : grn,
+            info.cbFileSize, date, pszName);
+      else 
+         printf("%8lx %s%4d %-8s %-8s %10ld %5ld %s %s\n", 
+            id, bits, info.cRefs, pw ? pw->pw_name : pwn, 
+            gr ? gr->gr_name : grn,
+            info.cbFileSize, info.cbEAs, date, pszName);
    }
 
    return 0;
@@ -152,10 +165,11 @@ static int listDir(SuperBlock * pSuperBlock, char * pszPath,
 
    if ((flFlags & FL_DIR) || !isDir(pSuperBlock->pVolume, idDir)) {
       res = showFile(pSuperBlock->pVolume, idDir,
-         (char *) pDir->pabName, flFlags);
+         (char *) pDir->pabName, flFlags, pDir->flFlags);
    } else {
 
-      res |= showFile(pSuperBlock->pVolume, idDir, ".", flFlags);
+      res |= showFile(pSuperBlock->pVolume, idDir, ".", flFlags,
+         pDir->flFlags);
 
       cr = coreQueryDirEntries(pSuperBlock->pVolume, idDir, &pFirst);
       if (cr) {
@@ -166,7 +180,7 @@ static int listDir(SuperBlock * pSuperBlock, char * pszPath,
       } else {
          for (pCur = pFirst; pCur; pCur = pCur->pNext) {
             res |= showFile(pSuperBlock->pVolume, pCur->idFile,
-               (char *) pCur->pabName, flFlags);
+               (char *) pCur->pabName, flFlags, pCur->flFlags);
          }
       }
 
@@ -386,6 +400,49 @@ static int doCommand(char * pszKey, char * pszBasePath,
 }
 
 
+static void printUsage(int status)
+{
+   if (status)
+      fprintf(stderr,
+         "\nTry `%s --help' for more information.\n",
+         pszProgramName);
+   else {
+      printf("\
+Usage: %s [OPTION]... AEFS-PATH COMMAND ...\n\
+List directories on or extract files from the AEFS volume stored\n\
+in AEFS-PATH.\n\
+\n\
+  -d, --directory    list directory entries instead of contents\n\
+  -k, --key=KEY      use specified key, do not ask\n\
+  -l, --long         show detailed file information\n\
+      --verylong     show very detailed file information\n\
+  -p, --preserve     preserve permissions/ownerships when extracting\n\
+      --help         display this help and exit\n\
+      --version      output version information and exit\n\
+\n\
+COMMAND is one of the following:\n\
+\n\
+  ls PATH            list directory contents\n\
+  dump PATH          extract recursively to the current directory\n\
+  cat PATH           extract file to standard output\n\
+\n\
+If the key is not specified on the command-line, the user is asked\n\
+to enter the key.\n\
+\n\
+The long listing displays the flags, ownership, file size, last\n\
+modification date, and file name.  The very long listing displays the\n\
+file ID (inode number), flags, reference count, ownership, file size,\n\
+size of the extended attributes, last modification date, and file\n\
+name.  The flag characters indicate the file type, permissions (read,\n\
+write, and execute permission for the user, group, and others), and\n\
+OS/2 system, hidden, and archive attributes.\n\
+",
+         pszProgramName);
+   }
+   exit(status);
+}
+
+
 int main(int argc, char * * argv)
 {
    char * pszKey = 0, * pszBasePath, * pszCommand;
@@ -399,6 +456,7 @@ int main(int argc, char * * argv)
       { "key", required_argument, 0, 'k' },
       { "directory", no_argument, 0, 'd' },
       { "long", no_argument, 0, 'l' },
+      { "verylong", no_argument, 0, 3 },
       { "preserve", no_argument, 0, 'p' },
       { 0, 0, 0, 0 } 
    };
@@ -429,6 +487,10 @@ int main(int argc, char * * argv)
 
          case 'l': /* --long */
             flFlags |= FL_LONG;
+            break;
+
+         case 3: /* --verylong */
+            flFlags |= FL_VERYLONG;
             break;
 
          case 'p': /* --preserve */
