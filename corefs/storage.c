@@ -603,10 +603,9 @@ static CoreResult dropFile(CryptedFile * pFile)
 }
 
 
-/* Create a file with the given initial size.  The file is assigned a
-   randomly chosen ID.  The content of the allocated sectors is
-   undefined (and reading them will give a CRC error with high
-   probability). */
+/* Create a file with the given ID and initial size. The content of
+   the allocated sectors is undefined (and reading them will give a
+   CRC error with high probability). */
 CoreResult coreCreateFile(CryptedVolume * pVolume,
    CryptedFileID id, SectorNumber csPreallocate)
 {
