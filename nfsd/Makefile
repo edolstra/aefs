@@ -20,10 +20,7 @@ SRCS2 = aefsadd.c aefsctrl_clnt.c aefsctrl_xdr.c
 SRCS = $(SRCS1) $(SRCS2)
 
 LIBS = $(BASE)/corefs/corefs.a $(BASE)/ciphers/ciphers.a \
- $(BASE)/misc/getopt.a \
- $(BASE)/system/$(SYSTEM)/sysdep.a
-
-CFLAGS += -Wno-switch
+ $(BASE)/system/$(SYSTEM)/sysdep.a $(BASE)/misc/misc.a
 
 $(PROG1): $(SRCS1:.c=.o) $(LIBS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(SRCS1:.c=.o) $(LIBS) $(SYSLIBS) -o $@
