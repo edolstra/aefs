@@ -704,6 +704,7 @@ static int runDaemon(ServerData * pServerData)
          request. */
       {
          ULONG rq = pServerData->pRequest->rq;
+         APIRET rccopy = pServerData->pRequest->rc;
          USHORT fsFlag =
             pServerData->pRequest->data.attach.fsFlag;
          VolData * pVolData1 =
@@ -717,7 +718,7 @@ static int runDaemon(ServerData * pServerData)
          VolData * pVolData3 =
             pServerData->pRequest->data.findfirst.pVolData;
       
-         switch (signalRequestDone(pServerData)) {
+         switch (rc = signalRequestDone(pServerData)) {
 
             case NO_ERROR:
                break;
@@ -727,20 +728,20 @@ static int runDaemon(ServerData * pServerData)
                   
                switch (rq) {
                   case FSRQ_ATTACH:
-                     if ((fsFlag == FSA_ATTACH) && !rc) {
+                     if ((fsFlag == FSA_ATTACH) && !rccopy) {
                         logMsg(L_ERR, "freeing volume data");
                         dropVolume(pServerData, pVolData1);
                      }
                      break;
                   case FSRQ_OPENCREATE:
-                     if (!rc) {
+                     if (!rccopy) {
                         logMsg(L_ERR, "freeing file data");
                         sysFreeSecureMem(pOpenFileData);
                         pVolData2->cOpenFiles--;
                      }
                      break;
                   case FSRQ_FINDFIRST:
-                     if ((!rc) || (rc == ERROR_EAS_DIDNT_FIT)) {
+                     if ((!rccopy) || (rccopy == ERROR_EAS_DIDNT_FIT)) {
                         logMsg(L_ERR, "freeing search data");
                         freeSearchData(pSearchData);
                         pVolData3->cSearches--;
