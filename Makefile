@@ -34,9 +34,21 @@ endif
 CHECKSUMS:
 	md5sum -b `find . -type f` | pgp -staf +clearsig > $@
 
-os2dist: all install
-	rm -rf $(TMPDIR)/aefs
-	mkdir $(TMPDIR)/aefs
-	cp -pr . $(TMPDIR)/aefs
-	cd $(TMPDIR)/aefs ; make clean ; make CHECKSUMS
-	cd $(TMPDIR) ; rm aefs.zip ; zip -9r aefs.zip aefs
+os2dist: all dist
+	cp -p Makefile.incl $(distdir)
+	cp -p config.h $(distdir)
+	cp -p readme.txt $(distdir)
+	cp -p readme.inf $(distdir)
+	mkdir $(distdir)/bin
+	cp -p utils/mkaefs.exe $(distdir)/bin
+	cp -p utils/aefsck.exe $(distdir)/bin
+	cp -p utils/aefsdump.exe $(distdir)/bin
+	cp -p ifsdriver/stubfsd.ifs $(distdir)/bin
+	cp -p ifsdaemon/aefsdmn.exe $(distdir)/bin
+	cp -p ifsutils/mntaefs.exe $(distdir)/bin
+	cp -p ifsutils/umntaefs.exe $(distdir)/bin
+	cp -p ifsutils/aefsparm.exe $(distdir)/bin
+	cp -p nfsd/aefsnfsd.exe $(distdir)/bin
+	cp -p nfsd/aefsadd.exe $(distdir)/bin
+	for i in $(distdir)/bin/*.exe; do emxbind -s $$i; done
+	cd $(distdir) ; make CHECKSUMS
