@@ -1582,8 +1582,8 @@ static int followExtEAFile(State * pState, FSItem * fsi)
       
    } else {
 
-      /* Okay, we have a properly attached EA file, but are its
-         contents any good?  Check the EAs. */
+      /* Okay, we have a properly attached EA file, but is its
+         content any good?  Check the EAs. */
 
       res |= checkEAs(pState, fsi);
       if (STOP(res)) return res;
