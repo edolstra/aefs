@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsck.c,v 1.19 2001/12/06 16:08:18 eelco Exp $
+   $Id: aefsck.c,v 1.20 2001/12/27 14:37:04 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -333,6 +333,7 @@ static char * printFileName(State * pState, CryptedFileID id)
                default: strcpy(szBuffer, "file "); break;
             }
             printFileName2(pState, id, strchr(szBuffer, 0));
+            sprintf(strchr(szBuffer, 0), " (%08lx)", id);
          }
       } else
          sprintf(szBuffer, "file $%08lx", id);
