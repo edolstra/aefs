@@ -52,7 +52,7 @@ static CryptedVolume * pVolume;
 static bool fForceMount = false;
 static bool fReadOnly = false;
 static char szBasePath[PATH_MAX + 1];
-static char * pszMountPoint;
+static char szMountPoint[PATH_MAX + 1];
 static int fdRes[2];
 
 
@@ -585,7 +585,7 @@ void commitVolume()
 static void unmount()
 {
     if (fork() == 0) {
-        execlp("fusermount", "fusermount", "-u", pszMountPoint, 0);
+        execlp("fusermount", "fusermount", "-u", szMountPoint, 0);
         exit(0);
     }
 }
@@ -650,7 +650,7 @@ retry:
        doesn't have to be.  We should fix this (in FUSE, probably). */
     assert(pSuperBlock->idRoot == FUSE_ROOT_INO);
 
-    fd = fuse_mount(pszMountPoint, 0);
+    fd = fuse_mount(szMountPoint, 0);
     if (fd == -1) {
         writeResult(CORERC_SYS + SYS_UNKNOWN);
         unmount();
@@ -703,7 +703,7 @@ int main(int argc, char * * argv)
 {
     char szPassPhrase[1024], * pszOrigKey = 0;
     int c;
-    char * pszPassPhrase = 0, * pszBasePath;
+    char * pszPassPhrase = 0, * pszBasePath, * pszMountPoint;
     CoreResult cr;
 
     struct option const options[] = {
@@ -772,13 +772,20 @@ int main(int argc, char * * argv)
         return 1;
     }
 
-    /* Expand the given base path. */
+    /* Expand the base path. */
     if (!realpath(pszBasePath, szBasePath)) {
         fprintf(stderr, "%s: cannot expand path: %s\n", 
             pszProgramName, strerror(errno));
         return 1;
     }
     strcat(szBasePath, "/");
+
+    /* Expand the mount point. */
+    if (!realpath(pszMountPoint, szMountPoint)) {
+        fprintf(stderr, "%s: cannot expand path: %s\n", 
+            pszProgramName, strerror(errno));
+        return 1;
+    }
 
     /* Ask the user to enter the passphrase, if it wasn't specified
        with "-k". */
