@@ -119,7 +119,7 @@ static CoreResult stampFile(CryptedFileID idFile)
 }
 
 
-int do_lookup(struct fuse_in_header * in, char * name, struct fuse_lookup_out * out)
+int do_lookup(struct fuse_in_header * in, char * name, struct fuse_entry_out * out)
 {
     CoreResult cr;
     CryptedFileID idDir = in->ino, idFile;
@@ -142,7 +142,7 @@ int do_lookup(struct fuse_in_header * in, char * name, struct fuse_lookup_out * 
 
 
 int do_setattr(struct fuse_in_header * in, struct fuse_setattr_in * arg, 
-    struct fuse_setattr_out * out)
+    struct fuse_attr_out * out)
 {
     CoreResult cr;
     CryptedFileID idFile = in->ino;
@@ -191,7 +191,7 @@ int do_setattr(struct fuse_in_header * in, struct fuse_setattr_in * arg,
 }
 
 
-int do_getattr(struct fuse_in_header * in, struct fuse_getattr_out * out)
+int do_getattr(struct fuse_in_header * in, struct fuse_attr_out * out)
 {
     CoreResult cr;
     CryptedFileID idFile = in->ino;
@@ -286,7 +286,7 @@ int do_getdir(struct fuse_in_header * in, struct fuse_getdir_out * out)
 
 int createFile(CryptedFileID idDir, char * pszName,
     unsigned int mode, unsigned int rdev,
-    struct fuse_lookup_out * out)
+    struct fuse_entry_out * out)
 {
     CoreResult cr;
     CryptedFileID idFile;
@@ -336,14 +336,14 @@ int createFile(CryptedFileID idDir, char * pszName,
 
 
 int do_mknod(struct fuse_in_header * in, struct fuse_mknod_in * arg, 
-    char * pszName, struct fuse_lookup_out * out)
+    char * pszName, struct fuse_entry_out * out)
 {
     return createFile(in->ino, pszName, arg->mode, arg->rdev, out);
 }
 
 
 int do_mkdir(struct fuse_in_header * in, struct fuse_mkdir_in * arg,
-    char * pszName, struct fuse_lookup_out * out)
+    char * pszName, struct fuse_entry_out * out)
 {
     return createFile(in->ino, pszName, arg->mode | CFF_IFDIR, 0, out);
 }
@@ -398,7 +398,7 @@ int do_remove(struct fuse_in_header * in, char * pszName)
 
 
 int do_symlink(struct fuse_in_header * in, 
-    char * pszName, char * pszTarget, struct fuse_lookup_out * out)
+    char * pszName, char * pszTarget, struct fuse_entry_out * out)
 {
     CoreResult cr;
     CryptedFilePos cbWritten;
@@ -446,7 +446,7 @@ int do_rename(struct fuse_in_header * in, struct fuse_rename_in * arg,
 
 
 int do_link(struct fuse_in_header * in, struct fuse_link_in * arg,
-    char * pszName, struct fuse_lookup_out * out)
+    char * pszName, struct fuse_entry_out * out)
 {
     return -ENOTSUP; /* !!! */
 }
@@ -483,22 +483,24 @@ int do_read(struct fuse_in_header * in, struct fuse_read_in * arg, char * outbuf
 
 
 int do_write(struct fuse_in_header * in, struct fuse_write_in * arg,
-    void * pData)
+    void * pData, struct fuse_write_out * out)
 {
     CoreResult cr;
     CryptedFileID idFile = in->ino;
     CryptedFilePos cbWritten;
+    int res = 0;
 
     logMsg(LOG_DEBUG, "write %ld %Ld %d", idFile, arg->offset, arg->size);
 
     cr = coreWriteToFile(pVolume, idFile, 
         arg->offset, arg->size, pData, &cbWritten);
-    if (cr) return core2sys(cr);
-
-    if (arg->size != cbWritten) return -EIO;
-
-    cr = stampFile(idFile);
-    if (cr) return core2sys(cr);
+    out->size = cbWritten;
+    if (cr) res = core2sys(cr);
+    else if (arg->size != cbWritten) abort(); /* can't happen */
+    else {
+        cr = stampFile(idFile);
+        res = core2sys(cr);
+    }
 
     return 0;
 }
@@ -660,7 +662,9 @@ retry:
        doesn't have to be.  We should fix this (in FUSE, probably). */
     assert(pSuperBlock->idRoot == FUSE_ROOT_INO);
 
-    fd = fuse_mount(szMountPoint, 0);
+    /* `large_read' causes reads to be done in 64 KB chunks instead of
+       4 KB (only works on kernel 2.4). */
+    fd = fuse_mount(szMountPoint, "large_read");
     if (fd == -1) {
         writeResult(CORERC_SYS + SYS_UNKNOWN);
         unmount();

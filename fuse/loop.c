@@ -95,7 +95,7 @@ void processCommand()
     int res;
     char * pszFrom, * pszTo;
 
-    if (0) {
+    if (1) {
         logMsg(LOG_DEBUG, "unique: %i, opcode: %i, ino: %li, insize: %i", in->unique,
             in->opcode, in->ino, buflen);
         fflush(stdout);
@@ -106,22 +106,22 @@ void processCommand()
     switch(in->opcode) {
 
     case FUSE_LOOKUP:
-        res = do_lookup(in, (char *) inarg, (struct fuse_lookup_out *) outbuf);
-        sendReply(in, res, outbuf, sizeof(struct fuse_lookup_out));
+        res = do_lookup(in, (char *) inarg, (struct fuse_entry_out *) outbuf);
+        sendReply(in, res, outbuf, sizeof(struct fuse_entry_out));
         break;
 
     case FUSE_FORGET:
         break;
 
     case FUSE_GETATTR:
-        res = do_getattr(in, (struct fuse_getattr_out *) outbuf);
-        sendReply(in, res, outbuf, sizeof(struct fuse_getattr_out));
+        res = do_getattr(in, (struct fuse_attr_out *) outbuf);
+        sendReply(in, res, outbuf, sizeof(struct fuse_attr_out));
         break;
 
     case FUSE_SETATTR:
         res = do_setattr(in, (struct fuse_setattr_in *) inarg, 
-	    (struct fuse_setattr_out *) outbuf);
-        sendReply(in, res, outbuf, sizeof(struct fuse_setattr_out));
+	    (struct fuse_attr_out *) outbuf);
+        sendReply(in, res, outbuf, sizeof(struct fuse_attr_out));
         break;
 
     case FUSE_READLINK:
@@ -140,15 +140,15 @@ void processCommand()
     case FUSE_MKNOD:
         res = do_mknod(in, (struct fuse_mknod_in *) inarg,
             PARAM(fuse_mknod_in, inarg),
-            (struct fuse_lookup_out *) outbuf);
-        sendReply(in, res, outbuf, sizeof(struct fuse_lookup_out));
+            (struct fuse_entry_out *) outbuf);
+        sendReply(in, res, outbuf, sizeof(struct fuse_entry_out));
         break;
 
     case FUSE_MKDIR:
         res = do_mkdir(in, (struct fuse_mkdir_in *) inarg,
             PARAM(fuse_mkdir_in, inarg),
-            (struct fuse_lookup_out *) outbuf);
-        sendReply(in, res, outbuf, sizeof(struct fuse_lookup_out));
+            (struct fuse_entry_out *) outbuf);
+        sendReply(in, res, outbuf, sizeof(struct fuse_entry_out));
         break;
 
     case FUSE_UNLINK:
@@ -160,8 +160,8 @@ void processCommand()
     case FUSE_SYMLINK:
         res = do_symlink(in, (char *) inarg,
             ((char *) inarg) + strlen((char *) inarg) + 1,
-            (struct fuse_lookup_out *) outbuf);
-        sendReply(in, res, outbuf, sizeof(struct fuse_lookup_out));
+            (struct fuse_entry_out *) outbuf);
+        sendReply(in, res, outbuf, sizeof(struct fuse_entry_out));
         break;
 
     case FUSE_RENAME:
@@ -175,13 +175,18 @@ void processCommand()
     case FUSE_LINK:
         res = do_link(in, (struct fuse_link_in *) inarg,
             PARAM(fuse_link_in, inarg),
-            (struct fuse_lookup_out *) outbuf);
-        sendReply(in, res, outbuf, sizeof(struct fuse_lookup_out));
+            (struct fuse_entry_out *) outbuf);
+        sendReply(in, res, outbuf, sizeof(struct fuse_entry_out));
         break;
 
     case FUSE_OPEN:
         res = do_open(in, (struct fuse_open_in *) inarg);
-        sendReply(in, res, 0, 0);
+        if (res == 0) {
+            struct fuse_open_out out;
+            out.fh = 0; /* we don't use this */
+            sendReply(in, res, &out, sizeof out);
+        } else
+            sendReply(in, res, 0, 0);
         break;
 
     case FUSE_READ:
@@ -193,8 +198,9 @@ void processCommand()
 
     case FUSE_WRITE:
         res = do_write(in, (struct fuse_write_in *) inarg,
-            PARAM(fuse_write_in, inarg));
-        sendReply(in, res, 0, 0);
+            PARAM(fuse_write_in, inarg),
+            (struct fuse_write_out *) outbuf);
+        sendReply(in, res, outbuf, sizeof(struct fuse_write_out));
         break;
 
     case FUSE_STATFS:
@@ -203,12 +209,19 @@ void processCommand()
         break;
 
     case FUSE_RELEASE:
-        /* Don't do anything; no reply needed. */
+        /* Last file handle closed for some file, which we don't care
+           about. */
+        sendReply(in, 0, 0, 0);
         break;
 
     case FUSE_FSYNC:
         res = do_fsync(in, (struct fuse_fsync_in *) inarg);
         sendReply(in, res, 0, 0);
+        break;
+
+    case FUSE_FLUSH:
+        /* File handle closed, which we don't care about. */
+        sendReply(in, 0, 0, 0);
         break;
 
     default:
@@ -233,6 +246,8 @@ bool runLoop()
     bool fUnmounted = false;
 
     while (!fTerminate) {
+
+        logMsg(LOG_DEBUG, "loop");
 
         /* Lazy writer.  Should we flush now?  Determine the time-out
            for select(). */
