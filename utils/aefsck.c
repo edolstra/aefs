@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2001 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsck.c,v 1.14 2001/03/06 14:22:03 eelco Exp $
+   $Id: aefsck.c,v 1.15 2001/08/01 12:43:30 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1155,8 +1155,13 @@ static int checkFileInfo(State * pState, FSItem * fsi)
       } else printf("\n");
    }
 
-   if (!CFF_ISREG(fsi->info.flFlags) &&
+   if (!CFF_ISLNK(fsi->info.flFlags) &&
+       !CFF_ISREG(fsi->info.flFlags) &&
        !CFF_ISDIR(fsi->info.flFlags) &&
+       !CFF_ISCHR(fsi->info.flFlags) &&
+       !CFF_ISBLK(fsi->info.flFlags) &&
+       !CFF_ISFIFO(fsi->info.flFlags) &&
+       !CFF_ISSOCK(fsi->info.flFlags) &&
        !CFF_ISEA(fsi->info.flFlags))
    {
       res |= AEFSCK_ERRORFOUND;
