@@ -5,3 +5,6 @@ config.log
 config.cache
 config.status
 Makefile.conf
+CHECKSUMS
+readme.inf
+readme.txt
