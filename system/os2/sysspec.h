@@ -1,6 +1,8 @@
 /* sysspec.h -- OS/2 (EMX)-specific definitions. 
    Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: sysspec.h,v 1.3 2000/12/26 17:14:26 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -19,19 +21,6 @@
 #define _SYSSPEC_H
 
 
-/* uint8 should be an unsigned integer *at least* 8 bits wide. */
-typedef unsigned char uint8;
-
-/* uint16 should be an unsigned integer *at least* 16 bits wide. */
-typedef unsigned short uint16;
-
-/* uint32 should be an unsigned integer *at least* 32 bits wide. */
-typedef unsigned int uint32;
-
-/* octet should be an unsigned integer precisely 8 bits wide. */
-typedef unsigned char octet;
-
-
 #define IS_PATH_SEPARATOR(c) (((c) == '/') || ((c) == '\\'))
 
 /* # of bytes allocated using sysAllocSecureMem. */
@@ -44,6 +33,7 @@ extern int cSecureAlloced;
 extern int cSecureFreed;
 
 
+/* OS/2 is not multi-user. */
 typedef struct {
 } Cred;
 
