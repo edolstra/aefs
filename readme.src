@@ -15,6 +15,46 @@
   Twofish).  Extended attributes are supported under OS/2.
 
 
+þh2 Changes in version 0.2.1
+
+  This is a bugfix release.  The following bugs were fixed:
+
+þitemize
+
+þitem
+
+  A bug was fixed in the treatment of paths relative to the current
+  directory (except the root directory) of the form þtt{X/filename},
+  where þtt{X} is a one-character file name.  Such paths would
+  incorrectly refer to the current directory.  For example, þtt{touch
+  X/bla} would create a file called þtt{bla} in the current directory
+  instead of in þtt{X}.  Thanks go to Max Alekseyev for discovering
+  this bug.
+
+þitem
+
+  Various fixes in the NFS server, which now seems to be reasonably
+  stable.
+
+þitem
+
+  AEFS now works properly on systems that don't support growing
+  truncates (e.g., Linux on some file systems).  Because of this the
+  csAllocated field has been removed from the on-disk file info
+  structure.  The csAllocated field wasn't actually used by the file
+  system anyway, but you may receive minor warnings (complaining about
+  an inconsistency between the csAllocated field and the actual
+  allocation of a file) when you run an older version of þtt{aefsck}
+  against a file system created or modified by the current version of
+  AEFS.
+
+þenditemize
+
+  Furthermore, there is a new utility þtt{aefsutil} that allows access
+  to unmounted file systems (i.e., list directories, extract files,
+  etc.).
+
+
 þh2 Changes in version 0.2
 
   There are a few improvements:
@@ -739,4 +779,6 @@
 þh1 Author
 
   This software was written by Eelco Dolstra.  Send bug reports,
-  patches, or other comments to þtt{<edolstra@students.cs.uu.nl>}.
+  patches, or other comments to þtt{<eelco@cs.uu.nl>}.
+
+  $Id: readme.src,v 1.8 2001/09/23 11:43:32 eelco Exp $
