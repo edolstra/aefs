@@ -1,7 +1,10 @@
 /* loop.c -- Implements communication with the FUSE kernel module.
-   Copyright (C) 2001 Eelco Dolstra (eelco@cs.uu.nl).
+   Copyright (C) 2001, 2003 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: loop.c,v 1.9 2002/05/11 08:46:47 eelco Exp $
+   Some of the stuff here is take from FUSE, which is
+   Copyright (C) 2001 Miklos Szeredi (mszeredi@inf.bme.hu)
+
+   $Id: loop.c,v 1.10 2003/01/19 22:49:31 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -34,6 +37,9 @@
 #include "aefsfuse.h"
 
 
+#define PARAM(tp, inarg) (((char *) (inarg)) + sizeof(struct tp))
+
+
 static int fdFuse = 0;
 static char buf[FUSE_MAX_IN];
 static ssize_t buflen;
@@ -64,7 +70,7 @@ static void sendReply(struct fuse_in_header * in, int error,
     if(argsize != 0)
         memcpy(outbuf + sizeof(struct fuse_out_header), arg, argsize);
 
-    if (0) {
+    if (1) {
         logMsg(LOG_DEBUG, "   unique: %i, error: %i (%s), outsize: %i", out->unique,
             out->error, strerror(-out->error), outsize);
     }
@@ -87,6 +93,7 @@ void processCommand()
     char * outbuf2;
     size_t argsize;
     int res;
+    char * pszFrom, * pszTo;
 
     if (0) {
         logMsg(LOG_DEBUG, "unique: %i, opcode: %i, ino: %li, insize: %i", in->unique,
@@ -131,17 +138,17 @@ void processCommand()
         break;
 
     case FUSE_MKNOD:
-        res = do_mknod(in, (struct fuse_mknod_in *) inarg, 
-	    (struct fuse_mknod_out *) outbuf);
+        res = do_mknod(in, (struct fuse_mknod_in *) inarg,
+            PARAM(fuse_mknod_in, inarg),
+            (struct fuse_mknod_out *) outbuf);
         sendReply(in, res, outbuf, sizeof(struct fuse_mknod_out));
         break;
 
-#if 0            
     case FUSE_MKDIR:
-        res = do_mkdir(in, (struct fuse_mkdir_in *) inarg);
+        res = do_mkdir(in, (struct fuse_mkdir_in *) inarg,
+            PARAM(fuse_mkdir_in, inarg));
         sendReply(in, res, 0, 0);
         break;
-#endif
 
     case FUSE_UNLINK:
     case FUSE_RMDIR:
@@ -156,12 +163,16 @@ void processCommand()
         break;
 
     case FUSE_RENAME:
-        res = do_rename(in, (struct fuse_rename_in *) inarg);
+        pszFrom = PARAM(fuse_rename_in, inarg);
+        pszTo = strchr(pszFrom, 0) + 1;
+        res = do_rename(in, (struct fuse_rename_in *) inarg,
+            pszFrom, pszTo);
         sendReply(in, res, 0, 0);
         break;
 
     case FUSE_LINK:
-        res = do_link(in, (struct fuse_link_in *) inarg);
+        res = do_link(in, (struct fuse_link_in *) inarg,
+            PARAM(fuse_link_in, inarg));
         sendReply(in, res, 0, 0);
         break;
 
@@ -178,13 +189,18 @@ void processCommand()
         break;
 
     case FUSE_WRITE:
-        res = do_write(in, (struct fuse_write_in *) inarg);
+        res = do_write(in, (struct fuse_write_in *) inarg,
+            PARAM(fuse_write_in, inarg));
         sendReply(in, res, 0, 0);
         break;
 
     case FUSE_STATFS:
         res = do_statfs(in, (struct fuse_statfs_out *) outbuf);
         sendReply(in, res, outbuf, sizeof(struct fuse_statfs_out));
+        break;
+
+    case FUSE_RELEASE:
+        /* Don't do anything; no reply needed. */
         break;
 
     default:

@@ -1,7 +1,7 @@
 /* aefsfuse.h - AEFS FUSE header file.
    Copyright (C) 2001, 2002 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsfuse.h,v 1.4 2002/05/11 08:46:46 eelco Exp $
+   $Id: aefsfuse.h,v 1.5 2003/01/19 22:49:31 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -43,16 +43,21 @@ int do_readlink(struct fuse_in_header * in, char * outbuf);
 int do_getdir(struct fuse_in_header * in, 
     struct fuse_getdir_out * out);
 int do_mknod(struct fuse_in_header * in, struct fuse_mknod_in * arg, 
-    struct fuse_mknod_out * out);
+    char * pszName, struct fuse_mknod_out * out);
+int do_mkdir(struct fuse_in_header * in, struct fuse_mkdir_in * arg,
+    char * pszName);
 int do_remove(struct fuse_in_header * in, char * pszName);
 int do_symlink(struct fuse_in_header * in, 
     char * pszName, char * pszTarget);
-int do_rename(struct fuse_in_header * in, struct fuse_rename_in * arg);
-int do_link(struct fuse_in_header * in, struct fuse_link_in * arg);
+int do_rename(struct fuse_in_header * in, struct fuse_rename_in * arg,
+    char * pszFrom, char * pszTo);
+int do_link(struct fuse_in_header * in, struct fuse_link_in * arg,
+    char * pszName);
 int do_open(struct fuse_in_header * in, struct fuse_open_in * arg);
 int do_read(struct fuse_in_header * in, struct fuse_read_in * arg, 
     char * outbuf);
-int do_write(struct fuse_in_header * in, struct fuse_write_in * arg);
+int do_write(struct fuse_in_header * in, struct fuse_write_in * arg,
+    void * pData);
 int do_statfs(struct fuse_in_header * in, struct fuse_statfs_out * out);
 
 

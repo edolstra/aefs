@@ -1,7 +1,7 @@
 /* aefsfuse.c -- FUSE front-end to AEFS.
    Copyright (C) 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsfuse.c,v 1.15 2002/05/11 08:46:46 eelco Exp $
+   $Id: aefsfuse.c,v 1.16 2003/01/19 22:49:31 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -334,19 +334,18 @@ int createFile(CryptedFileID idDir, char * pszName,
 
 
 int do_mknod(struct fuse_in_header * in, struct fuse_mknod_in * arg, 
-    struct fuse_mknod_out * out)
+    char * pszName, struct fuse_mknod_out * out)
 {
-    return createFile(in->ino, arg->name, arg->mode, arg->rdev,
+    return createFile(in->ino, pszName, arg->mode, arg->rdev,
 	&out->ino, &out->attr);
 }
 
 
-#if 0
-int do_mkdir(struct fuse_in_header * in, struct fuse_mkdir_in * arg)
+int do_mkdir(struct fuse_in_header * in, struct fuse_mkdir_in * arg,
+    char * pszName)
 {
-    return createFile(in->ino, arg->name, arg->mode | CFF_IFDIR, 0, 0, 0);
+    return createFile(in->ino, pszName, arg->mode | CFF_IFDIR, 0, 0, 0);
 }
-#endif
 
 
 int removeFile(CryptedFileID idDir, char * pszName)
@@ -419,12 +418,11 @@ int do_symlink(struct fuse_in_header * in,
 }
 
 
-int do_rename(struct fuse_in_header * in, struct fuse_rename_in * arg)
+int do_rename(struct fuse_in_header * in, struct fuse_rename_in * arg,
+    char * pszFrom, char * pszTo)
 {
     CoreResult cr;
     CryptedFileID idFrom = in->ino, idTo = arg->newdir;
-    char * pszFrom = arg->names;
-    char * pszTo = arg->names + strlen(pszFrom) + 1;
     int res;
 
     logMsg(LOG_DEBUG, "rename %ld %s %ld %s", idFrom, pszFrom, idTo, pszTo);
@@ -447,7 +445,8 @@ int do_rename(struct fuse_in_header * in, struct fuse_rename_in * arg)
 }
 
 
-int do_link(struct fuse_in_header * in, struct fuse_link_in * arg)
+int do_link(struct fuse_in_header * in, struct fuse_link_in * arg,
+    char * pszName)
 {
     return -ENOTSUP; /* !!! */
 }
@@ -483,7 +482,8 @@ int do_read(struct fuse_in_header * in, struct fuse_read_in * arg, char * outbuf
 }
 
 
-int do_write(struct fuse_in_header * in, struct fuse_write_in * arg)
+int do_write(struct fuse_in_header * in, struct fuse_write_in * arg,
+    void * pData)
 {
     CoreResult cr;
     CryptedFileID idFile = in->ino;
@@ -491,7 +491,8 @@ int do_write(struct fuse_in_header * in, struct fuse_write_in * arg)
 
     logMsg(LOG_DEBUG, "write %ld %Ld %d", idFile, arg->offset, arg->size);
 
-    cr = coreWriteToFile(pVolume, idFile, arg->offset, arg->size, arg->buf, &cbWritten);
+    cr = coreWriteToFile(pVolume, idFile, 
+        arg->offset, arg->size, pData, &cbWritten);
     if (cr) return core2sys(cr);
 
     if (arg->size != cbWritten) return -EIO;
@@ -558,7 +559,7 @@ void commitVolume()
 {
     CoreResult cr;
 
-    logMsg(LOG_DEBUG, "flushing volume");
+    //    logMsg(LOG_DEBUG, "flushing volume");
 
     /* Flush dirty data. */
     cr = coreFlushVolume(pVolume);
@@ -644,7 +645,7 @@ retry:
         goto exit;
     }
 
-    fd = fuse_mount(pszMountPoint, "");
+    fd = fuse_mount(pszMountPoint, 0);
     if (fd == -1) {
         writeResult(CORERC_SYS + SYS_UNKNOWN);
         unmount();
