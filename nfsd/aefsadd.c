@@ -1,7 +1,7 @@
 /* aefsadd.c -- Utility to add file systems to the AEFS NFS server.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsadd.c,v 1.13 2001/09/23 13:30:18 eelco Exp $
+   $Id: aefsadd.c,v 1.14 2001/12/05 09:59:06 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -49,26 +49,25 @@ static void printUsage(int status)
     else {
         printf("\
 Usage: %s [OPTION]... PATH\n\
-Inform the AEFS NFS server of the encryption key to be used\n\
+Inform the AEFS NFS server of the passphrase to be used\n\
 for the specified path.\n\
 \n\
       --help              display this help and exit\n\
       --version           output version information and exit\n\
   -f, --force             force loading of dirty volume\n\
-  -k, --key=KEY           use specified key, do not ask (dangerous!)\n\
+  -k, --key=KEY           use specified passphrase, do not ask (dangerous!)\n\
       --lazy=[on|off]     turn lazy writing on (default) or off\n\
   -m, --mode=MODE         specify mode of new storage files (in octal)\n\
   -r, --readonly          load read-only\n\
   -u, --user=USER[.GROUP] set ownership of all files\n\
   -s, --stor=USER[.GROUP] user ID to use for ciphertext access\n\
 \n\
-If the key is not specified on the command-line, the user is asked\n\
-to enter the key.\n\
+" STANDARD_KEY_HELP "\
 \n\
 The server is assumed to be running on `localhost'.  In response to\n\
 this command, the server will try to load the encrypted file system\n\
-in PATH with the specified key.  This will fail if the file system\n\
-is dirty, unless `--force' is specified.  If this operation is\n\
+in PATH with the specified passphrase.  This will fail if the file\n\
+system is dirty, unless `--force' is specified.  If this operation is\n\
 successful, the file system can be mounted using `mount(8)'.\n\
 \n\
 Use `--stor' to specify which user identity should be used to access\n\
@@ -265,8 +264,8 @@ int main(int argc, char * * argv)
     /* Ask the use to enter the key, if it wasn't specified with "-k". */
     if (!pszKey) {
         pszKey = szKey;
-        if (readKey("key: ", sizeof(szKey), szKey)) {
-            fprintf(stderr, "%s: error reading key\n", pszProgramName);
+        if (readKey("passphrase: ", sizeof(szKey), szKey)) {
+            fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
             return 1;
         }
     }
@@ -302,7 +301,7 @@ int main(int argc, char * * argv)
     args.fs_gid = user_gid;
     res = aefsctrlproc_addfs_1(&args, clnt);
     if (!res) {
-        clnt_perror(clnt, "unable to add key to aefsnfsd");
+        clnt_perror(clnt, "unable to send passphrase to aefsnfsd");
         goto end;
     }
 
@@ -316,13 +315,9 @@ int main(int argc, char * * argv)
             ret = 0;
             break;
         case ADDFS_CORE:
-            if (res->cr == CORERC_BAD_CHECKSUM) {
-                fprintf(stderr, "%s: invalid key\n", pszProgramName);
-            } else {
-                fprintf(stderr, "%s: aefsnfsd returned error: %s\n",
-                    pszProgramName, core2str(res->cr));
-            }
-            break;
+	    fprintf(stderr, "%s: aefsnfsd returned error: %s\n",
+		pszProgramName, core2str(res->cr));
+	    break;
         case ADDFS_DIRTY:
             fprintf(stderr, "%s: file system is dirty, "
                 "run `aefsck -f %s' and retry\n",

@@ -1,7 +1,7 @@
 /* mkaefs.c -- AEFS file system creation program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: mkaefs.c,v 1.12 2001/12/04 13:01:47 eelco Exp $
+   $Id: mkaefs.c,v 1.13 2001/12/05 09:59:06 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -192,16 +192,16 @@ static int createVolumeInPath(char * pszBasePath,
    if (!pszKey) {
       pszKey = szKey;
    retry:      
-      if (readKey("key: ", sizeof(szKey), szKey)) {
-         fprintf(stderr, "%s: error reading key\n", pszProgramName);
+      if (readKey("passphrase: ", sizeof(szKey), szKey)) {
+         fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
          return 0;
       }
-      if (readKey("key (again): ", sizeof(szKey2), szKey2)) {
-         fprintf(stderr, "%s: error reading key\n", pszProgramName);
+      if (readKey("passphrase (again): ", sizeof(szKey2), szKey2)) {
+         fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
          return 0;
       }
       if (strcmp(szKey, szKey2) != 0) {
-         fprintf(stderr, "%s: the keys do not match, please retry.\n",
+         fprintf(stderr, "%s: the passphrases do not match, please retry.\n",
             pszProgramName);
          goto retry;
       }
@@ -233,7 +233,7 @@ static int createVolumeInPath(char * pszBasePath,
    strcat(szBasePath, "/");
 
    /* Terminology: 
-      - pass phrase: a variable-length string given by the user.
+      - passphrase: a variable-length string given by the user.
       - pass key: the pass phrase hashed using coreHashKey().
       - data key: a randomly generated key used to encrypt the
       data on the file system.
@@ -257,7 +257,7 @@ static int createVolumeInPath(char * pszBasePath,
       cr = coreHashKey(pszKey, abDataKey, cbKey);
       memset(szKey, 0, sizeof(szKey)); /* burn */
       if (cr) {
-	 fprintf(stderr, "%s: error hashing key: %s\n",
+	 fprintf(stderr, "%s: error hashing passphrase: %s\n",
 	    pszProgramName, core2str(cr));
 	 return 0;
       }
@@ -316,7 +316,7 @@ static void printUsage(int status)
 Usage: %s [OPTION]... PATH\n\
 Create an AEFS file system in directory PATH.\n\
 \n\
-  -k, --key=KEY        use specified key, do not ask\n\
+  -k, --key=KEY        use specified passphrase, do not ask\n\
   -c, --cipher=CIPHER  use CIPHER (see list below)\n\
       --no-cbc         do not use CBC mode (only for debugging)\n\
       --no-random-key  do not generate a random data key (compatible\n\
@@ -324,8 +324,7 @@ Create an AEFS file system in directory PATH.\n\
       --help           display this help and exit\n\
       --version        output version information and exit\n\
 \n\
-If the key is not specified on the command-line, the user is asked\n\
-to enter the key interactively.\n\
+" STANDARD_KEY_HELP "\
 \n\
 The following table specifies the available ciphers (in\n\
 ciphername-keysize-blocksize format, where the sizes are in number of\n\

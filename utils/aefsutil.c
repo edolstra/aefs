@@ -2,7 +2,7 @@
    directories from an AEFS file system.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsutil.c,v 1.8 2001/11/22 16:18:20 eelco Exp $
+   $Id: aefsutil.c,v 1.9 2001/12/05 09:59:06 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -451,7 +451,7 @@ in AEFS-PATH.\n\
 \n\
   -d, --directory    list directory entries instead of contents\n\
   -f, --force        continue in case of an unreadable superblock\n\
-  -k, --key=KEY      use specified key, do not ask\n\
+  -k, --key=KEY      use specified passphrase, do not ask\n\
   -l, --long         show detailed file information\n\
       --verylong     show very detailed file information\n\
   -p, --preserve     preserve permissions/ownerships when extracting\n\
@@ -465,8 +465,7 @@ COMMAND is one of the following:\n\
   dump PATH          extract recursively to the current directory\n\
   cat PATH           extract file to standard output\n\
 \n\
-If the key is not specified on the command-line, the user is asked\n\
-to enter the key.\n\
+" STANDARD_KEY_HELP "\
 \n\
 The long listing displays the flags, ownership, file size, last\n\
 modification date, and file name.  The very long listing displays the\n\
@@ -554,8 +553,8 @@ int main(int argc, char * * argv)
    /* Ask the use to enter the key, if it wasn't specified with "-k". */
    if (!pszKey) {
       pszKey = szKey;
-      if (readKey("key: ", sizeof(szKey), szKey)) {
-         fprintf(stderr, "%s: error reading key\n", pszProgramName);
+      if (readKey("passphrase: ", sizeof(szKey), szKey)) {
+         fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
          return 0;
       }
    }

@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsck.c,v 1.17 2001/11/22 16:18:20 eelco Exp $
+   $Id: aefsck.c,v 1.18 2001/12/05 09:59:06 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -150,7 +150,7 @@ static int checkSuperBlock(State * pState)
 {
    SuperBlock * pSuperBlock = pState->pSuperBlock;
    char szKeyWarning[] =
-      "(Make sure you specified the right key!  Otherwise I will "
+      "(Make sure you specified the right passphrase!  Otherwise I will "
       "trash the entire file system!)";
    int res = 0, res2;
    time_t now;
@@ -191,11 +191,11 @@ static int checkSuperBlock(State * pState)
          if (pSuperBlock->magic == SUPERBLOCK2_MAGIC)
             printf(
                "superblock: bad checksum, good magic number "
-               "(the key is very probably correct)\n");
+               "(the passphrase is very probably correct)\n");
          else
             printf(
                "superblock: bad checksum, bad magic number "
-               "(the key is probably wrong)\n");
+               "(the passphrase is probably wrong)\n");
          if ((pState->flags & FSCK_FORCEFIX) &&
              ask("Rewrite superblock?  %s", szKeyWarning) == ASK_YES)
          {
@@ -1997,24 +1997,23 @@ Check and fix the AEFS file system stored in AEFS-PATH.\n\
 \n\
   -f, --fix          fix errors (default is check only)\n\
       --force-fix    fix unreadable superblocks\n\
-  -k, --key=KEY      use specified key, do not ask\n\
+  -k, --key=KEY      use specified passphrase, do not ask\n\
   -q, --quiet        don't show progress\n\
   -s, --scan         perform a `surface scan'\n\
       --help         display this help and exit\n\
       --version      output version information and exit\n\
 \n\
-If the key is not specified on the command-line, the user is asked\n\
-to enter the key.\n\
+" STANDARD_KEY_HELP "\
 \n\
-Be careful when using `--force-fix': if you specify a wrong key\n\
+Be careful when using `--force-fix': if you specify a wrong passphrase\n\
 aefsck will proceed to `fix' undecryptable sectors, replacing them\n\
 with garbage; this will probably trash the file system, especially\n\
 if `-s' is specified as well.  However, aefsck will ask for\n\
 confirmation to proceed when it detects that the superblock cannot\n\
 be decrypted.\n\
 \n\
-aefsck is totally non-interactive, except for asking the key or when\n\
-`--force-fix' is specified.\n\
+aefsck is totally non-interactive, except for asking the passphrase or\n\
+when `--force-fix' is specified.\n\
 \n\
 aefsck can be interrupted safely by pressing Ctrl+C or Ctrl+Break\n\
 (i.e. by sending it SIGINT or SIGBREAK).\n\
@@ -2115,8 +2114,8 @@ int main(int argc, char * * argv)
    /* Ask the use to enter the key, if it wasn't specified with "-k". */
    if (!pszKey) {
       pszKey = szKey;
-      if (readKey("key: ", sizeof(szKey), szKey)) {
-         fprintf(stderr, "%s: error reading key\n", pszProgramName);
+      if (readKey("passphrase: ", sizeof(szKey), szKey)) {
+         fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
          return 0;
       }
    }

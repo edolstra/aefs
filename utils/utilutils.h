@@ -1,7 +1,7 @@
 /* utilutils.h -- Helper routines for the utility programs.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: utilutils.h,v 1.4 2001/09/23 13:30:25 eelco Exp $
+   $Id: utilutils.h,v 1.5 2001/12/05 09:59:06 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,5 +30,12 @@ Cipher * findCipher(Cipher * * papCipher,
    char * pszCipher, unsigned int * pcbBlock, unsigned int * pcbKey);
 
 char * core2str(CoreResult cr);
+
+
+#define STANDARD_KEY_HELP "\
+If the passphrase is not specified on the command-line, the user is\n\
+asked to enter it interactively (with echo if the environment variable\n\
+AEFS_ECHO is set to `1').\n\
+"
 
 #endif /* !_UTITUTILS_H */

@@ -1,7 +1,7 @@
 /* mntaefs.c -- AEFS mount program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: mntaefs.c,v 1.5 2001/09/23 13:30:16 eelco Exp $
+   $Id: mntaefs.c,v 1.6 2001/12/05 09:59:06 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -48,18 +48,17 @@ Usage: %s [OPTION]... DRIVE-LETTER: AEFS-PATH\n\
 Mount the AEFS volume stored in AEFS-PATH onto DRIVE-LETTER.\n\
 \n\
   -f, --force        force mount of dirty volume\n\
-  -k, --key=KEY      use specified key, do not ask\n\
+  -k, --key=KEY      use specified passphrase, do not ask\n\
   -n, --nocheck      do not check dirty volume\n\
   -r, --readonly     mount read-only\n\
       --help         display this help and exit\n\
       --version      output version information and exit\n\
 \n\
-If the key is not specified on the command-line, the user is asked\n\
-to enter the key.\n\
+" STANDARD_KEY_HELP "\
 \n\
 If the volume is dirty, mntaefs will by default invoke aefsck to\n\
 check for and fix errors on the volume.  aefsck will be invoked\n\
-with switches `--fix' and possibly `--key=<key>' if `-k' was an\n\
+with switches `--fix' and possibly `--key=<key>' if `--key' was an\n\
 argument to mntaefs.\n\
 \n\
 Examples:\n\
@@ -174,15 +173,15 @@ int main(int argc, char * * argv)
    /* Ask the use to enter the key, if it wasn't specified with "-k". */
    if (!pszKey) {
       pszKey = szKey;
-      if (readKey("key: ", sizeof(szKey), szKey)) {
-         fprintf(stderr, "%s: error reading key\n", pszProgramName);
+      if (readKey("passphrase: ", sizeof(szKey), szKey)) {
+         fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
          return 1;
       }
    }
 
    /* Does the key fit? */
    if (strlen(pszKey) >= sizeof(attachparms.szKey)) {
-      fprintf(stderr, "%s: key is too long\n",
+      fprintf(stderr, "%s: passphrase is too long\n",
          pszProgramName);
       return 1;
    }

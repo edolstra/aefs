@@ -1,7 +1,7 @@
 /* utilutils.c -- Helper routines for the utility programs.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: utilutils.c,v 1.8 2001/09/23 13:30:25 eelco Exp $
+   $Id: utilutils.c,v 1.9 2001/12/05 09:59:06 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -100,7 +100,7 @@ char * core2str(CoreResult cr)
         case CORERC_FILE_EXISTS: return "file exists";
         case CORERC_INVALID_PARAMETER: return "invalid parameter";
         case CORERC_INVALID_NAME: return "invalid file name";
-        case CORERC_BAD_CHECKSUM: return "bad checksum (wrong key?)";
+        case CORERC_BAD_CHECKSUM: return "bad checksum (wrong passphrase?)";
         case CORERC_BAD_INFOSECTOR: return "bad infosector";
         case CORERC_NOT_DIRECTORY: return "not a directory";
         case CORERC_BAD_DIRECTORY: return "corrupt directory";

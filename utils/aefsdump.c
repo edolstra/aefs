@@ -1,7 +1,7 @@
 /* aefsdump.c -- Off-line data extraction.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsdump.c,v 1.7 2001/09/23 13:30:25 eelco Exp $
+   $Id: aefsdump.c,v 1.8 2001/12/05 09:59:06 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,7 +45,7 @@ static void printUsage(int status)
 Usage: %s [OPTION]... FILE...\n\
 Decrypt encrypted storage files to stdout.\n\
 \n\
-  -k, --key=KEY        use specified key, do not ask\n\
+  -k, --key=KEY        use specified passphrase, do not ask\n\
   -c, --cipher=CIPHER  use CIPHER (see `mkaefs --help' for a list)\n\
       --no-cbc         do not use CBC mode (only for debugging)\n\
       --help           display this help and exit\n\
@@ -53,7 +53,7 @@ Decrypt encrypted storage files to stdout.\n\
 \n\
 Specify `-' to read from standard input.\n\
 Note: if the storage file is piped in through stdin, you should use\n\
-`-k', since the key would otherwise be read from stdin as well.\n\
+`-k', since the passphrase would otherwise be read from stdin as well.\n\
 ",
          pszProgramName);
    }
@@ -147,15 +147,15 @@ int main(int argc, char * * argv)
    
    if (!pszKey) {
       pszKey = szKey;
-      if (readKey("key: ", sizeof(szKey), szKey)) {
-         fprintf(stderr, "%s: error reading key\n", pszProgramName);
+      if (readKey("passphrase: ", sizeof(szKey), szKey)) {
+         fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
          return 0;
       }
    }
 
    cr = coreHashKey(pszKey, abKey, cbKey);
    if (cr) {
-      fprintf(stderr, "%s: error hashing key: %s\n",
+      fprintf(stderr, "%s: error hashing passphrase: %s\n",
          pszProgramName, core2str(cr));
       return 0;
    }
