@@ -1,7 +1,7 @@
 /* superblock.h -- Header file to the standard superblock code.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: superblock.h,v 1.6 2001/12/06 16:08:17 eelco Exp $
+   $Id: superblock.h,v 1.7 2001/12/26 17:37:44 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,19 +23,11 @@
 #include "corefs.h"
 
 
-/*
- * Error codes
- */
-
+/* Error codes. */
 #define CORERC_BAD_SUPERBLOCK    200
 #define CORERC_UNKNOWN_CIPHER    201
 #define CORERC_MISC_CIPHER       202
 #define CORERC_BAD_VERSION       203
-
-
-/*
- * Types
- */
 
 /* Values for SuperBlock.version. */
 #define SBV_1_0            0x010000
@@ -54,6 +46,10 @@
 
 /* Values for coreWriteSuperBlock(flags). */
 #define CWS_NOWRITE_SUPERBLOCK1 1
+
+/* Maximum size of a passphrase (incl. null). */
+#define MAX_PASSPHRASE_SIZE 256 /* bytes */
+
 
 
 typedef struct {
