@@ -1,7 +1,7 @@
 /* sysspec.h -- Posix-specific definitions.
-   Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: sysspec.h,v 1.3 2000/12/26 17:15:46 eelco Exp $
+   $Id: sysspec.h,v 1.4 2000/12/29 20:15:14 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

@@ -2,7 +2,7 @@
    system-independent FS code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: sysdep.h,v 1.5 2000/12/26 21:40:28 eelco Exp $
+   $Id: sysdep.h,v 1.6 2000/12/29 20:15:09 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -70,6 +70,7 @@ Bool sysFileExists(char * pszName);
 
 void * sysAllocSecureMem(int cbSize);
 void sysFreeSecureMem(void * pMem);
+void sysLockMem(); /* disable swapping for future allocations */
 
 void sysInitPRNG();
 void sysGetRandomBits(int bits, octet * dst);

@@ -1,6 +1,8 @@
 /* os2.c -- OS/2 (EMX)-specific low-level code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: os2.c,v 1.4 2000/12/29 20:15:12 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -233,6 +235,12 @@ void sysFreeSecureMem(void * pMem)
    cbSecureFreed += cbSize;
    cSecureFreed++;
    free(pMem);
+}
+
+
+void sysLockMem()
+{
+   fprintf(stderr, "locking is NOT available!\n");
 }
 
 

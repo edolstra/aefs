@@ -1,3 +1,24 @@
+/* posix.c -- Posix-specific low-level code.
+   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
+
+   $Id: posix.c,v 1.4 2000/12/29 20:15:14 eelco Exp $
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2, or (at your option)
+   any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software Foundation,
+   Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
+
+#include "sysdep.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -6,8 +27,12 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-
-#include "sysdep.h"
+#ifdef HAVE_SETFSUID
+#include <sys/fsuid.h>
+#endif
+#ifdef HAVE_MLOCKALL
+#include <sys/mman.h>
+#endif
 
 
 #ifndef O_BINARY
@@ -46,6 +71,7 @@ File * sysOpenFile(char * pszName, int flFlags, Cred cred)
    int pmode = S_IREAD | S_IWRITE;
    File * pFile;
    struct stat st;
+   int euid, egid;
 
    if (flFlags & SOF_TRUNC_IF_EXISTS) f |= O_TRUNC;
    if (flFlags & SOF_CREATE_IF_NEW) f |= O_CREAT;
@@ -59,13 +85,23 @@ File * sysOpenFile(char * pszName, int flFlags, Cred cred)
    
    if (flFlags & SOF_WRITE_THROUGH) f |= O_SYNC;
 
+#ifdef HAVE_SETFSUID
+   if (cred.fEnforce) {
+      euid = geteuid(); egid = getegid();
+      setfsuid(cred.uid); setfsgid(cred.gid);
+   }
+#endif
+
    h = open(pszName, f, pmode);
    if (h == -1) return 0;
 
-   /* Check that we have permission to access this file.  We have to
-      do this *after* opening the file to prevent someone from
-      exploiting the time window between stat() and open(). */
    if (cred.fEnforce) {
+#ifdef HAVE_SETFSUID
+      setfsuid(euid); setfsgid(egid);
+#else
+      /* Check that we have permission to access this file.  We have
+         to do this *after* opening the file to prevent someone from
+         exploiting the time window between stat() and open(). */
       if (fstat(h, &st)) {
          close(h);
          return 0;
@@ -74,6 +110,7 @@ File * sysOpenFile(char * pszName, int flFlags, Cred cred)
          close(h);
          return 0;
       }
+#endif
    }
 
    if (!lock(h, flFlags)) {
@@ -99,6 +136,7 @@ File * sysCreateFile(char * pszName, int flFlags,
    int f = O_BINARY | O_CREAT | O_EXCL;
    int pmode = S_IREAD | S_IWRITE;
    File * pFile;
+   int euid, egid;
 
    switch (flFlags & SOF_RWMASK) {
       case SOF_READONLY:  f |= O_RDONLY; break;
@@ -109,16 +147,27 @@ File * sysCreateFile(char * pszName, int flFlags,
    
    if (flFlags & SOF_WRITE_THROUGH) f |= O_SYNC;
 
+#ifdef HAVE_SETFSUID
+   if (cred.fEnforce) {
+      euid = geteuid(); egid = getegid();
+      setfsuid(cred.uid); setfsgid(cred.gid);
+   }
+#endif
+
    if (cred.fEnforce) umask(0077);
 
    h = open(pszName, f, pmode);
    if (h == -1) return 0;
 
    if (cred.fEnforce) {
+#ifdef HAVE_SETFSUID
+      setfsuid(euid); setfsgid(egid);
+#else
       if (fchown(h, cred.uid, cred.gid)) {
          close(h);
          return 0;
       }
+#endif
       if (fchmod(h, cred.mode)) {
          close(h);
          return 0;
@@ -205,8 +254,25 @@ Bool sysQueryFileSize(File * pFile, FilePos * pcbSize)
 
 Bool sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred)
 {
-   /* !!! check permissions */
-   return !remove(pszName);
+   Bool res;
+   int euid, egid;
+
+#ifdef HAVE_SETFSUID
+   if (cred.fEnforce) {
+      euid = geteuid(); egid = getegid();
+      setfsuid(cred.uid); setfsgid(cred.gid);
+   }
+#endif
+
+   res = remove(pszName) != -1;
+
+#ifdef HAVE_SETFSUID
+   if (cred.fEnforce) {
+      setfsuid(euid); setfsgid(egid);
+   }
+#endif
+
+   return res;
 }
 
 
@@ -220,6 +286,7 @@ Bool sysFileExists(char * pszName)
 
 void * sysAllocSecureMem(int cbSize)
 {
+   /* !!! Use mlock if available? */
    return malloc(cbSize);
 }
 
@@ -227,6 +294,18 @@ void * sysAllocSecureMem(int cbSize)
 void sysFreeSecureMem(void * pMem)
 {
    free(pMem);
+}
+
+
+void sysLockMem()
+{
+#ifdef HAVE_MLOCKALL
+   if (mlockall(MCL_FUTURE) == -1) {
+      fprintf(stderr, "cannot lock memory!\n");
+   }
+#else
+   fprintf(stderr, "locking is NOT available!\n");
+#endif
 }
 
 
