@@ -67,6 +67,7 @@ static APIRET createFile(struct opencreate * popencreate,
    info.cbFileSize = popencreate->sffsi.sfi_size;
    info.timeWrite = info.timeAccess = info.timeCreation = curTime();
    extractDOSAttr(popencreate->fsAttr, &info);
+   /* uid and gid are set to 0 */
    cr = coreCreateBaseFile(pVolume, &info, &idFile);
    if (cr) return coreResultToOS2(cr);
 

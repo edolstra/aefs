@@ -135,6 +135,7 @@ APIRET fsMkDir(ServerData * pServerData, struct mkdir * pmkdir)
    info.cbFileSize = 0;
    info.timeWrite = info.timeAccess = info.timeCreation = curTime();
    info.idParent = idDir;
+   /* uid and gid are set to 0 */
    cr = coreCreateBaseFile(pVolume, &info, &idNewDir);
    if (cr) return coreResultToOS2(cr);
 
