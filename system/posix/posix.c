@@ -1,7 +1,7 @@
 /* posix.c -- Posix-specific low-level code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: posix.c,v 1.8 2000/12/30 21:21:51 eelco Exp $
+   $Id: posix.c,v 1.9 2000/12/31 11:07:15 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -244,9 +244,9 @@ SysResult sysCreateFile(char * pszName, int flFlags,
    }
    pFile->h = h;
 
-   if (!sysSetFileSize(pFile, cbInitialSize)) {
+   if (sr = sysSetFileSize(pFile, cbInitialSize)) {
       sysCloseFile(pFile);
-      return unix2sys();
+      return sr;
    }
 
    *ppFile = pFile;
