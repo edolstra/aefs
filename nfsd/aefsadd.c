@@ -1,7 +1,7 @@
 /* aefsadd.c -- Utility to add file systems to the AEFS NFS server.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsadd.c,v 1.4 2000/12/27 18:42:57 eelco Exp $
+   $Id: aefsadd.c,v 1.5 2000/12/29 22:03:53 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,6 +20,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <assert.h>
+#include <ctype.h>
+#include <pwd.h>
+#include <grp.h>
+#include <sys/types.h>
 
 #include "getopt.h"
 
@@ -33,25 +38,25 @@ char * pszProgramName;
 
 static void printUsage(int status)
 {
-   if (status)
-      fprintf(stderr,
-         "\nTry `%s --help' for more information.\n",
-         pszProgramName);
-   else {
-      printf("\
+    if (status)
+        fprintf(stderr,
+            "\nTry `%s --help' for more information.\n",
+            pszProgramName);
+    else {
+        printf("\
 Usage: %s [OPTION]... PATH\n\
 Inform the AEFS NFS server of the encryption key to be used\n\
 for the specified path.\n\
 \n\
-      --help          display this help and exit\n\
-      --version       output version information and exit\n\
-  -f, --force         force loading of dirty volume\n\
-  -g, --gid=UID       specify the gid of the storage files\n\
-  -k, --key=KEY       use specified key, do not ask (dangerous!)\n\
-      --lazy=[on|off] turn lazy writing on (default) or off\n\
-  -m, --mode=MODE     specify the mode of new storage files\n\
-  -r, --readonly      load read-only\n\
-  -u, --uid=UID       specify the uid of the storage files\n\
+      --help              display this help and exit\n\
+      --version           output version information and exit\n\
+  -f, --force             force loading of dirty volume\n\
+  -k, --key=KEY           use specified key, do not ask (dangerous!)\n\
+      --lazy=[on|off]     turn lazy writing on (default) or off\n\
+  -m, --mode=MODE         specify mode of new storage files (in octal)\n\
+  -r, --readonly          load read-only\n\
+  -u, --user=USER[.GROUP] set ownership of all files\n\
+  -s, --stor=USER[.GROUP] user ID to use for ciphertext access\n\
 \n\
 If the key is not specified on the command-line, the user is asked\n\
 to enter the key.\n\
@@ -61,10 +66,91 @@ this command, the server will try to load the encrypted file system\n\
 in PATH with the specified key.  This will fail if the file system\n\
 is dirty, unless `--force' is specified.  If this operation is\n\
 successful, the file system can be mounted using `mount(8)'.\n\
+\n\
+Use `--stor' to specify which user identity should be used to access\n\
+the ciphertext.  This allows you to add file systems of which the\n\
+ciphertext is owned by regular users.  This is only really effective\n\
+on systems that support the [sg]etfs[ug]id() system calls, i.e. Linux.\n\
+If you do this, you should use `--user' as well; otherwise, the user\n\
+who has write access to the ciphertext could e.g. construct a file\n\
+that is setuid root.\n\
+\n\
+If the GROUP is omitted in `--user' or `--stor', the group ID of the\n\
+user is extracted from the password file.\n\
+\n\
+The default for `--user' is `-1.-1', which means use the file\n\
+ownership as stored in the file system.  The default for `--stor' is\n\
+`root.root'.  The default for `--mode' is 0600.\n\
+\n\
+Examples:\n\
+  Add the file system in `/crypted/fred', which is owned by user fred:\n\
+    aefsadd --user=fred.users --stor=fred.users /crypted/fred\n\
 ",
-         pszProgramName);
-   }
-   exit(status);
+            pszProgramName);
+    }
+    exit(status);
+}
+
+
+static int parseUGID(char * param, uid_t * puid, gid_t * pgid)
+{
+    char * p, * q, * sep;
+    struct passwd * pw;
+    struct group * gr;
+    int d;
+
+    p = malloc(strlen(p) + 1);
+    assert(p);
+    strcpy(p, param);
+    
+    for (sep = p; *sep && *sep != '.' && *sep != ':'; sep++) ;
+    q = *sep ? sep + 1 : 0;
+    *sep = 0;
+
+    if (isdigit(*p)) {
+        if (sscanf(p, "%d", &d) != 1) {
+            fprintf(stderr, "%s: invalid user number: %s", 
+                pszProgramName, p);
+            free(p);
+            return 1;
+        }
+        *puid = d;
+        *pgid = 0;
+    } else {
+        pw = getpwnam(p);
+        if (!pw) {
+            fprintf(stderr, "%s: invalid user name: %s", 
+                pszProgramName, p);
+            free(p);
+            return 1;
+        }
+        *puid = pw->pw_uid;
+        *pgid = pw->pw_gid;
+    }
+    
+    if (q) {
+        if (isdigit(*q)) {
+            if (sscanf(q, "%d", &d) != 1) {
+                fprintf(stderr, "%s: invalid group number: %s", 
+                    pszProgramName, q);
+                free(p);
+                return 1;
+            }
+            *pgid = d;
+        } else {
+            gr = getgrnam(q);
+            if (!gr) {
+                fprintf(stderr, "%s: invalid group name: %s", 
+                    pszProgramName, q);
+                free(p);
+                return 1;
+            }
+            *pgid = gr->gr_gid;
+        }
+    }
+    
+    free(p);
+    return 0;
 }
 
 
@@ -82,7 +168,9 @@ int main(int argc, char * * argv)
     addfsargs args;
     addfsres * res;
     int ret = 1;
-    int uid = 0, gid = 0, mode = 0600;
+    uid_t user_uid = -1, stor_uid = 0;
+    gid_t user_gid = -1, stor_gid = 0;
+    int mode = 0600;
 
     struct option const options[] = {
         { "help", no_argument, 0, 1 },
@@ -90,10 +178,10 @@ int main(int argc, char * * argv)
         { "key", required_argument, 0, 'k' },
         { "force", no_argument, 0, 'f' },
         { "readonly", no_argument, 0, 'r' },
-        { "uid", required_argument, 0, 'u' },
-        { "gid", required_argument, 0, 'g' },
         { "mode", required_argument, 0, 'm' },
         { "lazy", required_argument, 0, 11 },
+        { "user", required_argument, 0, 'u' },
+        { "stor", required_argument, 0, 's' },
         { 0, 0, 0, 0 } 
     };      
 
@@ -101,7 +189,7 @@ int main(int argc, char * * argv)
    
     pszProgramName = argv[0];
 
-    while ((c = getopt_long(argc, argv, "fg:k:m:ru:", options, 0)) != EOF) {
+    while ((c = getopt_long(argc, argv, "fk:m:ru:s:", options, 0)) != EOF) {
         switch (c) {
             case 0:
                 break;
@@ -127,22 +215,6 @@ int main(int argc, char * * argv)
                 fReadOnly = TRUE;
                 break;
 
-            case 'u': /* --uid */
-                if (sscanf(optarg, "%d", &uid) != 1) {
-                    fprintf(stderr, "%s: invalid uid parameter %s", 
-                        pszProgramName, optarg);
-                    printUsage(1);
-                }
-                break;
-
-            case 'g': /* --gid */
-                if (sscanf(optarg, "%d", &gid) != 1) {
-                    fprintf(stderr, "%s: invalid gid parameter %s", 
-                        pszProgramName, optarg);
-                    printUsage(1);
-                }
-                break;
-
             case 'm': /* --mode */
                 if (sscanf(optarg, "%o", &mode) != 1) {
                     fprintf(stderr, "%s: invalid mode parameter %s", 
@@ -163,7 +235,17 @@ int main(int argc, char * * argv)
                     printUsage(1);
                 }
                 break;
-                
+
+            case 'u': /* --user */
+                if (parseUGID(optarg, &user_uid, &user_gid))
+                    printUsage(1);
+                break;
+
+            case 's': /* --stor */
+                if (parseUGID(optarg, &stor_uid, &stor_gid))
+                    printUsage(1);
+                break;
+
             default:
                 printUsage(1);
         }
@@ -186,7 +268,7 @@ int main(int argc, char * * argv)
     }
 
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(2050);
+    addr.sin_port = htons(AEFSNFSD_DEF_PORT);
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     memset(addr.sin_zero, 0, sizeof(addr.sin_zero));
 
@@ -209,11 +291,11 @@ int main(int argc, char * * argv)
         (fReadOnly ? AF_READONLY : 0) |
         (fForceMount ? AF_MOUNTDIRTY : 0) |
         (fLazyWrite ? AF_LAZYWRITE : 0);
-    args.stor_uid = uid;
-    args.stor_gid = gid;
+    args.stor_uid = stor_uid;
+    args.stor_gid = stor_gid;
     args.stor_mode = mode;
-    args.fs_uid = uid ? uid : -1;
-    args.fs_gid = gid ? gid : -1;
+    args.fs_uid = user_uid;
+    args.fs_gid = user_gid;
     res = aefsctrlproc_addfs_1(&args, clnt);
     if (!res) {
         clnt_perror(clnt, "unable to add key to aefsnfsd");

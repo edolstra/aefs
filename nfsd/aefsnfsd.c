@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.7 2000/12/29 20:17:06 eelco Exp $
+   $Id: aefsnfsd.c,v 1.8 2000/12/29 22:03:53 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -564,7 +564,7 @@ static int makeSocket(int protocol)
     if (s == -1) return -1;
         
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(2050);
+    addr.sin_port = htons(AEFSNFSD_DEF_PORT);
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     memset(addr.sin_zero, 0, sizeof(addr.sin_zero));
     res = bind(s, (struct sockaddr *) &addr, sizeof(addr));
@@ -576,7 +576,7 @@ static int makeSocket(int protocol)
 
 /* Create (and register) our RPC services on the given transport
    protocol. */
-static int createAndRegister(int protocol)
+static SVCXPRT * createAndRegister(int protocol)
 {
     SVCXPRT * transp;
     int s;
@@ -584,8 +584,8 @@ static int createAndRegister(int protocol)
     s = makeSocket(protocol);
     if (s == -1) {
         fprintf(stderr, "%s: cannot bind to port %d: %s",
-            pszProgramName, 2050, strerror(errno));
-        return -1;
+            pszProgramName, AEFSNFSD_DEF_PORT, strerror(errno));
+        return 0;
     }
 
     if (protocol == IPPROTO_UDP) 
@@ -594,15 +594,13 @@ static int createAndRegister(int protocol)
         transp = svctcp_create(s, 0, 0);
     if (transp == NULL) {
         fprintf(stderr, "%s: cannot create service\n", pszProgramName);
-        return -1;
+        return 0;
     }
 
     if (!svc_register(transp, NFS_PROGRAM, NFS_VERSION, 
             nfs_program_2, 0) ||
         !svc_register(transp, MOUNTPROG, MOUNTVERS, 
             mountprog_1, 0) ||
-/*         !svc_register(transp, NLM_PROG, NLM_VERS,  */
-/*             nlm_prog_1, protocol) || */
         !svc_register(transp, AEFSCTRL_PROGRAM, AEFSCTRL_VERSION_1,
             aefsctrl_program_1, 0)
         )
@@ -610,10 +608,10 @@ static int createAndRegister(int protocol)
         fprintf(stderr,
             "%s: unable to register service with portmapper\n",
             pszProgramName);
-        return -1;
+        return 0;
     }
 
-    return 0;
+    return transp;
 }
 
 
@@ -711,6 +709,7 @@ static int run()
 int main(int argc, char * * argv)
 {
     int i, c;
+    SVCXPRT * udp, * tcp;
     
     struct option const options[] = {
         { "help", no_argument, 0, 1 },
@@ -765,11 +764,10 @@ int main(int argc, char * * argv)
 
     (void) pmap_unset(NFS_PROGRAM, NFS_VERSION);
     (void) pmap_unset(MOUNTPROG, MOUNTVERS);
-/*     (void) pmap_unset(NLM_PROG, NLM_VERS); */
     (void) pmap_unset(AEFSCTRL_PROGRAM, AEFSCTRL_VERSION_1);
 
-    if (createAndRegister(IPPROTO_UDP) == -1) return 1;
-    if (createAndRegister(IPPROTO_TCP) == -1) return 1;
+    if (!(udp = createAndRegister(IPPROTO_UDP))) return 1;
+    if (!(tcp = createAndRegister(IPPROTO_TCP))) return 1;
 
 #ifdef HAVE_DAEMON
     if (!fDebug) daemon(0, 0);
@@ -784,6 +782,9 @@ int main(int argc, char * * argv)
     logMsg(LOG_INFO, "aefsdmn stopping, flushing everything...");
     commitAll();
     logMsg(LOG_INFO, "aefsdmn stopped");
+
+    svc_destroy(udp);
+    svc_destroy(tcp);
 
     return 0;
 }
