@@ -5,8 +5,8 @@ SUBDIRS := \
  misc system ciphers corefs utils nfsd \
  ifsdriver ifsdaemon ifsutils
 
-MANIFEST := COPYING Makefile \
- Makefile.incl.in PGPKEY config.h.in config.sub config.guess \
+MANIFEST := COPYING Makefile Makefile.incl Makefile.conf.in \
+ PGPKEY config.h.in config.sub config.guess \
  configure configure.in install-sh readme.src
 
 all clean clean-stuff install depend:
@@ -35,7 +35,7 @@ CHECKSUMS:
 	md5sum -b `find . -type f` | pgp -staf +clearsig > $@
 
 os2dist: all dist
-	cp -p Makefile.incl $(distdir)
+	cp -p Makefile.conf $(distdir)
 	cp -p config.h $(distdir)
 	cp -p readme.txt $(distdir)
 	cp -p readme.inf $(distdir)
@@ -43,6 +43,7 @@ os2dist: all dist
 	cp -p utils/mkaefs.exe $(distdir)/bin
 	cp -p utils/aefsck.exe $(distdir)/bin
 	cp -p utils/aefsdump.exe $(distdir)/bin
+	cp -p utils/aefsutil.exe $(distdir)/bin
 	cp -p ifsdriver/stubfsd.ifs $(distdir)/bin
 	cp -p ifsdaemon/aefsdmn.exe $(distdir)/bin
 	cp -p ifsutils/mntaefs.exe $(distdir)/bin
