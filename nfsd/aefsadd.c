@@ -1,7 +1,7 @@
 /* aefsadd.c -- Utility to add file systems to the AEFS NFS server.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsadd.c,v 1.14 2001/12/05 09:59:06 eelco Exp $
+   $Id: aefsadd.c,v 1.15 2001/12/06 16:08:18 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -163,7 +163,7 @@ int main(int argc, char * * argv)
     bool fForceMount = false;
     bool fReadOnly = false;
     bool fLazyWrite = true;
-    char szKey[1024], * pszKey = 0, * pszBasePath;
+    char szPassPhrase[1024], * pszPassPhrase = 0, * pszBasePath;
     struct sockaddr_in addr;
     struct timeval time;
     int socket;
@@ -207,7 +207,7 @@ int main(int argc, char * * argv)
                 break;
 
             case 'k': /* --key */
-                pszKey = optarg;
+                pszPassPhrase = optarg;
                 break;
 
             case 'f': /* --force */
@@ -261,10 +261,11 @@ int main(int argc, char * * argv)
 
     pszBasePath = argv[optind++];
 
-    /* Ask the use to enter the key, if it wasn't specified with "-k". */
-    if (!pszKey) {
-        pszKey = szKey;
-        if (readKey("passphrase: ", sizeof(szKey), szKey)) {
+    /* Ask the user to enter the passphrase, if it wasn't specified
+       with "-k". */
+    if (!pszPassPhrase) {
+        pszPassPhrase = szPassPhrase;
+        if (readPhrase("passphrase: ", sizeof(szPassPhrase), szPassPhrase)) {
             fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
             return 1;
         }
@@ -289,7 +290,7 @@ int main(int argc, char * * argv)
     clnt->cl_auth = authunix_create_default();
 
     args.path = pszBasePath;
-    args.key = pszKey;
+    args.key = pszPassPhrase;
     args.flags = 
         (fReadOnly ? AF_READONLY : 0) |
         (fForceMount ? AF_MOUNTDIRTY : 0) |

@@ -1,7 +1,7 @@
 /* utilutils.c -- Helper routines for the utility programs.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: utilutils.c,v 1.10 2001/12/06 09:17:07 eelco Exp $
+   $Id: utilutils.c,v 1.11 2001/12/06 16:08:18 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@
 #include "superblock.h"
 
 
-int readKey(char * pszPrompt, unsigned int cbBuffer, char * pszBuffer)
+int readPhrase(char * pszPrompt, unsigned int cbBuffer, char * pszBuffer)
 {
    char * p, * envstr;
    

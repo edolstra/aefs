@@ -1,7 +1,7 @@
 /* attach.h -- Handles (at|de)tachments and other volume stuff.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: attach.c,v 1.9 2001/11/30 21:05:10 eelco Exp $
+   $Id: attach.c,v 1.10 2001/12/06 16:08:18 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -151,7 +151,7 @@ static APIRET attachVolume(ServerData * pServerData,
    
    if ((pattach->cbParm != sizeof(AEFS_ATTACH)) ||
        VERIFYFIXED(parms->szBasePath) ||
-       VERIFYFIXED(parms->szKey))
+       VERIFYFIXED(parms->szPassPhrase))
       return ERROR_INVALID_PARAMETER;
             
    logMsg(L_DBG, "attaching drive, basepath=%s", parms->szBasePath);
@@ -220,7 +220,7 @@ static APIRET attachVolume(ServerData * pServerData,
    vparms.dirtyCallBack = dirtyCallBack;
    vparms.pUserData = pVolData;
 
-   cr = coreReadSuperBlock(parms->szBasePath, parms->szKey,
+   cr = coreReadSuperBlock(parms->szBasePath, parms->szPassPhrase,
       cipherTable, &vparms, &pVolData->pSuperBlock);
    
    if (cr) {
@@ -230,7 +230,7 @@ static APIRET attachVolume(ServerData * pServerData,
       free(pVolData);
       if (cr == CORERC_BAD_CHECKSUM)
          /* An encryption error almost certainly means an incorrect
-            key. */
+            passphrase. */
          return ERROR_INVALID_PASSWORD;
       else
          return coreResultToOS2(cr);

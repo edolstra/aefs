@@ -1,7 +1,7 @@
 /* mkaefs.c -- AEFS file system creation program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: mkaefs.c,v 1.13 2001/12/05 09:59:06 eelco Exp $
+   $Id: mkaefs.c,v 1.14 2001/12/06 16:08:18 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -110,7 +110,7 @@ static int initVolume(char * pszBasePath, octet * pabDataKey,
    /* Create the superblock in-core. */
    strcpy(superblock.szBasePath, pszBasePath);
    superblock.pVolume = pVolume;
-   superblock.pKey = pDataKey;
+   superblock.pDataKey = pDataKey;
    superblock.flFlags = 0;
    superblock.idRoot = idRootDir;
    superblock.fEncryptedKey = fDataKey;
@@ -153,13 +153,13 @@ static int initVolume(char * pszBasePath, octet * pabDataKey,
 
 
 static int createVolumeInPath(char * pszBasePath, 
-   char * pszCipher, char * pszKey, bool fUseCBC, bool fDataKey)
+   char * pszCipher, char * pszPassPhrase, bool fUseCBC, bool fDataKey)
 {
    CoreResult cr;
    CipherResult cr2;
    Cipher * pCipher;
    unsigned int cbBlock, cbKey;
-   char szKey[1024], szKey2[1024];
+   char szPassPhrase[1024], szPassPhrase2[1024];
    int res;
    CryptedVolume * pVolume;
    char szBasePath[MAX_VOLUME_BASE_PATH_NAME], * p;
@@ -188,24 +188,25 @@ static int createVolumeInPath(char * pszBasePath,
    printf("%s: using algorithm %s-%d-%d\n", pszProgramName,
       pCipher->pszID, cbKey * 8, cbBlock * 8);
 
-   /* Ask the use to enter the key, if it wasn't specified with "-k". */
-   if (!pszKey) {
-      pszKey = szKey;
+   /* Ask the user to enter the passphrase, if it wasn't specified
+      with "-k". */
+   if (!pszPassPhrase) {
+      pszPassPhrase = szPassPhrase;
    retry:      
-      if (readKey("passphrase: ", sizeof(szKey), szKey)) {
+      if (readPhrase("passphrase: ", sizeof(szPassPhrase), szPassPhrase)) {
          fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
          return 0;
       }
-      if (readKey("passphrase (again): ", sizeof(szKey2), szKey2)) {
+      if (readPhrase("passphrase (again): ", sizeof(szPassPhrase2), szPassPhrase2)) {
          fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
          return 0;
       }
-      if (strcmp(szKey, szKey2) != 0) {
+      if (strcmp(szPassPhrase, szPassPhrase2) != 0) {
          fprintf(stderr, "%s: the passphrases do not match, please retry.\n",
             pszProgramName);
          goto retry;
       }
-      memset(szKey2, 0, sizeof(szKey2)); /* burn */
+      memset(szPassPhrase2, 0, sizeof(szPassPhrase2)); /* burn */
    }
 
    /* Remove trailing slashes (mkdir doesn't like them). */
@@ -254,8 +255,8 @@ static int createVolumeInPath(char * pszBasePath,
 
       /* Hash the key the user entered into the cbKey-bytes wide key
 	 expected by the cipher. */
-      cr = coreHashKey(pszKey, abDataKey, cbKey);
-      memset(szKey, 0, sizeof(szKey)); /* burn */
+      cr = coreHashPhrase(pszPassPhrase, abDataKey, cbKey);
+      memset(szPassPhrase, 0, sizeof(szPassPhrase)); /* burn */
       if (cr) {
 	 fprintf(stderr, "%s: error hashing passphrase: %s\n",
 	    pszProgramName, core2str(cr));
@@ -285,7 +286,7 @@ static int createVolumeInPath(char * pszBasePath,
    /* Initialize the volume (i.e. create a root directory and write
       the superblocks. */
    res = initVolume(szBasePath, abDataKey, 
-      pDataKey, pVolume, pszKey, fDataKey);
+      pDataKey, pVolume, pszPassPhrase, fDataKey);
    memset(abDataKey, 0, sizeof(abDataKey)); /* burn */
    
    /* Drop the volume, commit all writes. */
@@ -354,7 +355,7 @@ int main(int argc, char * * argv)
    bool fUseCBC = true, fDataKey = true;
    int res;
    int c;
-   char * pszKey = 0, * pszCipher = 0, * pszBasePath;
+   char * pszPassPhrase = 0, * pszCipher = 0, * pszBasePath;
 
    struct option const options[] =
    {
@@ -388,7 +389,7 @@ int main(int argc, char * * argv)
             break;
 
          case 'k': /* --key */
-            pszKey = optarg;
+            pszPassPhrase = optarg;
             break;
 
          case 'c': /* --cipher */
@@ -416,9 +417,9 @@ int main(int argc, char * * argv)
    pszBasePath = argv[optind++];
 
    /* Make the volume. */
-   res = createVolumeInPath(pszBasePath, pszCipher, pszKey, 
+   res = createVolumeInPath(pszBasePath, pszCipher, pszPassPhrase, 
       fUseCBC, fDataKey);
-   if (pszKey) memset(pszKey, 0, strlen(pszKey)); /* burn */
+   if (pszPassPhrase) memset(pszPassPhrase, 0, strlen(pszPassPhrase)); /* burn */
 
    return res;
 }

@@ -1,7 +1,7 @@
 /* superblock.h -- Header file to the standard superblock code.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: superblock.h,v 1.5 2001/11/22 16:18:20 eelco Exp $
+   $Id: superblock.h,v 1.6 2001/12/06 16:08:17 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -59,7 +59,7 @@
 typedef struct {
       char szBasePath[MAX_VOLUME_BASE_PATH_NAME];
       CryptedVolume * pVolume;
-      Key * pKey;
+      Key * pDataKey;
       /* Only needed for coreWriteKey(). */
       octet abDataKey[MAX_KEY_SIZE];
 
@@ -89,10 +89,10 @@ typedef struct {
 #pragma pack()
 
 
-CoreResult coreHashKey(char * pszKey, octet * pabKey, 
+CoreResult coreHashPhrase(char * pszPhrase, octet * pabKey, 
    unsigned int cbKey);
 
-CoreResult coreReadSuperBlock(char * pszBasePath, char * pszKey,
+CoreResult coreReadSuperBlock(char * pszBasePath, char * pszPassPhrase,
    Cipher * * papCipher, CryptedVolumeParms * pParms,
    SuperBlock * * ppSuperBlock);
 

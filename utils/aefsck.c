@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsck.c,v 1.18 2001/12/05 09:59:06 eelco Exp $
+   $Id: aefsck.c,v 1.19 2001/12/06 16:08:18 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1900,7 +1900,7 @@ static int checkVolume(State * pState)
 }
 
 
-static int checkFS2(int flags, char * pszBasePath, char * pszKey)
+static int checkFS2(int flags, char * pszBasePath, char * pszPassPhrase)
 {
    State state;
    char szBasePath[1024];
@@ -1920,7 +1920,7 @@ static int checkFS2(int flags, char * pszBasePath, char * pszKey)
    coreSetDefVolumeParms(&parms);
    if (!(flags & FSCK_FIX)) parms.fReadOnly = true;
    
-   cr = coreReadSuperBlock(szBasePath, pszKey, cipherTable, &parms,
+   cr = coreReadSuperBlock(szBasePath, pszPassPhrase, cipherTable, &parms,
       &state.pSuperBlock);
    if (!state.pSuperBlock) {
       printf("superblock: unable to read: %s\n", core2str(cr));
@@ -1949,7 +1949,7 @@ static void breakHandler(int sig)
 }
 
 
-static int checkFS(int flags, char * pszBasePath, char * pszKey)
+static int checkFS(int flags, char * pszBasePath, char * pszPassPhrase)
 {
    struct sigaction iact;
    struct sigaction oact_int;
@@ -1970,7 +1970,7 @@ static int checkFS(int flags, char * pszBasePath, char * pszKey)
    sigaction(SIGBREAK, &iact, &oact_break);
 #endif   
 
-   res = checkFS2(flags, pszBasePath, pszKey);
+   res = checkFS2(flags, pszBasePath, pszPassPhrase);
 
 #ifdef SIGBREAK
    sigaction(SIGBREAK, &oact_break, 0);
@@ -2040,7 +2040,7 @@ The return code is the bitwise OR of the following values:\n\
 
 int main(int argc, char * * argv)
 {
-   char * pszKey = 0, * pszBasePath;
+   char * pszPassPhrase = 0, * pszBasePath;
    unsigned int flags = FSCK_VERBOSE;
    int c;
    
@@ -2056,7 +2056,7 @@ int main(int argc, char * * argv)
       { 0, 0, 0, 0 } 
    };
 
-   char szKey[1024];
+   char szPassPhrase[1024];
    int res;
 
    sysInitPRNG();
@@ -2080,7 +2080,7 @@ int main(int argc, char * * argv)
             break;
 
          case 'k': /* --key */
-            pszKey = optarg;
+            pszPassPhrase = optarg;
             break;
 
          case 'f': /* --fix */
@@ -2111,22 +2111,23 @@ int main(int argc, char * * argv)
 
    pszBasePath = argv[optind++];
 
-   /* Ask the use to enter the key, if it wasn't specified with "-k". */
-   if (!pszKey) {
-      pszKey = szKey;
-      if (readKey("passphrase: ", sizeof(szKey), szKey)) {
+   /* Ask the user to enter the passphrase, if it wasn't specified
+      with "-k". */
+   if (!pszPassPhrase) {
+      pszPassPhrase = szPassPhrase;
+      if (readPhrase("passphrase: ", sizeof(szPassPhrase), szPassPhrase)) {
          fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
          return 0;
       }
    }
 
-   res = checkFS(flags, pszBasePath, pszKey);
+   res = checkFS(flags, pszBasePath, pszPassPhrase);
    if ((res & AEFSCK_ERRORFOUND) & !(flags & FSCK_FIX))
       res |= AEFSCK_NOTFIXED;
    if (res & AEFSCK_INTERRUPT)
       printf("Interrupted!\n");
 
-   memset(pszKey, 0, strlen(pszKey)); /* burn */
+   memset(pszPassPhrase, 0, strlen(pszPassPhrase)); /* burn */
    
    return res;
 }

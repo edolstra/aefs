@@ -2,7 +2,7 @@
    directories from an AEFS file system.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsutil.c,v 1.9 2001/12/05 09:59:06 eelco Exp $
+   $Id: aefsutil.c,v 1.10 2001/12/06 16:08:18 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -81,10 +81,10 @@ Cipher type: %s-%d-%d (%s) in %s mode\n\
       pSuperBlock->szDescription,
       pSuperBlock->flFlags & SBF_DIRTY ? "" : "not-",
       pSuperBlock->fEncryptedKey ? "" : "no-",
-      pSuperBlock->pKey->pCipher->pszID,
-      pSuperBlock->pKey->cbKey * 8,
-      pSuperBlock->pKey->cbBlock * 8,
-      pSuperBlock->pKey->pCipher->pszDescription,
+      pSuperBlock->pDataKey->pCipher->pszID,
+      pSuperBlock->pDataKey->cbKey * 8,
+      pSuperBlock->pDataKey->cbBlock * 8,
+      pSuperBlock->pDataKey->pCipher->pszDescription,
       coreQueryVolumeParms(pSuperBlock->pVolume)->flCryptoFlags & CCRYPT_USE_CBC 
       ? "Cipher Block Chaining" : "Electronic Code Book"
       );
@@ -383,7 +383,7 @@ static int cat(SuperBlock * pSuperBlock, char * pszPath)
 }
 
 
-static int doCommand(char * pszKey, char * pszBasePath, 
+static int doCommand(char * pszPassPhrase, char * pszBasePath, 
    char * pszCommand, int argc, char * * argv, unsigned int flFlags)
 {
    char szBasePath[1024];
@@ -401,7 +401,7 @@ static int doCommand(char * pszKey, char * pszBasePath,
    coreSetDefVolumeParms(&parms);
    parms.fReadOnly = true;
 
-   cr = coreReadSuperBlock(szBasePath, pszKey, cipherTable, 
+   cr = coreReadSuperBlock(szBasePath, pszPassPhrase, cipherTable, 
       &parms, &pSuperBlock);
    if (cr) {
       fprintf(stderr, "%s: unable to read superblock: %s\n", 
@@ -483,8 +483,8 @@ OS/2 system, hidden, and archive attributes.\n\
 
 int main(int argc, char * * argv)
 {
-   char * pszKey = 0, * pszBasePath, * pszCommand;
-   char szKey[1024];
+   char * pszPassPhrase = 0, * pszBasePath, * pszCommand;
+   char szPassPhrase[1024];
    int c, res;
    unsigned int flFlags = 0;
 
@@ -517,7 +517,7 @@ int main(int argc, char * * argv)
             break;
             
          case 'k': /* --key */
-            pszKey = optarg;
+            pszPassPhrase = optarg;
             break;
 
          case 'd': /* --directory */
@@ -550,19 +550,20 @@ int main(int argc, char * * argv)
    pszBasePath = argv[optind++];
    pszCommand = argv[optind++];
 
-   /* Ask the use to enter the key, if it wasn't specified with "-k". */
-   if (!pszKey) {
-      pszKey = szKey;
-      if (readKey("passphrase: ", sizeof(szKey), szKey)) {
+   /* Ask the user to enter the passphrase, if it wasn't specified
+      with "-k". */
+   if (!pszPassPhrase) {
+      pszPassPhrase = szPassPhrase;
+      if (readPhrase("passphrase: ", sizeof(szPassPhrase), szPassPhrase)) {
          fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
          return 0;
       }
    }
 
-   res = doCommand(pszKey, pszBasePath, pszCommand,
+   res = doCommand(pszPassPhrase, pszBasePath, pszCommand,
       argc - optind, argv + optind, flFlags);
 
-   memset(pszKey, 0, strlen(pszKey)); /* burn */
+   memset(pszPassPhrase, 0, strlen(pszPassPhrase)); /* burn */
 
    return res;
 }

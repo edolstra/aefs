@@ -1,7 +1,7 @@
 /* aefsdint.h -- External interface to the AEFS FSD.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsdint.h,v 1.3 2001/09/23 13:30:12 eelco Exp $
+   $Id: aefsdint.h,v 1.4 2001/12/06 16:08:18 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -49,7 +49,7 @@
 typedef struct {
       ULONG flFlags;
       CHAR szBasePath[CCHMAXPATH];
-      CHAR szKey[256];
+      CHAR szPassPhrase[256];
 } AEFS_ATTACH;
 
 

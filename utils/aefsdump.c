@@ -1,7 +1,7 @@
 /* aefsdump.c -- Off-line data extraction.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsdump.c,v 1.8 2001/12/05 09:59:06 eelco Exp $
+   $Id: aefsdump.c,v 1.9 2001/12/06 16:08:18 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -66,9 +66,9 @@ int main(int argc, char * * argv)
    CoreResult cr;
    CipherResult cr2;
    
-   char * pszKey = 0, * pszCipher = 0;
+   char * pszPassPhrase = 0, * pszCipher = 0;
    bool fUseCBC = true;
-   char szKey[1024];
+   char szPassPhrase[1024];
    octet abKey[MAX_KEY_SIZE];
    Cipher * pCipher;
    unsigned int cbBlock, cbKey;
@@ -114,7 +114,7 @@ int main(int argc, char * * argv)
             break;
             
          case 'k': /* --key */
-            pszKey = optarg;
+            pszPassPhrase = optarg;
             break;
 
          case 'c': /* --cipher */
@@ -145,15 +145,15 @@ int main(int argc, char * * argv)
       return 0;
    }
    
-   if (!pszKey) {
-      pszKey = szKey;
-      if (readKey("passphrase: ", sizeof(szKey), szKey)) {
+   if (!pszPassPhrase) {
+      pszPassPhrase = szPassPhrase;
+      if (readPhrase("passphrase: ", sizeof(szPassPhrase), szPassPhrase)) {
          fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
          return 0;
       }
    }
 
-   cr = coreHashKey(pszKey, abKey, cbKey);
+   cr = coreHashPhrase(pszPassPhrase, abKey, cbKey);
    if (cr) {
       fprintf(stderr, "%s: error hashing passphrase: %s\n",
          pszProgramName, core2str(cr));

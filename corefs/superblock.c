@@ -1,7 +1,7 @@
 /* superblock.c -- Superblock code.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: superblock.c,v 1.11 2001/11/22 16:18:20 eelco Exp $
+   $Id: superblock.c,v 1.12 2001/12/06 16:08:17 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -53,34 +53,34 @@ static CoreResult cipherResultToCore(CipherResult cr)
 }
 
 
-/* Hash an variable-length (zero-terminated) key phrase into a
+/* Hash an variable-length (zero-terminated) phrase into a
    fixed-length key of cbKey bytes.  We do this using the SHA.
    The method is as follows.  The key is initialized to 0.  Then,
-   while there are bytes left in the key phrase, we do the following.
+   while there are bytes left in the phrase, we do the following.
    We take at most the first 20 bytes (the SHA digest length).
    We calculate the SHA hash value of the concatenation of the current
-   key and the partial key phrase.  We then cyclically XOR the current
+   key and the partial phrase.  We then cyclically XOR the current
    key with the hash value, yielding the key.
    
    Rationale: the hash function should be such that a) no entropy in
-   the key phrase is "wasted"; b) even if the input alphabet is
+   the phrase is "wasted"; b) even if the input alphabet is
    constrained, the resulting keyspace should not be constrained.
 
-   The reason that we SHA-hash not just the partial key phrase but
-   also the current key is to prevent repetitions in the key phrase
+   The reason that we SHA-hash not just the partial phrase but
+   also the current key is to prevent repetitions in the phrase
    from carrying over into the key.  For example, if the key length is
-   20 bytes, then the key phrase consisting of 20 times the letter 'x'
-   will yield the same key as the key phrase consisting of 60 times
+   20 bytes, then the phrase consisting of 20 times the letter 'x'
+   will yield the same key as the phrase consisting of 60 times
    the letter 'x' (and the key resulting from 40 times the letter 'x'
-   would be 0 due to X xor X = 0).  Of course, a repetitious key
+   would be 0 due to X xor X = 0).  Of course, a repetitious
    phrase is not a good idea anyway, but otherwise criterium (a) would
    be violated.
 
-   Note that if the key phrase is smaller than the key, only the first
+   Note that if the phrase is smaller than the key, only the first
    cbKey (rounded up to a multiple of 20) key bytes are
-   initialized to values based upon the key phrase.  The other remain
+   initialized to values based upon the phrase.  The other remain
    zero.  Problem? */
-CoreResult coreHashKey(char * pszKey, octet * pabKey, 
+CoreResult coreHashPhrase(char * pszPhrase, octet * pabKey, 
    unsigned int cbKey)
 {
    struct sha_ctx ctx;
@@ -89,14 +89,14 @@ CoreResult coreHashKey(char * pszKey, octet * pabKey,
 
    memset(pabKey, 0, cbKey);
 
-   cbLeft = strlen(pszKey);
+   cbLeft = strlen(pszPhrase);
 
    while (cbLeft > 0) {
       cbAdd = cbLeft >= SHA_DIGESTSIZE ? SHA_DIGESTSIZE : cbLeft;
 
       sha_init(&ctx);
       sha_update(&ctx, pabKey, cbKey);
-      sha_update(&ctx, (octet *) pszKey, cbAdd);
+      sha_update(&ctx, (octet *) pszPhrase, cbAdd);
       sha_final(&ctx);
       sha_digest(&ctx, digest);
 
@@ -105,7 +105,7 @@ CoreResult coreHashKey(char * pszKey, octet * pabKey,
          if (iPos == cbKey) iPos = 0;
       }
       
-      pszKey += cbAdd;
+      pszPhrase += cbAdd;
       cbLeft -= cbAdd;
    }
    
@@ -158,7 +158,7 @@ static CoreResult readDataKey(SuperBlock * pSuperBlock,
    /* Construct a cipher instance. */
    cr2 = cryptCreateKey(pPassKey->pCipher, 
       pPassKey->cbBlock, pPassKey->cbKey, 
-      pSuperBlock->abDataKey, &pSuperBlock->pKey);
+      pSuperBlock->abDataKey, &pSuperBlock->pDataKey);
    if (cr2) return cipherResultToCore(cr2);
 
    return CORERC_OK;
@@ -168,7 +168,7 @@ static CoreResult readDataKey(SuperBlock * pSuperBlock,
 /* Read info about the cipher and flags (i.e. CBC mode) used for this
    volume.  Create a key instance. */
 static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
-   char * pszKey, CryptedVolumeParms * pParms, Cipher * * papCipher)
+   char * pszPassPhrase, CryptedVolumeParms * pParms, Cipher * * papCipher)
 {
    CoreResult cr;
    SysResult sr;
@@ -237,7 +237,7 @@ static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
 
    /* Hash the user's key string into the cbKey-bytes wide key
       expected by the cipher. */
-   cr = coreHashKey(pszKey, pSuperBlock->abDataKey, cbKey);
+   cr = coreHashPhrase(pszPassPhrase, pSuperBlock->abDataKey, cbKey);
    if (cr) return cr;
    printKey("pass key", cbKey, pSuperBlock->abDataKey);
 
@@ -252,7 +252,7 @@ static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
       cryptDestroyKey(pPassKey);
       if (cr) return cr;
    } else {
-      pSuperBlock->pKey = pPassKey;
+      pSuperBlock->pDataKey = pPassKey;
    }
 
    return CORERC_OK;
@@ -305,7 +305,7 @@ static CoreResult readSuperBlock2(SuperBlock * pSuperBlock,
       return sys2core(sr);
    
    cr = coreDecryptSectorData(abSector, &sector,
-      pSuperBlock->pKey, pParms->flCryptoFlags);
+      pSuperBlock->pDataKey, pParms->flCryptoFlags);
    
    pSuperBlock->magic = bytesToInt32(pOnDisk->magic);
    pSuperBlock->version = bytesToInt32(pOnDisk->version);
@@ -329,13 +329,13 @@ static CoreResult createVolume(SuperBlock * pSuperBlock,
 {
    return coreAccessVolume(
       pSuperBlock->szBasePath,
-      pSuperBlock->pKey,
+      pSuperBlock->pDataKey,
       pParms,
       &pSuperBlock->pVolume);
 }
 
 
-CoreResult coreReadSuperBlock(char * pszBasePath, char * pszKey,
+CoreResult coreReadSuperBlock(char * pszBasePath, char * pszPassPhrase,
    Cipher * * papCipher, CryptedVolumeParms * pParms,
    SuperBlock * * ppSuperBlock)
 {
@@ -356,7 +356,7 @@ CoreResult coreReadSuperBlock(char * pszBasePath, char * pszKey,
    strcpy(pSuperBlock->szBasePath, pszBasePath);
    pSuperBlock->pSB2File = 0;
 
-   if (cr = readSuperBlock1(pSuperBlock, pszKey, pParms, papCipher)) {
+   if (cr = readSuperBlock1(pSuperBlock, pszPassPhrase, pParms, papCipher)) {
       sysFreeSecureMem(pSuperBlock);
       return cr;
    }
@@ -407,9 +407,9 @@ CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock,
          "cipher: %s-%d-%d\n"
          "use-cbc: %d\n"
          "encrypted-key: %d\n", 
-         pSuperBlock->pKey->pCipher->pszID,
-         pSuperBlock->pKey->cbKey * 8,
-         pSuperBlock->pKey->cbBlock * 8,
+         pSuperBlock->pDataKey->pCipher->pszID,
+         pSuperBlock->pDataKey->cbKey * 8,
+         pSuperBlock->pDataKey->cbBlock * 8,
          pParms->flCryptoFlags & CCRYPT_USE_CBC,
          pSuperBlock->fEncryptedKey) >= sizeof(szBuffer))
          return CORERC_INVALID_PARAMETER;
@@ -446,7 +446,7 @@ CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock,
    strcpy((char *) pOnDisk->szDescription, pSuperBlock->szDescription);
    
    coreEncryptSectorData(&sector, (octet *) &sector,
-      pSuperBlock->pKey, pParms->flCryptoFlags);
+      pSuperBlock->pDataKey, pParms->flCryptoFlags);
 
    cr = openSuperBlock2(pSuperBlock, pParms, true);
    if (cr) return cr;
@@ -475,8 +475,8 @@ CoreResult coreWriteDataKey(SuperBlock * pSuperBlock,
    SysResult sr;
    CoreResult cr;
    CipherResult cr2;
-   unsigned int cbKey = pSuperBlock->pKey->cbKey, 
-      cbBlock = pSuperBlock->pKey->cbBlock;
+   unsigned int cbKey = pSuperBlock->pDataKey->cbKey, 
+      cbBlock = pSuperBlock->pDataKey->cbBlock;
    octet abPassKey[MAX_KEY_SIZE];
    octet abEncDataKey[MAX_KEY_SIZE + MAX_BLOCK_SIZE];
    unsigned int cbEncDataKey, cb;
@@ -489,13 +489,13 @@ CoreResult coreWriteDataKey(SuperBlock * pSuperBlock,
    printf("pass phrase: `%s'\n", pszPassPhrase);
 
    /* Hash the pass phrase into the pass key. */
-   cr = coreHashKey(pszPassPhrase, abPassKey, cbKey);
+   cr = coreHashPhrase(pszPassPhrase, abPassKey, cbKey);
    if (cr) return cr;
 
    printKey("pass key", cbKey, abPassKey);
 
    /* Construct a cipher instance. */
-   cr2 = cryptCreateKey(pSuperBlock->pKey->pCipher, 
+   cr2 = cryptCreateKey(pSuperBlock->pDataKey->pCipher, 
       cbBlock, cbKey, abPassKey, &pPassKey);
    memset(abPassKey, 0, sizeof(abPassKey)); /* burn */
    if (cr2) return 0;
@@ -544,7 +544,7 @@ CoreResult coreDropSuperBlock(SuperBlock * pSuperBlock)
    if (pSuperBlock->pSB2File)
        sysCloseFile(pSuperBlock->pSB2File);
 
-   cryptDestroyKey(pSuperBlock->pKey);
+   cryptDestroyKey(pSuperBlock->pDataKey);
 
    sysFreeSecureMem(pSuperBlock);
 

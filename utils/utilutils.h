@@ -1,7 +1,7 @@
 /* utilutils.h -- Helper routines for the utility programs.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: utilutils.h,v 1.5 2001/12/05 09:59:06 eelco Exp $
+   $Id: utilutils.h,v 1.6 2001/12/06 16:08:18 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
 #include "cipher.h"
 #include "corefs.h"
 
-int readKey(char * pszPrompt, 
+int readPhrase(char * pszPrompt, 
     unsigned int cbBuffer, char * pszBuffer);
 
 Cipher * findCipher(Cipher * * papCipher,

@@ -436,7 +436,7 @@ int main(int argc, char * * argv)
 {
     CryptedVolumeParms parms;
     CoreResult cr;
-    char szKey[1024], * pszKey = 0;
+    char szPassPhrase[1024], * pszPassPhrase = 0;
     char szBasePath[MAX_VOLUME_BASE_PATH_NAME];
 
     /* !!! check */
@@ -450,18 +450,19 @@ int main(int argc, char * * argv)
 
     coreSetDefVolumeParms(&parms);
 
-    /* Ask the use to enter the key, if it wasn't specified with "-k". */
-    if (!pszKey) {
-        pszKey = szKey;
-        if (readKey("key: ", sizeof(szKey), szKey)) {
-            fprintf(stderr, "%s: error reading key\n", pszProgramName);
+    /* Ask the user to enter the passphrase, if it wasn't specified
+       with "-k". */
+    if (!pszPassPhrase) {
+        pszPassPhrase = szPassPhrase;
+        if (readPhrase("passphrase: ", sizeof(szPassPhrase), szPassPhrase)) {
+            fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
             return 1;
         }
     }
 
     /* Read the superblock, initialize volume structures. */
 retry:
-    cr = coreReadSuperBlock(szBasePath, pszKey,
+    cr = coreReadSuperBlock(szBasePath, pszPassPhrase,
         cipherTable, &parms, &pSuperBlock);
     if (cr) {
         if (pSuperBlock) coreDropSuperBlock(pSuperBlock);

@@ -1,7 +1,7 @@
 /* mntaefs.c -- AEFS mount program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: mntaefs.c,v 1.6 2001/12/05 09:59:06 eelco Exp $
+   $Id: mntaefs.c,v 1.7 2001/12/06 16:08:18 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -76,11 +76,11 @@ int main(int argc, char * * argv)
    bool fForceMount = false;
    bool fReadOnly = false;
    bool fAutoCheck = true;
-   char szKey[1024], * pszOrigKey = 0;
+   char szPassPhrase[1024], * pszOrigKey = 0;
    int c, r;
    AEFS_ATTACH attachparms;
    APIRET rc;
-   char * pszKey = 0, * pszDrive, * pszBasePath;
+   char * pszPassPhrase = 0, * pszDrive, * pszBasePath;
 
    struct option const options[] = {
       { "help", no_argument, 0, 1 },
@@ -111,7 +111,7 @@ int main(int argc, char * * argv)
             break;
 
          case 'k': /* --key */
-            pszKey = pszOrigKey = optarg;
+            pszPassPhrase = pszOrigKey = optarg;
             break;
 
          case 'f': /* --force */
@@ -170,23 +170,24 @@ int main(int argc, char * * argv)
       return 1;
    }
 
-   /* Ask the use to enter the key, if it wasn't specified with "-k". */
-   if (!pszKey) {
-      pszKey = szKey;
-      if (readKey("passphrase: ", sizeof(szKey), szKey)) {
+   /* Ask the user to enter the passphrase, if it wasn't specified
+      with "-k". */
+   if (!pszPassPhrase) {
+      pszPassPhrase = szPassPhrase;
+      if (readPhrase("passphrase: ", sizeof(szPassPhrase), szPassPhrase)) {
          fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
          return 1;
       }
    }
 
    /* Does the key fit? */
-   if (strlen(pszKey) >= sizeof(attachparms.szKey)) {
+   if (strlen(pszPassPhrase) >= sizeof(attachparms.szPassPhrase)) {
       fprintf(stderr, "%s: passphrase is too long\n",
          pszProgramName);
       return 1;
    }
-   strcpy(attachparms.szKey, pszKey);
-   memset(szKey, 0, sizeof(szKey)); /* burn */
+   strcpy(attachparms.szPassPhrase, pszPassPhrase);
+   memset(szPassPhrase, 0, sizeof(szPassPhrase)); /* burn */
 
    /* Send the attachment request to the FSD. */
 retry:
