@@ -127,8 +127,8 @@ CoreResult coreDeleteFile(CryptedVolume * pVolume, CryptedFileID id)
 }
 
 
-static CoreResult addToList(char * pszName,
-   CryptedFileID idFile, int flFlags, CryptedDirEntry * * ppEntries)
+static CoreResult addToList(char * pszName, CryptedFileID idFile, 
+   unsigned int flFlags, CryptedDirEntry * * ppEntries)
 {
    CoreResult cr;
    CryptedDirEntry * * ppCur = ppEntries, * pCur = *ppEntries, * pNew;
@@ -172,7 +172,7 @@ static CryptedDirEntry * removeFromList(char * pszName,
 
 
 CoreResult coreAddEntryToDir(CryptedVolume * pVolume, CryptedFileID id,
-   char * pszName, CryptedFileID idFile, int flFlags)
+   char * pszName, CryptedFileID idFile, unsigned int flFlags)
 {
    CoreResult cr;
    CryptedDirEntry * pEntries;

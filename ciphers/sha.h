@@ -4,7 +4,7 @@
 #include "types.h"
 
 /* 
- * $Id: sha.h,v 1.2 2000/12/26 21:40:26 eelco Exp $
+ * $Id: sha.h,v 1.3 2001/03/04 22:54:10 eelco Exp $
  */
 
 /* The SHA block size and message digest sizes, in bytes */
@@ -19,7 +19,7 @@ struct sha_ctx {
   uint32 digest[SHA_DIGESTLEN];  /* Message digest */
   uint32 count_l, count_h;       /* 64-bit block count */
   uint8 block[SHA_DATASIZE];     /* SHA data buffer */
-  int index;                     /* index into buffer */
+  unsigned int index;            /* index into buffer */
 };
 
 void sha_init(struct sha_ctx *ctx);

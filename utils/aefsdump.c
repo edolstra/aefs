@@ -1,7 +1,7 @@
 /* aefsdump.c -- Off-line data extraction.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsdump.c,v 1.4 2000/12/31 11:35:38 eelco Exp $
+   $Id: aefsdump.c,v 1.5 2001/03/04 22:54:19 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -70,16 +70,16 @@ int main(int argc, char * * argv)
    char szKey[1024];
    octet abKey[MAX_KEY_SIZE];
    Cipher * pCipher;
-   int cbBlock;
-   int cbKey;
+   unsigned int cbBlock, cbKey;
    Key * pKey;
    
    char * name;
-   int isstdin;
+   bool isstdin;
    FILE * file;
    octet abData[SECTOR_SIZE];
    CryptedSectorData data;
-   int r, w, i;
+   unsigned int i;
+   ssize_t r, w;
    
    int c;
    
@@ -177,11 +177,11 @@ int main(int argc, char * * argv)
 
       name = argv[optind];
       if (strcmp(name, "-") == 0) {
-         isstdin = 1;
+         isstdin = true;
          name = "stdin";
          file = stdin;
       } else {
-         isstdin = 0;
+         isstdin = false;
          file = fopen(name, "rb");
          if (!file) {
             fprintf(stderr, "%s: %s: %s\n",

@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsck.c,v 1.12 2001/03/04 21:50:08 eelco Exp $
+   $Id: aefsck.c,v 1.13 2001/03/04 22:54:19 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -73,11 +73,11 @@ struct _FSItem {
       FSItem * pNextSorted;
       CryptedFileID id;
       CryptedFileInfo info;
-      int cRefs;
+      unsigned int cRefs;
       CryptedFileID idParent;
-      int flags;
+      unsigned int flags;
       CryptedDirEntry * pChildren;
-      int cbStorageSize;
+      CryptedFilePos cbStorageSize;
 };
 
 
@@ -86,7 +86,7 @@ struct _FSItem {
 
 /* State holds all relevant info. */
 typedef struct {
-      int flags;
+      unsigned int flags;
       
       SuperBlock * pSuperBlock;
       CryptedVolume * pVolume; /* convenience */
@@ -99,7 +99,7 @@ typedef struct {
       
       SectorNumber csISFSize;
       
-      int cFiles;
+      unsigned int cFiles;
       FSItem * pFirstSorted;
       
       bool fRewriteFreeList;
@@ -249,7 +249,7 @@ static FSItem * findFile(State * pState, CryptedFileID id)
 static FSItem * addFile(State * pState, CryptedFileID id)
 {
    FSItem * fsi;
-   int h = hashfsi(id);
+   unsigned int h = hashfsi(id);
 
    if (findFile(pState, id)) {
       printf("file %08lx: already in hash table\n", id);
@@ -356,7 +356,8 @@ static void makeStorageName(State * pState, CryptedFileID id,
    the file hash table. */
 static int addFiles(State * pState)
 {
-   int res = 0, bad, i;
+   int res = 0, bad;
+   unsigned int i;
    DIR * dir;
    struct dirent * dirent;
    struct stat st;
@@ -433,7 +434,7 @@ static int fsiComparator(const void * p1, const void * p2)
 static int sortFiles(State * pState)
 {
    FSItem * * fsilist, * fsi, * * fsilink;
-   int i, j;
+   unsigned int i, j;
 
    fsilist = malloc(pState->cFiles * sizeof(FSItem *));
    if (!fsilist && pState->cFiles) {
@@ -1107,7 +1108,7 @@ static int checkFileInfo(State * pState, FSItem * fsi)
 
    assert(fsi->info.csSet * SECTOR_SIZE <= fsi->cbStorageSize);
    if (fsi->info.csSet * SECTOR_SIZE < fsi->cbStorageSize) {
-      printf("%s: (not an error) storage file size is %d, but %ld required",
+      printf("%s: (not an error) storage file size is %ld, but %ld required",
          printFileName(pState, fsi->id),
          fsi->cbStorageSize, fsi->info.csSet * SECTOR_SIZE);
       if (pState->flags & FSCK_FIX) {
@@ -1311,9 +1312,9 @@ static int isBadEntry(State * pState, FSItem * fsi,
 {
    unsigned char * p, * pszName =
       (unsigned char *) pEntry->pabName;
-   int fEmpty = true;
-   int fWhite = false;
-   int fBad = false;
+   bool fEmpty = true;
+   bool fWhite = false;
+   bool fBad = false;
 
    for (p = pszName; *p; p++) {
       fEmpty = false;
@@ -1350,8 +1351,7 @@ static int checkDirEntryNamesInDir(State * pState, FSItem * fsi)
    int res = 0;
    CryptedDirEntry * pCur, * * ppCur, * pPrev, * pNext;
    CryptedDirEntry * * papEntries;
-   int cChildren = 0;
-   int i;
+   unsigned int cChildren = 0, i;
 
    for (ppCur = &fsi->pChildren, pCur = *ppCur; pCur; ) {
       pNext = pCur->pNext;
@@ -1588,7 +1588,7 @@ static int createLostFoundDir(State * pState)
    CoreResult cr;
    CryptedFileID id;
    CryptedFileInfo info;
-   int i;
+   unsigned int i;
    char szName[128];
    
    memset(&info, 0, sizeof(info));
@@ -1673,7 +1673,7 @@ static int moveToLostFoundDir(State * pState, FSItem * fsi)
 {
    int res = 0;
    CoreResult cr;
-   int i;
+   unsigned int i;
    char szName[128];
 
    res |= findLostFoundDir(pState);
@@ -1820,7 +1820,7 @@ static int writeDirectories(State * pState)
 
 static int checkFiles(State * pState)
 {
-   int i;
+   unsigned int i;
    FSItem * fsi, * fsinext;
    int res = 0;
    
@@ -2039,7 +2039,7 @@ The return code is the bitwise OR of the following values:\n\
 int main(int argc, char * * argv)
 {
    char * pszKey = 0, * pszBasePath;
-   int flags = FSCK_VERBOSE;
+   unsigned int flags = FSCK_VERBOSE;
    int c;
    
    struct option const options[] =
@@ -2125,6 +2125,6 @@ int main(int argc, char * * argv)
       printf("Interrupted!\n");
 
    memset(pszKey, 0, strlen(pszKey)); /* burn */
-
+   
    return res;
 }

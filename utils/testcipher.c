@@ -55,9 +55,10 @@ static int fromHex(char c)
 }
 
 
-static void readVector(char * pszVec, int cbVec, octet * pabVec)
+static void readVector(char * pszVec, 
+   unsigned int cbVec, octet * pabVec)
 {
-   int i = cbVec;
+   unsigned int i = cbVec;
    memset(pabVec, 0, cbVec);
    for ( ; i && pszVec[0] && pszVec[1]; pszVec += 2, pabVec++, i--) {
       *pabVec = (fromHex(pszVec[0]) << 4) | fromHex(pszVec[1]);
@@ -69,16 +70,15 @@ static void readVector(char * pszVec, int cbVec, octet * pabVec)
 int main(int argc, char * * argv)
 {
    CipherResult cr;
-   int cIterations;
+   unsigned int cIterations;
    char * pszCipher;
    Cipher * pCipher;
-   int cbBlock;
-   int cbKey;
+   unsigned int cbBlock, cbKey;
    octet abKey[MAX_KEY_SIZE];
    Key * pKey;
    octet abInit[MAX_BLOCK_SIZE];
    octet abVector[MAX_BLOCK_SIZE];
-   int i;
+   unsigned int i;
    clock_t t1, t2, t3, t4;
    float ta, tb;
    char what, what2;

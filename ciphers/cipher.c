@@ -20,7 +20,7 @@
 
 
 CipherResult cryptCreateKey(Cipher * pCipher, 
-   int cbBlock, int cbKey, octet * pabKey,
+   unsigned int cbBlock, unsigned int cbKey, octet * pabKey,
    Key * * ppKey)
 {
    Key * pKey;

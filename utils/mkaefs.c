@@ -1,7 +1,7 @@
 /* mkaefs.c -- AEFS file system creation program.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: mkaefs.c,v 1.5 2000/12/31 11:35:38 eelco Exp $
+   $Id: mkaefs.c,v 1.6 2001/03/04 22:54:19 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -46,9 +46,7 @@ static Key * makeKey(char * pszCipher, char * pszKey)
    char szKey[1024], szKey2[1024];
    octet abKey[MAX_KEY_SIZE];
    Cipher * pCipher;
-   int cbBlock;
-   int cbKey;
-   int i;
+   unsigned int cbBlock, cbKey;
    Key * pKey;
 
    if (!pszCipher) pszCipher = (*cipherTable)->pszID;
@@ -97,10 +95,13 @@ static Key * makeKey(char * pszCipher, char * pszKey)
    }
 
 #if 0   
-   printf("real key: ");
-   for (i = 0; i < cbKey; i++)
-      printf("%02x", (int) abKey[i]);
-   printf("\n");
+   {
+      int i;
+      printf("real key: ");
+      for (i = 0; i < cbKey; i++)
+         printf("%02x", (int) abKey[i]);
+      printf("\n");
+   }
 #endif   
 
    /* Construct a cipher instance. */

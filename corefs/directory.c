@@ -21,8 +21,9 @@
 #include "sysdep.h"
 
 
-CoreResult coreAllocDirEntry(int cbName, octet * pabName,
-   CryptedFileID idFile, int flFlags, CryptedDirEntry * * ppEntry)
+CoreResult coreAllocDirEntry(unsigned int cbName, octet * pabName,
+   CryptedFileID idFile, unsigned int flFlags, 
+   CryptedDirEntry * * ppEntry)
 {
    CryptedDirEntry * pEntry;
 
@@ -57,8 +58,8 @@ static CoreResult decodeDir(CryptedFilePos cbDir,
    octet * pabDir, CryptedDirEntry * * ppEntries)
 {
    CoreResult cr;
-   int flFlags;
-   int cbName;
+   unsigned int flFlags;
+   unsigned int cbName;
    octet * pabName;
    CryptedFileID idFile;
    

@@ -9,7 +9,7 @@
  * Adapted to pike and some cleanup by Niels Möller.
  */
 
-/* $Id: sha.c,v 1.1 2000/01/03 22:23:49 eelco Exp $ */
+/* $Id: sha.c,v 1.2 2001/03/04 22:54:10 eelco Exp $ */
 
 /* SHA: NIST's Secure Hash Algorithm */
 
@@ -37,7 +37,7 @@ effort (for example the reengineering of a great many Capstone chips).
 
 void sha_copy(struct sha_ctx *dest, struct sha_ctx *src)
 {
-  int i;
+  unsigned int i;
 
   dest->count_l=src->count_l;
   dest->count_h=src->count_h;
@@ -257,7 +257,7 @@ static void sha_transform(struct sha_ctx *ctx, uint32 *data )
 UINT32 STRING2INT(UINT8 *s)
 {
   UINT32 r;
-  int i;
+  unsigned int i;
   
   for (i = 0, r = 0; i < 4; i++, s++)
     r = (r << 8) | *s;
@@ -268,7 +268,7 @@ UINT32 STRING2INT(UINT8 *s)
 static void sha_block(struct sha_ctx *ctx, octet *block)
 {
   uint32 data[SHA_DATALEN];
-  int i;
+  unsigned int i;
   
   /* Update block count */
   if (!++ctx->count_l)
@@ -317,8 +317,8 @@ void sha_update(struct sha_ctx *ctx, octet *buffer, uint32 len)
 void sha_final(struct sha_ctx *ctx)
 {
   uint32 data[SHA_DATALEN];
-  int i;
-  int words;
+  unsigned int i;
+  unsigned int words;
   
   i = ctx->index;
   /* Set the first char of padding to 0x80.  This is safe since there is
@@ -354,7 +354,7 @@ void sha_final(struct sha_ctx *ctx)
 
 void sha_digest(struct sha_ctx *ctx, octet *s)
 {
-  int i;
+  unsigned int i;
 
   for (i = 0; i < SHA_DIGESTLEN; i++)
     {

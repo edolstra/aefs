@@ -1,7 +1,7 @@
 /* corefs.h -- Header file to the system-independent FS code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: corefs.h,v 1.7 2001/03/04 21:45:26 eelco Exp $
+   $Id: corefs.h,v 1.8 2001/03/04 22:54:12 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -81,11 +81,11 @@ typedef struct {
 
 /* pSrc may be equal to pabDst. */
 void coreEncryptSectorData(CryptedSectorData * pSrc,
-   octet * pabDst, Key * pKey, int flFlags);
+   octet * pabDst, Key * pKey, unsigned int flFlags);
 
 /* pabSrc must be different from pDst. */
 CoreResult coreDecryptSectorData(octet * pabSrc,
-   CryptedSectorData * pDst, Key * pKey, int flFlags);
+   CryptedSectorData * pDst, Key * pKey, unsigned int flFlags);
 
 
 /*
@@ -95,24 +95,24 @@ CoreResult coreDecryptSectorData(octet * pabSrc,
 #define MAX_VOLUME_BASE_PATH_NAME 256
 
 typedef struct {
-      int flCryptoFlags; /* CCRYPT_* */
-      int flOpenFlags; /* SOF_* */
+      unsigned int flCryptoFlags; /* CCRYPT_* */
+      unsigned int flOpenFlags; /* SOF_* */
       Cred cred;
-      int fReadOnly;
-      int cMaxCryptedFiles; /* > 0 */
-      int cMaxOpenStorageFiles; /* > 0, <= cMaxCryptedFiles */
-      int csMaxCached; /* > 0 */
-      int csIOGranularity; /* > 0, <= csMaxCached */
-      int csISFGrow; /* > 0 */
+      bool fReadOnly;
+      unsigned int cMaxCryptedFiles; /* > 0 */
+      unsigned int cMaxOpenStorageFiles; /* > 0, <= cMaxCryptedFiles */
+      unsigned int csMaxCached; /* > 0 */
+      unsigned int csIOGranularity; /* > 0, <= csMaxCached */
+      unsigned int csISFGrow; /* > 0 */
       void (* dirtyCallBack)(CryptedVolume * pVolume, bool fDirty);
       void * pUserData;
 } CryptedVolumeParms;
 
 typedef struct {
-      int cCryptedFiles;
-      int cOpenStorageFiles;
-      int csInCache;
-      int csDirty;
+      unsigned int cCryptedFiles;
+      unsigned int cOpenStorageFiles;
+      unsigned int csInCache;
+      unsigned int csDirty;
 } CryptedVolumeStats;
 
 
@@ -126,7 +126,7 @@ CoreResult coreDropVolume(CryptedVolume * pVolume);
 CoreResult coreFlushVolume(CryptedVolume * pVolume);
 
 CoreResult coreShrinkOpenStorageFiles(CryptedVolume * pVolume,
-   int cFiles);
+   unsigned int cFiles);
 
 CryptedVolumeParms * coreQueryVolumeParms(CryptedVolume * pVolume);
 
@@ -168,18 +168,18 @@ CoreResult coreSuggestFileAllocation(CryptedVolume * pVolume,
 
 CoreResult coreFetchSectors(CryptedVolume * pVolume,
    CryptedFileID id, SectorNumber sStart, SectorNumber csExtent,
-   int flFlags);
+   unsigned int flFlags);
 
 CoreResult coreFlushSector(CryptedVolume * pVolume,
    CryptedFileID id, SectorNumber s);
 
 CoreResult coreQuerySectorData(CryptedVolume * pVolume,
    CryptedFileID id, SectorNumber s, unsigned int offset,
-   unsigned int bytes, int flFlags, void * pBuffer);
+   unsigned int bytes, unsigned int flFlags, void * pBuffer);
 
 CoreResult coreSetSectorData(CryptedVolume * pVolume,
    CryptedFileID id, SectorNumber s, unsigned int offset,
-   unsigned int bytes, int flFlags, void * pBuffer);
+   unsigned int bytes, unsigned int flFlags, void * pBuffer);
 
 
 /*
@@ -275,7 +275,7 @@ typedef uint32 CoreTime;
 typedef struct {
       uint32 flFlags;
       
-      int cRefs; /* reference count */
+      unsigned int cRefs; /* reference count */
 
       CryptedFilePos cbFileSize;
       SectorNumber csSet; /* ignored */
@@ -367,10 +367,10 @@ typedef struct _CryptedDirEntry CryptedDirEntry;
 
 struct _CryptedDirEntry {
       CryptedDirEntry * pNext;
-      int cbName;
+      unsigned int cbName;
       octet * pabName; /* zero terminated (not incl. in cbName) */
       CryptedFileID idFile;
-      int flFlags;
+      unsigned int flFlags;
 };
 
 /* The on-disk structure of directory entries is: a flag byte, the
@@ -383,8 +383,9 @@ struct _CryptedDirEntry {
 #define CDF_HIDDEN            2  
 
 
-CoreResult coreAllocDirEntry(int cbName, octet * pabName,
-   CryptedFileID idFile, int flFlags, CryptedDirEntry * * ppEntry);
+CoreResult coreAllocDirEntry(unsigned int cbName, octet * pabName,
+   CryptedFileID idFile, unsigned int flFlags, 
+   CryptedDirEntry * * ppEntry);
 
 void coreFreeDirEntries(CryptedDirEntry * pEntries);
 
@@ -404,9 +405,9 @@ typedef struct _CryptedEA CryptedEA;
 struct _CryptedEA {
       CryptedEA * pNext;
       char * pszName;
-      int cbValue;
+      unsigned int cbValue;
       octet * pabValue;
-      int flFlags;
+      unsigned int flFlags;
 };
 
 /* The on-disk structure of EAs is: a flag byte, the zero-terminated
@@ -419,8 +420,8 @@ struct _CryptedEA {
 #define CEF_CRITICAL          2
 
 
-CoreResult coreAllocEA(char * pszName, int cbValue, int flFlags,
-   CryptedEA * * ppEA);
+CoreResult coreAllocEA(char * pszName, unsigned int cbValue, 
+   unsigned int flFlags, CryptedEA * * ppEA);
 
 void coreFreeEAs(CryptedEA * pEAs);
 

@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.18 2001/03/04 21:51:05 eelco Exp $
+   $Id: aefsnfsd.c,v 1.19 2001/03/04 22:54:14 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -62,7 +62,7 @@ typedef unsigned int fsid;
 typedef struct {
         SuperBlock * pSuperBlock;
         int uid, gid;
-        int cRefs;
+        unsigned int cRefs;
         bool fLazyWrite;
 } Filesystem;
 
@@ -136,16 +136,16 @@ static nfsstat decodeFH(nfs_fh * fh, fsid * pfs, CryptedFileID * pid)
    end. */
 static void canonicalizePath(char * src, char * dst)
 {
-    int inSep = 0;
+    bool inSep = false;
 
     while (*src) {
         if ((*src == '/') || (*src == '\\')) {
             if (!inSep) {
                 *dst++ = '/';
-                inSep = 1;
+                inSep = true;
             }
         } else {
-            inSep = 0;
+            inSep = false;
             *dst++ = *src;
         }
         src++;
@@ -256,7 +256,7 @@ static nfsstat getParentDir(fsid fs, CryptedFileID idDir,
 typedef struct {
         fsid fs;
         CryptedFileID idDir;
-        int cEntries;
+        unsigned int cEntries;
         CryptedDirEntry * pFirst;
         CryptedDirEntry * * papSortedByID;
 } DirCacheEntry;
@@ -289,7 +289,7 @@ static int compareIDs(const void * p1, const void * p2)
 static nfsstat queryDirEntries(fsid fs, CryptedFileID idDir,
     DirCacheEntry * * ppEntry)
 {
-    int i, j;
+    unsigned int i, j;
     DirCacheEntry * pEntry;
     CryptedDirEntry * pCur;
     CoreResult cr;
@@ -361,7 +361,7 @@ static nfsstat queryDirEntries(fsid fs, CryptedFileID idDir,
    directory has changed. */
 static void dirtyDir(fsid fs, CryptedFileID idDir)
 {
-    int i, j;
+    unsigned int i, j;
     for (i = 0; i < DIRCACHE_SIZE; i++)
         if (dirCache[i] && (dirCache[i]->fs == fs) && 
             (dirCache[i]->idDir == idDir)) {
@@ -394,11 +394,11 @@ static nfsstat stampFile(fsid fs, CryptedFileID idFile)
 
 /* Check that the caller is permitted to talk to us.  Fill in the
    credentials structure. */
-static int authCaller(struct svc_req * rqstp, User * pUser)
+static nfsstat authCaller(struct svc_req * rqstp, User * pUser)
 {
     struct sockaddr_in * caller;
     struct authunix_parms * cred;
-    int i;
+    unsigned int i;
 
     caller = svc_getcaller(rqstp->rq_xprt);
     if (!caller) return NFSERR_PERM;
@@ -425,20 +425,21 @@ static int authCaller(struct svc_req * rqstp, User * pUser)
 }
 
 
-static int isInGroup(User * pUser, int gid)
+static bool isInGroup(User * pUser, int gid)
 {
-    int i;
+    unsigned int i;
     if (gid == pUser->gid) return 1;
     for (i = 0; i < NGRPS; i++)
-        if (gid == pUser->gids[i]) return 1;
-    return 0;
+        if (gid == pUser->gids[i]) return true;
+    return false;
 }
 
 
 /* Does the user have the required permission to a file, based on the
    file info structure?  smashUGID() must have been called prior to
    this. */
-static int havePerm(int what, User * pUser, CryptedFileInfo * pInfo)
+static int havePerm(unsigned int what, User * pUser, 
+    CryptedFileInfo * pInfo)
 {
     return
         ((pInfo->uid == pUser->uid) && 
@@ -451,7 +452,7 @@ static int havePerm(int what, User * pUser, CryptedFileInfo * pInfo)
 
 
 /* Does the user have the required permission to a file? */
-static nfsstat havePerm2(int what, User * pUser, fsid fs,
+static nfsstat havePerm2(unsigned int what, User * pUser, fsid fs,
     CryptedFileID idFile)
 
 {
@@ -534,7 +535,7 @@ static nfsstat commitVolume(fsid fs)
 /* Commit all volumes. */
 static void commitAll()
 {
-    int i;
+    unsigned int i;
     for (i = 0; i < MAX_FILESYSTEMS; i++)
         if (apFilesystems[i] && apFilesystems[i]->fLazyWrite)
             commitVolume(i);
@@ -711,7 +712,8 @@ static int run()
 
 int main(int argc, char * * argv)
 {
-    int i, c;
+    unsigned int i;
+    int c;
     SVCXPRT * udp, * tcp;
     bool fRegister = false;
         
@@ -1505,7 +1507,7 @@ readdirres * nfsproc_readdir_2_svc(readdirargs * args, struct svc_req * rqstp)
     CryptedFileID idDir;
     DirCacheEntry * pEntry;
     uint32 cookie, entpos, iEntry;
-    int size = 64;
+    unsigned int size = 64;
     CryptedFileID idFile;
 
     logMsg(LOG_DEBUG, "nfsproc_readdir, count=%d", args->count);
@@ -1602,7 +1604,7 @@ fhstatus * mountproc_mnt_1_svc(dirpath * path, struct svc_req * rqstp)
     static fhstatus res;
     User user;
     char szCanon[MNTPATHLEN + 16];
-    int i;
+    unsigned int i;
     Filesystem * pFS;
 
     logMsg(LOG_DEBUG, "mountproc_mnt");
@@ -1642,7 +1644,7 @@ void * mountproc_umnt_1_svc(dirpath * path, struct svc_req * rqstp)
     static fhstatus res;
     User user;
     char szCanon[MNTPATHLEN + 16];
-    int i;
+    unsigned int i;
     Filesystem * pFS;
 
     logMsg(LOG_DEBUG, "mountproc_umnt");
@@ -1687,7 +1689,7 @@ exports * mountproc_export_1_svc(void * v, struct svc_req * rqstp)
     static exportnode nodes[MAX_FILESYSTEMS];
     static groupnode group = { "localhost", 0 };
     exportnode * * prev = &res;
-    int i;
+    unsigned int i;
     
     logMsg(LOG_DEBUG, "mountproc_export");
 
@@ -1728,7 +1730,7 @@ addfsres * aefsctrlproc_addfs_1_svc(addfsargs * args, struct svc_req * rqstp)
     SuperBlock * pSuperBlock;
     User user;
     CoreResult cr;
-    int i;
+    unsigned int i;
 
     logMsg(LOG_DEBUG, "aefsctrlproc_addfs");
 

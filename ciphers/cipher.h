@@ -27,7 +27,7 @@
 
 /* Error codes. */
 
-typedef int CipherResult;
+typedef unsigned int CipherResult;
 
 #define CIPHERRC_OK                  0
 #define CIPHERRC_NOT_ENOUGH_MEMORY   1
@@ -49,7 +49,7 @@ typedef void (* DecryptBlock)(Key * pKey,
    octet * pabBlock);
 
 typedef struct {
-      int cbBlock, cbKey; /* block & key size in bytes */
+      unsigned int cbBlock, cbKey; /* block & key size in bytes */
 } CipherSize;
 
 struct _Cipher {
@@ -71,8 +71,8 @@ struct _Cipher {
 struct _Key {
       Cipher * pCipher;
 
-      int cbBlock;
-      int cbKey;
+      unsigned int cbBlock;
+      unsigned int cbKey;
 
       octet * pabKey;
       void * pExpandedKey;
@@ -82,7 +82,7 @@ struct _Key {
 /* Functions. */
 
 CipherResult cryptCreateKey(Cipher * pCipher, 
-   int cbBlock, int cbKey, octet * pabKey,
+   unsigned int cbBlock, unsigned int cbKey, octet * pabKey,
    Key * * ppKey);
 
 void cryptDestroyKey(Key * pKey);

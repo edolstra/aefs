@@ -1,7 +1,7 @@
 /* superblock.c -- Superblock code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: superblock.c,v 1.7 2000/12/31 11:35:18 eelco Exp $
+   $Id: superblock.c,v 1.8 2001/03/04 22:54:12 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -70,10 +70,11 @@ static CoreResult cipherResultToCore(CipherResult cr)
    cbKey (rounded up to a multiple of 20) key bytes are
    initialized to values based upon the key phrase.  The other remain
    zero.  Problem? */
-CoreResult coreHashKey(char * pszKey, octet * pabKey, int cbKey)
+CoreResult coreHashKey(char * pszKey, octet * pabKey, 
+   unsigned int cbKey)
 {
    struct sha_ctx ctx;
-   int iPos = 0, cbLeft, cbAdd, i;
+   unsigned int iPos = 0, cbLeft, cbAdd, i;
    octet digest[SHA_DIGESTSIZE];
 
    memset(pabKey, 0, cbKey);
@@ -115,8 +116,7 @@ static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
    char szFile[1025], * pszCur, * pszNext, szName[256], szValue[256];
    char szCipher[64] = "";
    FilePos cbRead;
-   int cbKey = 0;
-   int cbBlock = 0;
+   unsigned int cbKey = 0, cbBlock = 0;
    octet abKey[MAX_KEY_SIZE];
 
    /* Read the unencrypted superblock. */
@@ -314,7 +314,8 @@ CoreResult coreReadSuperBlock(char * pszBasePath, char * pszKey,
 }
 
 
-CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, int flags)
+CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, 
+   unsigned int flags)
 {
    char szFileName[MAX_VOLUME_BASE_PATH_NAME + 128], szBuffer[1024];
    File * pFile;

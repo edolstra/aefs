@@ -1,7 +1,7 @@
 /* basefile.c -- File I/O.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: basefile.c,v 1.6 2001/03/04 21:45:26 eelco Exp $
+   $Id: basefile.c,v 1.7 2001/03/04 22:54:12 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -175,7 +175,7 @@ CoreResult coreReadFromFile(CryptedVolume * pVolume, CryptedFileID id,
    CryptedFileInfo info;
    SectorNumber csExtent;
    SectorNumber sCurrent;
-   int offset, read;
+   unsigned int offset, read;
    CryptedVolumeParms * pParms = coreQueryVolumeParms(pVolume);
    
    *pcbRead = 0;
@@ -263,11 +263,11 @@ CoreResult coreWriteToFile(CryptedVolume * pVolume, CryptedFileID id,
    CoreResult cr;
    CryptedFileInfo info;
    SectorNumber sCurrent;
-   int offset, write;
+   unsigned int offset, write;
    CryptedVolumeParms * pParms = coreQueryVolumeParms(pVolume);
    bool fChanged = false;
    SectorNumber csExtent;
-   int flFlags;
+   unsigned int flFlags;
    
    *pcbWritten = 0;
    
@@ -363,7 +363,7 @@ CoreResult coreSetFileSize(CryptedVolume * pVolume, CryptedFileID id,
    SectorNumber cSectors;
    octet zero[PAYLOAD_SIZE];
    CryptedFilePos cbOldSize;
-   int offset;
+   unsigned int offset;
    
    if (!id) return CORERC_INVALID_PARAMETER;
    

@@ -1,7 +1,7 @@
 /* storage.c -- Storage and cache management.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: storage.c,v 1.12 2001/03/04 21:45:26 eelco Exp $
+   $Id: storage.c,v 1.13 2001/03/04 22:54:12 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -52,14 +52,14 @@ struct _CryptedVolume {
       CryptedFile * FileHashTable[FILE_HASH_TABLE_SIZE];
 
       /* Number of CryptedFiles. */
-      int cCryptedFiles;
+      unsigned int cCryptedFiles;
 
       /* Head and tail of the MRU list of CryptedFiles. */
       CryptedFile * pFirstFile;
       CryptedFile * pLastFile;
 
       /* Number of open storage files. */
-      int cOpenStorageFiles;
+      unsigned int cOpenStorageFiles;
 
       /* Head of the MRU list of CryptedFiles with open storage
          files. */
@@ -71,14 +71,14 @@ struct _CryptedVolume {
       CryptedSector * SectorHashTable[SECTOR_HASH_TABLE_SIZE];
 
       /* Total number of sectors in the cache. */
-      int csInCache;
+      unsigned int csInCache;
 
       /* Head and tail of the MRU list of cached sectors. */
       CryptedSector * pFirstSector;
       CryptedSector * pLastSector;
       
       /* Total number of dirty sectors in the cache. */
-      int csDirty;
+      unsigned int csDirty;
 };
 
 struct _CryptedFile {
@@ -96,7 +96,7 @@ struct _CryptedFile {
       CryptedFile * pPrevOpen;
       File * pStorageFile;
 
-      int csDirty;
+      unsigned int csDirty;
       
       CryptedSector * pFirstSector;
 };
@@ -125,7 +125,7 @@ struct _CryptedSector {
 static void deleteHighSectors(CryptedFile * pFile, SectorNumber s);
 static CoreResult closeStorageFile(CryptedFile * pFile);
 static CoreResult dropFile(CryptedFile * pFile);
-static CoreResult flushSectors(int cSectors,
+static CoreResult flushSectors(unsigned int cSectors,
    CryptedSector * * papSectors);
 static void dirtySector(CryptedVolume * pVolume,
    CryptedSector * pSector);
@@ -142,21 +142,21 @@ CoreResult sys2core(SysResult sr)
 }
 
      
-static inline int fileHashTableHash(CryptedFileID id)
+static inline unsigned int fileHashTableHash(CryptedFileID id)
 {
    double dummy;
-   return ((int) (FILE_HASH_TABLE_SIZE *
+   return ((unsigned int) (FILE_HASH_TABLE_SIZE *
       modf(HASH_MULT_KNUTH * id, &dummy)))
       % FILE_HASH_TABLE_SIZE;
 }
 
 
-static inline int sectorHashTableHash(CryptedFileID id,
+static inline unsigned int sectorHashTableHash(CryptedFileID id,
    SectorNumber nr)
 {
    double dummy;
    return (id +
-      (int) (SECTOR_HASH_TABLE_SIZE *
+      (unsigned int) (SECTOR_HASH_TABLE_SIZE *
          modf(HASH_MULT_KNUTH * nr, &dummy)))
       % SECTOR_HASH_TABLE_SIZE;
 }
@@ -174,7 +174,7 @@ static int cmpSectors(const void * p1, const void * p2)
 }
 
 
-static void sortSectorList(int csSectors,
+static void sortSectorList(unsigned int csSectors,
    CryptedSector * * papSectors)
 {
    qsort(papSectors, csSectors, sizeof(CryptedSector *), cmpSectors);
@@ -207,7 +207,7 @@ void coreSetDefVolumeParms(CryptedVolumeParms * pParms)
 CoreResult coreAccessVolume(char * pszBasePath, Key * pKey,
    CryptedVolumeParms * pParms, CryptedVolume * * ppVolume)
 {
-   int i;
+   unsigned int i;
    CryptedVolume * pVolume;
 
    /* Sanity checks on this build. */
@@ -272,7 +272,7 @@ CoreResult coreAccessVolume(char * pszBasePath, Key * pKey,
 CoreResult coreDropVolume(CryptedVolume * pVolume)
 {
    CoreResult cr;
-   int i;
+   unsigned int i;
    
    /* Drop all files.  This will flush all dirty sectors and close all
       open storage files. */
@@ -327,7 +327,7 @@ CoreResult coreFlushVolume(CryptedVolume * pVolume)
    cFiles.  All references to CryptedFile structures on this volume
    may be invalid after calling this function. */
 static CoreResult shrinkCryptedFiles(CryptedVolume * pVolume,
-   int cFiles)
+   unsigned int cFiles)
 {
    CoreResult cr;
 
@@ -342,7 +342,7 @@ static CoreResult shrinkCryptedFiles(CryptedVolume * pVolume,
 
 /* Reduce the number of open storage files to cFiles. */
 CoreResult coreShrinkOpenStorageFiles(CryptedVolume * pVolume,
-   int cFiles)
+   unsigned int cFiles)
 {
    CoreResult cr;
 
@@ -536,7 +536,7 @@ static CoreResult openStorageFile(CryptedFile * pFile, bool fCreate,
 static CoreResult accessFile(CryptedVolume * pVolume,
    CryptedFileID id, CryptedFile * * ppFile)
 {
-   int hash;
+   unsigned int hash;
    CryptedFile * pFile;
 
    if (id == 0) return CORERC_INVALID_PARAMETER;
@@ -799,7 +799,7 @@ static CoreResult addSector(CryptedFile * pFile, SectorNumber s,
    CryptedSector * * ppSector)
 {
    CryptedSector * pSector;
-   int hash;
+   unsigned int hash;
 
    *ppSector = 0;
    
@@ -842,7 +842,7 @@ static CoreResult addSector(CryptedFile * pFile, SectorNumber s,
 static CryptedSector * queryCachedSector(CryptedVolume * pVolume,
    CryptedFileID id, SectorNumber sectorNumber)
 {
-   int hash;
+   unsigned int hash;
    CryptedSector * pSector;
 
    /* Search in the volume's CryptedFile hash table for a CryptedFile
@@ -911,7 +911,7 @@ static void deleteHighSectors(CryptedFile * pFile, SectorNumber s)
    flushing dirty sectors to disk if necessary.  Do not delete sectors
    in the exclusion region (i.e. the sectors being fetched by
    coreFetchSectors()). */
-static CoreResult purgeCache(CryptedVolume * pVolume, int csReq,
+static CoreResult purgeCache(CryptedVolume * pVolume, unsigned int csReq,
    CryptedFile * pExclFile, SectorNumber sExclStart,
    SectorNumber sExclExtent)
 {
@@ -973,7 +973,7 @@ static CoreResult readBuffer(CryptedFile * pFile,
    
 /* Read an extent of sectors into the cache. */
 static CoreResult readSectorExtent(CryptedFile * pFile,
-   SectorNumber sStart, SectorNumber csExtent, int flFlags)
+   SectorNumber sStart, SectorNumber csExtent, unsigned int flFlags)
 {
    CoreResult cr, crfinal = CORERC_OK;
    octet * pabBuffer, * p;
@@ -1020,11 +1020,11 @@ static CoreResult readSectorExtent(CryptedFile * pFile,
 /* Read the specified sectors of the specified file into the cache.
    Adjacent sectors are read in a single read operation. */
 static CoreResult readSectors(CryptedFile * pFile,
-   int csRead, SectorNumber * pasRead, int flFlags)
+   unsigned int csRead, SectorNumber * pasRead, unsigned int flFlags)
 {
    CoreResult cr, crfinal = CORERC_OK;
    CryptedSector * pSector;
-   int c;
+   unsigned int c;
    
    while (csRead) {
 
@@ -1066,11 +1066,11 @@ static CoreResult readSectors(CryptedFile * pFile,
    than the maximum cache size. */
 CoreResult coreFetchSectors(CryptedVolume * pVolume,
    CryptedFileID id, SectorNumber sStart, SectorNumber csExtent,
-   int flFlags)
+   unsigned int flFlags)
 {
    CoreResult cr;
    SectorNumber i;
-   int csMissing;
+   unsigned int csMissing;
    SectorNumber * pasMissing;
    CryptedFile * pFile;
 
@@ -1115,7 +1115,7 @@ CoreResult coreFetchSectors(CryptedVolume * pVolume,
 
 
 /* Write ciphertext to the specified location. */
-static CoreResult writeBuffer(CryptedSector * pStart, int c,
+static CoreResult writeBuffer(CryptedSector * pStart, unsigned int c,
    octet * pabBuffer)
 {
    CoreResult cr;
@@ -1144,12 +1144,12 @@ static CoreResult writeBuffer(CryptedSector * pStart, int c,
    It is advisable to sort the list of sectors by file and sector
    number, since adjacent sectors in the list are written in one write
    operation. */
-static CoreResult flushSectors(int cSectors,
+static CoreResult flushSectors(unsigned int cSectors,
    CryptedSector * * papSectors)
 {
    CoreResult cr;
    CryptedSector * pStart;
-   int c, i;
+   unsigned int c, i;
    octet * pabBuffer, * p;
 
    while (cSectors) {
@@ -1225,7 +1225,7 @@ static void dirtySector(CryptedVolume * pVolume,
    buffer. */
 CoreResult coreQuerySectorData(CryptedVolume * pVolume,
    CryptedFileID id, SectorNumber s, unsigned int offset,
-   unsigned int bytes, int flFlags, void * pBuffer)
+   unsigned int bytes, unsigned int flFlags, void * pBuffer)
 {
    CoreResult cr;
    CryptedSector * pSector;
@@ -1253,7 +1253,7 @@ CoreResult coreQuerySectorData(CryptedVolume * pVolume,
    case. */
 CoreResult coreSetSectorData(CryptedVolume * pVolume,
    CryptedFileID id, SectorNumber s, unsigned int offset,
-   unsigned int bytes, int flFlags, void * pBuffer)
+   unsigned int bytes, unsigned int flFlags, void * pBuffer)
 {
    CoreResult cr;
    CryptedSector * pSector;

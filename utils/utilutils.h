@@ -21,10 +21,11 @@
 #include "cipher.h"
 #include "corefs.h"
 
-int readKey(char * pszPrompt, int cbBuffer, char * pszBuffer);
+int readKey(char * pszPrompt, 
+    unsigned int cbBuffer, char * pszBuffer);
 
 Cipher * findCipher(Cipher * * papCipher,
-   char * pszCipher, int * pcbBlock, int * pcbKey);
+   char * pszCipher, unsigned int * pcbBlock, unsigned int * pcbKey);
 
 char * core2str(CoreResult cr);
 

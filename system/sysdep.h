@@ -2,7 +2,7 @@
    system-independent FS code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: sysdep.h,v 1.9 2000/12/31 11:35:30 eelco Exp $
+   $Id: sysdep.h,v 1.10 2001/03/04 22:54:16 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 
 
 typedef struct _File File;
-typedef long FilePos;
+typedef unsigned long FilePos;
 typedef unsigned int SysResult;
 
 

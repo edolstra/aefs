@@ -2,7 +2,7 @@
    directories from an AEFS file system.
    Copyright (C) 2001 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsutil.c,v 1.2 2001/02/21 21:43:03 eelco Exp $
+   $Id: aefsutil.c,v 1.3 2001/03/04 22:54:19 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -63,7 +63,8 @@ static void paramError()
 
 
 static int showFile(CryptedVolume * pVolume, 
-   CryptedFileID id, char * pszName, int flFlags, int flDirFlags)
+   CryptedFileID id, char * pszName, unsigned int flFlags, 
+   unsigned int flDirFlags)
 {
    CryptedFileInfo info;
    CoreResult cr;
@@ -146,7 +147,7 @@ static bool isDir(CryptedVolume * pVolume, CryptedFileID id)
 
 
 static int listDir(SuperBlock * pSuperBlock, char * pszPath, 
-   int flFlags)
+   unsigned int flFlags)
 {
    CryptedDirEntry * pDir, * pFirst, * pCur;
    CryptedFileID idDir;
@@ -228,7 +229,7 @@ static int copy(CryptedVolume * pVolume, CryptedFileID idFile,
 
 
 static int dump(CryptedVolume * pVolume, CryptedFileID idFrom, 
-   char * pszFrom, char * pszTo, int flFlags)
+   char * pszFrom, char * pszTo, unsigned int flFlags)
 {
    char szFull[PATH_MAX];
    CryptedDirEntry * pEntry, * pFirst, * pCur;
@@ -351,7 +352,7 @@ static int cat(SuperBlock * pSuperBlock, char * pszPath)
 
 
 static int doCommand(char * pszKey, char * pszBasePath, 
-   char * pszCommand, int argc, char * * argv, int flFlags)
+   char * pszCommand, int argc, char * * argv, unsigned int flFlags)
 {
    char szBasePath[1024];
    CryptedVolumeParms parms;
@@ -448,7 +449,7 @@ int main(int argc, char * * argv)
    char * pszKey = 0, * pszBasePath, * pszCommand;
    char szKey[1024];
    int c, res;
-   int flFlags = 0;
+   unsigned int flFlags = 0;
 
    struct option options[] = {
       { "help", no_argument, 0, 1 },

@@ -58,8 +58,8 @@ typedef struct {
       CryptedVolume * pVolume;
       Key * pKey;
 
-      int version;
-      int flFlags;
+      unsigned int version;
+      unsigned int flFlags;
       CryptedFileID idRoot;
       char szLabel[12]; /* DOS disk label */
       char szDescription[128];
@@ -83,13 +83,15 @@ typedef struct {
 #pragma pack()
 
 
-CoreResult coreHashKey(char * pszKey, octet * pabKey, int cbKey);
+CoreResult coreHashKey(char * pszKey, octet * pabKey, 
+   unsigned int cbKey);
 
 CoreResult coreReadSuperBlock(char * pszBasePath, char * pszKey,
    Cipher * * papCipher, CryptedVolumeParms * pParms,
    SuperBlock * * ppSuperBlock);
 
-CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, int flags);
+CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, 
+   unsigned int flags);
 
 CoreResult coreDropSuperBlock(SuperBlock * pSuperBlock);
 

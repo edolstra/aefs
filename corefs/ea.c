@@ -22,11 +22,11 @@
 #include "sysdep.h"
 
 
-CoreResult coreAllocEA(char * pszName, int cbValue, int flFlags,
-   CryptedEA * * ppEA)
+CoreResult coreAllocEA(char * pszName, unsigned int cbValue, 
+   unsigned int flFlags, CryptedEA * * ppEA)
 {
    CryptedEA * pEA;
-   int cbName = strlen(pszName);
+   unsigned int cbName = strlen(pszName);
 
    pEA = sysAllocSecureMem(sizeof(CryptedEA) + cbName + 1 +
       cbValue);
@@ -57,7 +57,7 @@ void coreFreeEAs(CryptedEA * pEAs)
 
 static CoreResult readExternalEAs(CryptedVolume * pVolume,
    CryptedFileID id, CryptedFileInfo * pInfo,
-   int cbEAs, octet * pabEAs)
+   unsigned int cbEAs, octet * pabEAs)
 {
    CoreResult cr;
    CryptedFilePos cbRead;
@@ -74,7 +74,7 @@ static CoreResult readExternalEAs(CryptedVolume * pVolume,
 
 
 static CoreResult readInternalEAs(CryptedVolume * pVolume,
-   CryptedFileID id, int cbEAs, octet * pabEAs)
+   CryptedFileID id, unsigned int cbEAs, octet * pabEAs)
 {
    CoreResult cr;
 
@@ -88,13 +88,13 @@ static CoreResult readInternalEAs(CryptedVolume * pVolume,
 }
 
 
-static CoreResult decodeEAs(int cbEAs, octet * pabEAs,
+static CoreResult decodeEAs(unsigned int cbEAs, octet * pabEAs,
    CryptedEA * * ppEAs)
 {
    CoreResult cr;
-   int flFlags;
+   unsigned int flFlags;
    char * pszName;
-   int cbValue;
+   unsigned int cbValue;
    octet * pabValue;
    
    /* Process the next EA until there are no bytes left or the header
@@ -201,11 +201,11 @@ CoreResult coreQueryEAs(CryptedVolume * pVolume,
 }
 
 
-static CoreResult encodeEAs(CryptedEA * pEAs, int * pcbEAs,
+static CoreResult encodeEAs(CryptedEA * pEAs, unsigned int * pcbEAs,
    octet * * ppabEAs)
 {
    CryptedEA * pCur;
-   int cbEAs = 1, cb;
+   unsigned int cbEAs = 1, cb;
    octet * pabEAs, * pabCur;
 
    if (!pEAs) {
@@ -245,7 +245,7 @@ static CoreResult encodeEAs(CryptedEA * pEAs, int * pcbEAs,
 
 
 static CoreResult writeExternalEAs(CryptedVolume * pVolume,
-   CryptedFileID id, int cbEAs, octet * pabEAs)
+   CryptedFileID id, unsigned int cbEAs, octet * pabEAs)
 {
    CoreResult cr;
    CryptedFileInfo info;
@@ -271,7 +271,7 @@ static CoreResult writeExternalEAs(CryptedVolume * pVolume,
 
 
 static CoreResult writeInternalEAs(CryptedVolume * pVolume,
-   CryptedFileID id, int cbEAs, octet * pabEAs)
+   CryptedFileID id, unsigned int cbEAs, octet * pabEAs)
 {
    CoreResult cr;
 
@@ -289,7 +289,7 @@ static CoreResult writeInternalEAs(CryptedVolume * pVolume,
 
 
 static CoreResult storeEAs(CryptedVolume * pVolume,
-   CryptedFileID id, int cbEAs, octet * pabEAs)
+   CryptedFileID id, unsigned int cbEAs, octet * pabEAs)
 {
    CoreResult cr;
    CryptedFileInfo info, info2;
@@ -350,7 +350,7 @@ CoreResult coreSetEAs(CryptedVolume * pVolume,
 {
    CoreResult cr;
    octet * pabEAs;
-   int cbEAs;
+   unsigned int cbEAs;
    
    /* Encode the EAs. */
    cr = encodeEAs(pEAs, &cbEAs, &pabEAs);

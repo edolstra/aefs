@@ -92,9 +92,9 @@ static uint32 crc32(int n, octet * p)
 }
 
     
-static void xorBlock(octet * pDst, octet * pXOR, int cb)
+static void xorBlock(octet * pDst, octet * pXOR, unsigned int cb)
 {
-   int i;
+   unsigned int i;
    for (i = cb; i > 0; pDst++, pXOR++, i--) *pDst ^= *pXOR;
 }
 
@@ -106,9 +106,9 @@ static void xorBlock(octet * pDst, octet * pXOR, int cb)
    the entire encryption of the sector changes with high
    probability. */
 void coreEncryptSectorData(CryptedSectorData * pSrc, octet * pabDst,
-   Key * pKey, int flFlags)
+   Key * pKey, unsigned int flFlags)
 {
-   int i;
+   unsigned int i;
    octet * p, * q, * r;
 
    sysGetRandomBits(8 * RANDOM_SIZE, pSrc->random);
@@ -128,9 +128,9 @@ void coreEncryptSectorData(CryptedSectorData * pSrc, octet * pabDst,
 
 /* Decrypt the sector and check the checksum. */
 CoreResult coreDecryptSectorData(octet * pabSrc,
-   CryptedSectorData * pDst, Key * pKey, int flFlags)
+   CryptedSectorData * pDst, Key * pKey, unsigned int flFlags)
 {
-   int i;
+   unsigned int i;
    octet * p, * q, * r;
    
    for (i = 0, p = 0, q = pabSrc, r = (octet *) pDst;

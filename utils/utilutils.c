@@ -24,7 +24,7 @@
 #include "utilutils.h"
 
 
-int readKey(char * pszPrompt, int cbBuffer, char * pszBuffer)
+int readKey(char * pszPrompt, unsigned int cbBuffer, char * pszBuffer)
 {
    char * p, * envstr;
    
@@ -47,10 +47,10 @@ int readKey(char * pszPrompt, int cbBuffer, char * pszBuffer)
 
 
 Cipher * findCipher(Cipher * * papCipher,
-   char * pszCipher, int * pcbBlock, int * pcbKey)
+   char * pszCipher, unsigned int * pcbBlock, unsigned int * pcbKey)
 {
    char * pszPos;
-   int cchName;
+   unsigned int cchName;
 
    *pcbBlock = 0;
    *pcbKey = 0;
@@ -124,5 +124,4 @@ char * core2str(CoreResult cr)
             return "unknown error accessing storage file";
         default: return "unknown error";
     }
-    
 }

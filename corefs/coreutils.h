@@ -28,7 +28,7 @@ CoreResult coreQueryIDFromPath(CryptedVolume * pVolume,
 CoreResult coreDeleteFile(CryptedVolume * pVolume, CryptedFileID id);
 
 CoreResult coreAddEntryToDir(CryptedVolume * pVolume, CryptedFileID id,
-   char * pszName, CryptedFileID idFile, int flFlags);
+   char * pszName, CryptedFileID idFile, unsigned int flFlags);
 
 CoreResult coreMoveDirEntry(
    CryptedVolume * pVolume,
