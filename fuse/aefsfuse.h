@@ -43,22 +43,23 @@ int do_readlink(struct fuse_in_header * in, char * outbuf);
 int do_getdir(struct fuse_in_header * in, 
     struct fuse_getdir_out * out);
 int do_mknod(struct fuse_in_header * in, struct fuse_mknod_in * arg, 
-    char * pszName, struct fuse_mknod_out * out);
+    char * pszName, struct fuse_lookup_out * out);
 int do_mkdir(struct fuse_in_header * in, struct fuse_mkdir_in * arg,
-    char * pszName);
+    char * pszName, struct fuse_lookup_out * out);
 int do_remove(struct fuse_in_header * in, char * pszName);
 int do_symlink(struct fuse_in_header * in, 
-    char * pszName, char * pszTarget);
+    char * pszName, char * pszTarget, struct fuse_lookup_out * out);
 int do_rename(struct fuse_in_header * in, struct fuse_rename_in * arg,
     char * pszFrom, char * pszTo);
 int do_link(struct fuse_in_header * in, struct fuse_link_in * arg,
-    char * pszName);
+    char * pszName, struct fuse_lookup_out * out);
 int do_open(struct fuse_in_header * in, struct fuse_open_in * arg);
 int do_read(struct fuse_in_header * in, struct fuse_read_in * arg, 
     char * outbuf);
 int do_write(struct fuse_in_header * in, struct fuse_write_in * arg,
     void * pData);
 int do_statfs(struct fuse_in_header * in, struct fuse_statfs_out * out);
+int do_fsync(struct fuse_in_header * in, struct fuse_fsync_in * arg);
 
 
 #endif /* !_AEFSFUSE_H */

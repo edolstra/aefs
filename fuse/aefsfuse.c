@@ -85,6 +85,7 @@ static int core2sys(CoreResult cr)
 
 static void storeAttr(CryptedFileInfo * info, struct fuse_attr * attr)
 {
+    memset(attr, 0, sizeof(struct fuse_attr));
     attr->mode = info->flFlags;
     attr->nlink = info->cRefs;
     attr->uid = getuid();
@@ -96,7 +97,6 @@ static void storeAttr(CryptedFileInfo * info, struct fuse_attr * attr)
     attr->atime = info->timeAccess;
     attr->mtime = info->timeWrite;
     attr->ctime = info->timeAccess; /* !!! */
-    attr->_dummy = 4096; /* ??? */
 }
 
 
@@ -134,6 +134,7 @@ int do_lookup(struct fuse_in_header * in, char * name, struct fuse_lookup_out * 
     if (cr) return core2sys(cr);
 
     out->ino = idFile;
+    out->generation = 0;
     storeAttr(&info, &out->attr);
 
     return 0;
@@ -168,8 +169,8 @@ int do_setattr(struct fuse_in_header * in, struct fuse_setattr_in * arg,
 	info.gid = arg->attr.gid;
     }
 
-    if (arg->valid & FATTR_UTIME) {
-	logMsg(LOG_DEBUG, "set utime %ld", arg->attr.mtime);
+    if (arg->valid & FATTR_MTIME) {
+	logMsg(LOG_DEBUG, "set mtime %ld", arg->attr.mtime);
 	info.timeWrite = arg->attr.mtime;
     }
 
@@ -285,7 +286,7 @@ int do_getdir(struct fuse_in_header * in, struct fuse_getdir_out * out)
 
 int createFile(CryptedFileID idDir, char * pszName,
     unsigned int mode, unsigned int rdev,
-    unsigned long * ino, struct fuse_attr * attr)
+    struct fuse_lookup_out * out)
 {
     CoreResult cr;
     CryptedFileID idFile;
@@ -326,25 +327,25 @@ int createFile(CryptedFileID idDir, char * pszName,
     cr = stampFile(idDir);
     if (cr) return core2sys(cr);
 
-    if (ino) *ino = idFile;
-    if (attr) storeAttr(&info, attr);
+    out->ino = idFile;
+    out->generation = 0;
+    storeAttr(&info, &out->attr);
 
     return 0;
 }
 
 
 int do_mknod(struct fuse_in_header * in, struct fuse_mknod_in * arg, 
-    char * pszName, struct fuse_mknod_out * out)
+    char * pszName, struct fuse_lookup_out * out)
 {
-    return createFile(in->ino, pszName, arg->mode, arg->rdev,
-	&out->ino, &out->attr);
+    return createFile(in->ino, pszName, arg->mode, arg->rdev, out);
 }
 
 
 int do_mkdir(struct fuse_in_header * in, struct fuse_mkdir_in * arg,
-    char * pszName)
+    char * pszName, struct fuse_lookup_out * out)
 {
-    return createFile(in->ino, pszName, arg->mode | CFF_IFDIR, 0, 0, 0);
+    return createFile(in->ino, pszName, arg->mode | CFF_IFDIR, 0, out);
 }
 
 
@@ -397,20 +398,19 @@ int do_remove(struct fuse_in_header * in, char * pszName)
 
 
 int do_symlink(struct fuse_in_header * in, 
-    char * pszName, char * pszTarget)
+    char * pszName, char * pszTarget, struct fuse_lookup_out * out)
 {
     CoreResult cr;
-    CryptedFileID idLink;
     CryptedFilePos cbWritten;
     int res;
 
     res = createFile(in->ino, pszName, 
-        0777 | CFF_IFLNK, 0, &idLink, 0);
+        0777 | CFF_IFLNK, 0, out);
     if (res) return res;
     
-    logMsg(LOG_DEBUG, "symlink %ld %s", idLink, pszTarget);
+    logMsg(LOG_DEBUG, "symlink %ld %s", out->ino, pszTarget);
 
-    cr = coreWriteToFile(pVolume, idLink, 0,
+    cr = coreWriteToFile(pVolume, out->ino, 0,
         strlen(pszTarget), (octet *) pszTarget, &cbWritten);
     if (cr) return core2sys(cr);
 
@@ -446,7 +446,7 @@ int do_rename(struct fuse_in_header * in, struct fuse_rename_in * arg,
 
 
 int do_link(struct fuse_in_header * in, struct fuse_link_in * arg,
-    char * pszName)
+    char * pszName, struct fuse_lookup_out * out)
 {
     return -ENOTSUP; /* !!! */
 }
@@ -508,23 +508,33 @@ int do_statfs(struct fuse_in_header * in, struct fuse_statfs_out * out)
 {
     int res;
     struct statfs st;
-    unsigned long long cbTotal = 1 << 30, cbFree = cbTotal / 2;
+    unsigned long long cbTotal, cbFree;
 
     logMsg(LOG_DEBUG, "statfs");
 
     res = statfs(pSuperBlock->szBasePath, &st);
-    if (res != -1) {
-        cbTotal = st.f_bsize * st.f_blocks;
-        cbFree = st.f_bsize * st.f_bfree;
-    }
+    if (res != 0) return -errno;
+
+    cbTotal = st.f_bsize * (unsigned long long) st.f_blocks;
+    cbFree = st.f_bsize * (unsigned long long) st.f_bfree;
     
-    out->st.block_size = PAYLOAD_SIZE;
-    out->st.blocks = cbTotal / PAYLOAD_SIZE;
-    out->st.blocks_free = cbFree / PAYLOAD_SIZE;
-    out->st.files = -1; /* !!! perhaps we should maintain this? */
-    out->st.files_free = st.f_ffree;
+    out->st.bsize = PAYLOAD_SIZE;
+    out->st.blocks = cbTotal / PAYLOAD_SIZE; /* nonsensical */
+    out->st.bfree = out->st.bavail = cbFree / PAYLOAD_SIZE;
+    out->st.files = st.f_files; /* nonsensical */
+    out->st.ffree = st.f_ffree; /* idem */
     out->st.namelen = 1024; /* !!! arbitrary */
 
+    return 0;
+}
+
+
+int do_fsync(struct fuse_in_header * in, struct fuse_fsync_in * arg)
+{
+    logMsg(LOG_DEBUG, "fsync");
+    commitVolume();
+    /* Maybe we should also sync the underlying files, but that's
+       hard (e.g., how do we sync closed storage files?). */
     return 0;
 }
 

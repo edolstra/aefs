@@ -140,14 +140,15 @@ void processCommand()
     case FUSE_MKNOD:
         res = do_mknod(in, (struct fuse_mknod_in *) inarg,
             PARAM(fuse_mknod_in, inarg),
-            (struct fuse_mknod_out *) outbuf);
-        sendReply(in, res, outbuf, sizeof(struct fuse_mknod_out));
+            (struct fuse_lookup_out *) outbuf);
+        sendReply(in, res, outbuf, sizeof(struct fuse_lookup_out));
         break;
 
     case FUSE_MKDIR:
         res = do_mkdir(in, (struct fuse_mkdir_in *) inarg,
-            PARAM(fuse_mkdir_in, inarg));
-        sendReply(in, res, 0, 0);
+            PARAM(fuse_mkdir_in, inarg),
+            (struct fuse_lookup_out *) outbuf);
+        sendReply(in, res, outbuf, sizeof(struct fuse_lookup_out));
         break;
 
     case FUSE_UNLINK:
@@ -158,8 +159,9 @@ void processCommand()
 
     case FUSE_SYMLINK:
         res = do_symlink(in, (char *) inarg,
-            ((char *) inarg) + strlen((char *) inarg) + 1);
-        sendReply(in, res, 0, 0);
+            ((char *) inarg) + strlen((char *) inarg) + 1,
+            (struct fuse_lookup_out *) outbuf);
+        sendReply(in, res, outbuf, sizeof(struct fuse_lookup_out));
         break;
 
     case FUSE_RENAME:
@@ -172,8 +174,9 @@ void processCommand()
 
     case FUSE_LINK:
         res = do_link(in, (struct fuse_link_in *) inarg,
-            PARAM(fuse_link_in, inarg));
-        sendReply(in, res, 0, 0);
+            PARAM(fuse_link_in, inarg),
+            (struct fuse_lookup_out *) outbuf);
+        sendReply(in, res, outbuf, sizeof(struct fuse_lookup_out));
         break;
 
     case FUSE_OPEN:
@@ -201,6 +204,11 @@ void processCommand()
 
     case FUSE_RELEASE:
         /* Don't do anything; no reply needed. */
+        break;
+
+    case FUSE_FSYNC:
+        res = do_fsync(in, (struct fuse_fsync_in *) inarg);
+        sendReply(in, res, 0, 0);
         break;
 
     default:
