@@ -1,7 +1,7 @@
 /* os2.c -- OS/2 (EMX)-specific low-level code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: os2.c,v 1.4 2000/12/29 20:15:12 eelco Exp $
+   $Id: os2.c,v 1.5 2000/12/30 23:55:20 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,6 +30,34 @@
 struct _File {
       HFILE h;
 };
+
+
+static SysResult os2sys(APIRET rc)
+{
+   switch (rc) {
+      case NO_ERROR: return SYS_OK;
+      case ERROR_FILE_NOT_FOUND:
+      case ERROR_PATH_NOT_FOUND:
+      case ERROR_OPEN_FAILED:
+         return SYS_FILE_NOT_FOUND;
+      case ERROR_ACCESS_DENIED: return SYS_ACCESS_DENIED;
+      case ERROR_NOT_ENOUGH_MEMORY: return SYS_NOT_ENOUGH_MEMORY;
+      case ERROR_WRITE_PROTECT: return SYS_ROFS;
+      case ERROR_NOT_READY:
+      case ERROR_CRC:
+      case ERROR_SECTOR_NOT_FOUND:
+      case ERROR_WRITE_FAULT:
+      case ERROR_READ_FAULT:
+      case ERROR_GEN_FAILURE:
+      case ERROR_HANDLE_DISK_FULL:
+      case ERROR_DISK_FULL:
+         return SYS_IO;
+      case ERROR_SHARING_VIOLATION:
+      case ERROR_LOCK_VIOLATION:
+         return SYS_LOCKED;
+      default: return SYS_UNKNOWN;
+   }
+}
 
 
 static ULONG makeOS2Flags(int flFlags)
@@ -65,13 +93,15 @@ static ULONG makeOS2Flags(int flFlags)
 }
 
 
-File * sysOpenFile(char * pszName, int flFlags, Cred cred)
+SysResult sysOpenFile(char * pszName, int flFlags, Cred cred, 
+    File * * ppFile)
 {
    APIRET rc;
    HFILE h;
    ULONG ulAction;
    File * pFile;
    ULONG f = makeOS2Flags(flFlags), g = 0;
+   *ppFile = 0;
    if (!f) return 0;
    
    if (flFlags & SOF_TRUNC_IF_EXISTS)
@@ -86,116 +116,126 @@ File * sysOpenFile(char * pszName, int flFlags, Cred cred)
    if ((rc = DosOpen((PSZ) pszName, &h, &ulAction, 0,
       FILE_NORMAL | FILE_ARCHIVED,
       g, f | OPEN_FLAGS_FAIL_ON_ERROR | OPEN_FLAGS_NOINHERIT, 0)))
-      return 0;
+      return os2sys(rc);
    
    pFile = malloc(sizeof(File));
    if (!pFile) {
       DosClose(h);
-      return 0;
+      return SYS_NOT_ENOUGH_MEMORY;
    }
    pFile->h = h;
 
-   return pFile;
+   *ppFile = pFile;
+   return SYS_OK;
 }
 
 
-File * sysCreateFile(char * pszName, int flFlags, 
-   FilePos cbInitialSize, Cred cred)
+SysResult sysCreateFile(char * pszName, int flFlags, 
+    FilePos cbInitialSize, Cred cred, File * * ppFile)
 {
    APIRET rc;
    HFILE h;
    ULONG ulAction;
    File * pFile;
    ULONG f = makeOS2Flags(flFlags);
+   *ppFile = 0;
    if (!f) return 0;
    
    if ((rc = DosOpen((PSZ) pszName, &h, &ulAction, cbInitialSize,
       FILE_NORMAL | FILE_ARCHIVED,
       OPEN_ACTION_CREATE_IF_NEW | OPEN_ACTION_FAIL_IF_EXISTS,
       f | OPEN_FLAGS_FAIL_ON_ERROR | OPEN_FLAGS_NOINHERIT, 0)))
-      return 0;
+      return os2sys(rc);
    
    pFile = malloc(sizeof(File));
    if (!pFile) {
       DosClose(h);
-      return 0;
+      return SYS_NOT_ENOUGH_MEMORY;
    }
    pFile->h = h;
 
-   return pFile;
+   *ppFile = pFile;
+   return SYS_OK;
 }
 
 
-Bool sysCloseFile(File * pFile)
+SysResult sysCloseFile(File * pFile)
 {
-   APIRET rc;
    int h = pFile->h;
    free(pFile);
-   rc = DosClose(h);
-   return rc == NO_ERROR;
+   return os2sys(DosClose(h));
 }
 
 
-Bool sysSetFilePos(File * pFile, FilePos ibNewPos)
+SysResult sysSetFilePos(File * pFile, FilePos ibNewPos)
 {
    ULONG ibActual;
-   return !DosSetFilePtr(pFile->h, ibNewPos, FILE_BEGIN, &ibActual);
+   return os2sys(DosSetFilePtr(pFile->h, ibNewPos, FILE_BEGIN, &ibActual));
 }
 
 
-Bool sysReadFromFile(File * pFile, FilePos cbLength,
+SysResult sysReadFromFile(File * pFile, FilePos cbLength,
    octet * pabBuffer, FilePos * pcbRead)
 {
+   APIRET rc;
    ULONG cbActual;
-   if (DosRead(pFile->h, pabBuffer, cbLength, &cbActual))
-      return FALSE;
+   if (rc = DosRead(pFile->h, pabBuffer, cbLength, &cbActual))
+      return os2sys(rc);
    *pcbRead = cbActual;
-   return TRUE;
+   return SYS_OK;
 }
 
 
-Bool sysWriteToFile(File * pFile, FilePos cbLength,
+SysResult sysWriteToFile(File * pFile, FilePos cbLength,
    octet * pabBuffer, FilePos * pcbWritten)
 {
+   APIRET rc;
    ULONG cbActual;
-   if (DosWrite(pFile->h, pabBuffer, cbLength, &cbActual))
-      return FALSE;
+   if (rc = DosWrite(pFile->h, pabBuffer, cbLength, &cbActual))
+      return os2sys(rc);
    *pcbWritten = cbActual;
-   return TRUE;
+   return SYS_OK;
 }
 
 
-Bool sysSetFileSize(File * pFile, FilePos cbSize)
+SysResult sysSetFileSize(File * pFile, FilePos cbSize)
 {
-   return !DosSetFileSize(pFile->h, cbSize);
+   return os2sys(DosSetFileSize(pFile->h, cbSize));
 }
 
 
-Bool sysQueryFileSize(File * pFile, FilePos * pcbSize)
+SysResult sysQueryFileSize(File * pFile, FilePos * pcbSize)
 {
+   APIRET rc;
    FILESTATUS3 info;
-   if (DosQueryFileInfo(pFile->h, FIL_STANDARD, &info, sizeof(info)))
-      return FALSE;
+   if (rc = DosQueryFileInfo(pFile->h, FIL_STANDARD, &info, sizeof(info)))
+      return os2sys(rc);
    *pcbSize = info.cbFile;
-   return TRUE;
+   return SYS_OK;
 }
 
 
-Bool sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred)
+SysResult sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred)
 {
    return fFastDelete
-      ? !DosForceDelete((PSZ) pszName)
-      : !DosDelete((PSZ) pszName);
+      ? os2sys(DosForceDelete((PSZ) pszName))
+      : os2sys(DosDelete((PSZ) pszName));
 }
 
 
-Bool sysFileExists(char * pszName)
+SysResult sysFileExists(char * pszName, Bool * pfExists)
 {
+   APIRET rc;
    FILESTATUS3 info;
-   if (DosQueryPathInfo((PSZ) pszName,
+   if (rc = DosQueryPathInfo((PSZ) pszName,
       FIL_STANDARD, &info, sizeof(info)))
-      return FALSE;
-   return !(info.attrFile & FILE_DIRECTORY);
+   {
+      if (rc != ERROR_FILE_NOT_FOUND && rc != ERROR_PATH_NOT_FOUND)
+         return os2sys(rc);
+      *pfExists = FALSE;
+   } else
+      *pfExists = !(info.attrFile & FILE_DIRECTORY);
+   return SYS_OK;
 }
 
 
