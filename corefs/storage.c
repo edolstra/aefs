@@ -1254,7 +1254,7 @@ CoreResult coreSetSectorData(CryptedVolume * pVolume,
    }
    
    cr = coreFetchSectors(pVolume, id, s, 1, flFlags);
-   if (cr && ((cr != CORERC_BAD_CHECKSUM) |
+   if (cr && ((cr != CORERC_BAD_CHECKSUM) ||
       !(flFlags & CFETCH_ADD_BAD)))
       return cr;
    
