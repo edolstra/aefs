@@ -18,7 +18,7 @@
 #include "ciphertable.h"
 #include "identity.h"
 #include "twofish.h"
-#include "twofish2.h"
+/* #include "twofish2.h" */
 #include "rijndael.h"
 
 Cipher * cipherTable[] =

@@ -1,6 +1,11 @@
 BASE = ..
 include $(BASE)/Makefile.incl
 
+MANIFEST := Makefile \
+ aefsparm.c mntaefs.c umntaefs.c
+
+ifeq ($(SYSTEM), os2)
+
 PROGS = mntaefs.c umntaefs.c aefsparm.c
 
 LIBS = $(BASE)/misc/getopt.a $(BASE)/utils/utilutils.o
@@ -20,4 +25,6 @@ install: all
 
 ifneq ($(MAKECMDGOALS),clean)
 include $(PROGS:.c=.d)
+endif
+
 endif

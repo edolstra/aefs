@@ -1,6 +1,9 @@
 BASE = ..
 include $(BASE)/Makefile.incl
 
+MANIFEST := Makefile \
+ aefsadd.c aefsctrl.x aefsnfsd.c mount.x nfs_prot.x
+
 PROG1 = aefsnfsd$(EXE)
 PROG2 = aefsadd$(EXE)
 

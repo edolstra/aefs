@@ -14,6 +14,7 @@ mandir = @mandir@
 INSTALL = @INSTALL@
 INSTALL_DIR = $(INSTALL) -d
 INSTALL_PROGRAM = @INSTALL_PROGRAM@ -s
+INSTALL_DATA = @INSTALL_DATA@
 
 DEFS = -DSYSTEM=$(SYSTEM) -DAEFS_VERSION=$(AEFS_VERSION)
 
@@ -96,3 +97,13 @@ clean: clean-default clean-extra
 install: all
 
 depend:
+
+dist:
+	mkdir $(distdir)
+	cp -p $(MANIFEST) $(distdir)
+	s="$(SUBDIRS)"; \
+	if test "$$s"; then \
+	  for subdir in $$s; do \
+	    (cd $$subdir && $(MAKE) -w $@ distdir=$(distdir)/$$subdir) || exit 1; \
+	  done \
+        fi\

@@ -1,6 +1,13 @@
 BASE = ..
 include $(BASE)/Makefile.incl
 
+MANIFEST := Makefile \
+ aefsdint.h aefsdmn.c aefsdmn.h attach.c dir.c ea.c \
+ fileinfo.c fileio.c fileop.c find.c misc.c \
+ openclose.c utils.c
+
+ifeq ($(SYSTEM), os2)
+
 OPEN_FILES_LIMIT = 512
 
 CFLAGS += -DOPEN_FILES_LIMIT=$(OPEN_FILES_LIMIT)
@@ -29,4 +36,6 @@ install: all
 
 ifneq ($(MAKECMDGOALS),clean)
 include $(SRCS:.c=.d)
+endif
+
 endif

@@ -1,10 +1,13 @@
 BASE = .
 include $(BASE)/Makefile.incl
 
-SUBDIRS := misc system/$(SYSTEM) ciphers corefs utils nfsd
-ifeq ($(SYSTEM), os2)
-SUBDIRS += ifsdriver ifsdaemon ifsutils
-endif
+SUBDIRS := \
+ misc system ciphers corefs utils nfsd \
+ ifsdriver ifsdaemon ifsutils
+
+MANIFEST := COPYING Makefile \
+ Makefile.incl.in PGPKEY config.h.in config.sub config.guess \
+ configure configure.in install-sh readme.src
 
 all clean clean-stuff install depend:
 	for subdir in $(SUBDIRS); do \
@@ -31,7 +34,7 @@ endif
 CHECKSUMS:
 	md5sum -b `find . -type f` | pgp -staf +clearsig > $@
 
-dist: all install
+os2dist: all install
 	rm -rf $(TMPDIR)/aefs
 	mkdir $(TMPDIR)/aefs
 	cp -pr . $(TMPDIR)/aefs

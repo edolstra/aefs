@@ -1,6 +1,11 @@
 BASE = ..
 include $(BASE)/Makefile.incl
 
+MANIFEST := Makefile \
+ fsd.h stubfsd.c stubfsd.def stubfsd.h
+
+ifeq ($(SYSTEM), os2)
+
 DDK    = d:/programming/ddk/base
 MSC60  = d:/programming/ddk/msc60
 
@@ -29,3 +34,5 @@ clean-extra:
 install: all
 	$(INSTALL_DIR) $(bindir)
 	$(INSTALL_PROGRAM) stubfsd.ifs $(bindir)
+
+endif

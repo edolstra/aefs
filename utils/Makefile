@@ -1,6 +1,11 @@
 BASE = ..
 include $(BASE)/Makefile.incl
 
+MANIFEST = Makefile \
+ aefsck.c aefsck.h aefsdump.c checkvectors.pl \
+ mkaefs.c testcipher.c testvec \
+ utilutils.c utilutils.h
+
 PROGS = mkaefs.c aefsck.c aefsdump.c
 # testcipher.c # cp2aefs.c dumpaefs.c 
 
