@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsck.c,v 1.24 2002/01/21 20:33:40 eelco Exp $
+   $Id: aefsck.c,v 1.25 2002/09/10 19:21:34 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1315,24 +1315,31 @@ static int isBadEntry(State * pState, FSItem * fsi,
 {
    char * p, * pszName = pEntry->pszName;
    bool fEmpty = true;
-   bool fWhite = false;
+#ifdef SYSTEM_os2
+   bool fBadEnd = false;
+#endif
    bool fBad = false;
 
    for (p = pszName; *p; p++) {
       fEmpty = false;
-      fWhite = (*p == ' ');
-      if ((*p >= 0 && *p < 32) || *p == 127) fBad = true;
+#ifdef SYSTEM_os2 /* !!! this should be a flag */
+      fBadEnd = (*p == ' ' || *p == '.');
+      if ((*p >= 0 && *p < 32) || *p == 127
+         || strchr("<>:\"/\\|*?", *p))
+         fBad = true;
+#endif
    }
    
    if (fEmpty)
       printf("%s: contains empty file name\n",
          printFileName(pState, fsi->id));
-   else if (fWhite) /* do we want this? */
-      printf("%s: file name `%s' ends in whitespace\n",
+#ifdef SYSTEM_os2      
+   else if (fBadEnd)
+      printf("%s: file name `%s' ends in whitespace or period\n",
          printFileName(pState, fsi->id), pszName);
+#endif
    else if (fBad)
-      printf("%s: file name `%s' contains "
-         "illegal characters\n",
+      printf("%s: file name `%s' contains illegal characters\n",
          printFileName(pState, fsi->id), pszName);
    else return 0;
    
@@ -1364,6 +1371,8 @@ static int checkDirEntryNamesInDir(State * pState, FSItem * fsi)
    for (ppCur = &fsi->pChildren, pCur = *ppCur; pCur; ) {
       pNext = pCur->pNext;
       if (isBadEntry(pState, fsi, pCur)) {
+         /* !!! Here we remove the name from the directory.  We should
+            sanitize it instead. */
          fsi->flags |= FSI_REWRITEDIR;
          pCur->pNext = 0;
          coreFreeDirEntries(pCur);
