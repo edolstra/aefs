@@ -436,9 +436,12 @@ int main(int argc, char * * argv)
 {
     CryptedVolumeParms parms;
     CoreResult cr;
-    char szKey[1024], * pszKey = 0, * pszBasePath;
+    char szKey[1024], * pszKey = 0;
+    char szBasePath[MAX_VOLUME_BASE_PATH_NAME];
 
-    pszBasePath = argv[1];
+    /* !!! check */
+    strcpy(szBasePath, argv[1]);
+    strcat(szBasePath, "/");
 
     unmount_cmd = getenv(FUSE_UMOUNT_CMD_ENV);
     dprintf("unmount_cmd: `%s', \n", unmount_cmd);
@@ -458,7 +461,7 @@ int main(int argc, char * * argv)
 
     /* Read the superblock, initialize volume structures. */
 retry:
-    cr = coreReadSuperBlock(pszBasePath, pszKey,
+    cr = coreReadSuperBlock(szBasePath, pszKey,
         cipherTable, &parms, &pSuperBlock);
     if (cr) {
         if (pSuperBlock) coreDropSuperBlock(pSuperBlock);
@@ -472,6 +475,14 @@ retry:
     
     pVolume = pSuperBlock->pVolume;
 
+#ifdef HAVE_DAEMON
+    if (!fDebug) {
+	close(1);
+	close(2);
+	daemon(0, 1);
+    }
+#endif
+    
     runLoop();
 
     cleanup();
