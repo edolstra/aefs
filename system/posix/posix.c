@@ -2,12 +2,17 @@
 #include <stdio.h>
 #include <time.h>
 #include <assert.h>
-#include <io.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
 #include "sysdep.h"
+
+
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
 
 
 struct _File {
@@ -108,14 +113,13 @@ Bool sysWriteToFile(File * pFile, FilePos cbLength,
 
 Bool sysSetFileSize(File * pFile, FilePos cbSize)
 {
-/*    struct stat s; */
-/*    if (fstat(pFile->h, &s) == -!) return FALSE; */
-/*    if (!sysSetFilePos(pFile, cbSize)) return FALSE; */
-/*    if (cbSize > s.st_size) { */
-/*    } */
-
-   /* !!! not POSIX! */
+#if HAVE_CHSIZE   
    return !chsize(pFile->h, cbSize);
+#elif HAVE_FTRUNCATE
+   return !ftruncate(pFile->h, cbSize);
+#else
+#error Cannot set file size!
+#endif
 }
 
 
