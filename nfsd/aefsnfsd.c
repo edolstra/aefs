@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.22 2001/03/07 19:37:58 eelco Exp $
+   $Id: aefsnfsd.c,v 1.23 2001/05/16 21:07:55 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -441,12 +441,19 @@ static bool isInGroup(User * pUser, int gid)
 static int havePerm(unsigned int what, User * pUser, 
     CryptedFileInfo * pInfo)
 {
+    unsigned int flFlags = pInfo->flFlags;
+    /* As a special exception, allow writing even if the caller is the
+       owner but has no write permission.  This is the only way we can
+       support the fucked-up Unix semantics that you can write to a
+       file created by creat() even when the write bits are
+       cleared. */
+    flFlags |= 0200;
     return
         ((pInfo->uid == pUser->uid) && 
-            ((pInfo->flFlags & (what << 6)) == (what << 6))) ||
+            ((flFlags & (what << 6)) == (what << 6))) ||
         (isInGroup(pUser, pInfo->gid) && 
-            ((pInfo->flFlags & (what << 3)) == (what << 3))) ||
-        ((pInfo->flFlags & what) == what) ||
+            ((flFlags & (what << 3)) == (what << 3))) ||
+        ((flFlags & what) == what) ||
         (pUser->uid == 0) /* root */;
 }
 
