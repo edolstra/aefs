@@ -1,7 +1,7 @@
 /* find.c -- Read directory contents with file info.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: find.c,v 1.7 2001/10/11 17:52:57 eelco Exp $
+   $Id: find.c,v 1.8 2002/01/14 21:35:04 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -84,10 +84,10 @@ static BOOL entryMatches(SearchData * pSearchData,
       return false;
 
    if (!(pSearchData->flAttr & FILE_NON83) &&
-       hasNon83Name((char *) pEntry->pabName))
+       hasNon83Name(pEntry->pszName))
       return false;
    
-   return nameMatches(pSearchData->szName, (char *) pEntry->pabName);
+   return nameMatches(pSearchData->szName, pEntry->pszName);
 }
 
 
@@ -149,7 +149,7 @@ static APIRET storeNextFileInfo(
 
       logMsg(L_DBG, "testing entry %ld, flags=%x, id=%08x, name=%s",
          pSearchData->iNext,
-         pEntry->flFlags, pEntry->idFile, (char *) pEntry->pabName);
+         pEntry->flFlags, pEntry->idFile, pEntry->pszName);
 
       /* OS/2 file info relevant to file matching is stored in the
          directory (file name and hidden flag) and in the file's info
@@ -180,10 +180,10 @@ static APIRET storeNextFileInfo(
 
             /* Store the file information in the buffer. */
             if (!(pSearchData->flAttr & FILE_NON83))
-               strupr((char *) pEntry->pabName); /* !!! codepage */
+               strupr(pEntry->pszName); /* !!! codepage */
             rc = storeFileInfo(
                pVolume, pEntry->idFile, pgeas,
-               (char *) pEntry->pabName,
+               pEntry->pszName,
                pEntry->flFlags & CDF_HIDDEN,
                &info,
                ppData, pcbData,
@@ -336,7 +336,7 @@ APIRET fsFindFirst(ServerData * pServerData, struct
    pSearchData->pNext = &pSearchData->dot;
    pSearchData->iNext = 0;
 
-   pSearchData->dot.pabName = (octet *) ".";
+   pSearchData->dot.pszName = ".";
    pSearchData->dot.idFile = idDir;
    pSearchData->dot.flFlags = 0; /* ??? */
 
@@ -351,7 +351,7 @@ APIRET fsFindFirst(ServerData * pServerData, struct
       }
       pSearchData->dot.pNext = &pSearchData->dotDot;
       pSearchData->dotDot.pNext = pSearchData->pFirstInDir;
-      pSearchData->dotDot.pabName = (octet *) "..";
+      pSearchData->dotDot.pszName = "..";
       pSearchData->dotDot.idFile = info.idParent;
       pSearchData->dotDot.flFlags = 0; /* ??? */
    }
