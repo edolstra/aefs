@@ -1,0 +1,10 @@
+LIBRARY         stubfsd
+DESCRIPTION     "Stub FSD (passes FS requests to ring 3 daemon process)"
+EXETYPE         OS2
+PROTMODE
+CODE            PRELOAD
+DATA            SINGLE PRELOAD
+STACKSIZE       0
+EXPORTS
+   FS_NAME
+   FS_ATTRIBUTE
