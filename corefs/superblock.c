@@ -114,8 +114,6 @@ static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
    int cbKey = 0;
    int cbBlock = 0;
    octet abKey[MAX_KEY_SIZE];
-   char * p;
-   int i;
 
    /* Read the unencrypted superblock. */
    
@@ -141,17 +139,6 @@ static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
             pParms->flCryptoFlags |= CCRYPT_USE_CBC;
          else
             pParms->flCryptoFlags &= ~CCRYPT_USE_CBC;
-      } else if (strcmp(szName, "division") == 0) {
-         memset(pParms->acbitsDivision, 0,
-            sizeof(pParms->acbitsDivision));
-         i = 0;
-         p = szValue;
-         while (*p) {
-            if (isdigit((int) *p))
-               pParms->acbitsDivision[i] =
-                  pParms->acbitsDivision[i] * 10 + (*p - '0');
-            else if (*p == '-') i++;
-         }
       }
       
    }
@@ -288,7 +275,6 @@ CoreResult coreReadSuperBlock(char * pszBasePath, char * pszKey,
 CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, int flags)
 {
    char szFileName[MAX_VOLUME_BASE_PATH_NAME + 128];
-   char szField[1024], * p;
    FILE * file;
    CryptedSectorData sector;
    SuperBlock2OnDisk * pOnDisk =
@@ -296,7 +282,8 @@ CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, int flags)
    int cbWritten;
    CryptedVolumeParms * pParms =
       coreQueryVolumeParms(pSuperBlock->pVolume);
-   int i;
+
+   if (pParms->fReadOnly) return CORERC_READ_ONLY;
 
    if (!(flags & CWS_NOWRITE_SUPERBLOCK1)) {
       
@@ -325,21 +312,6 @@ CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, int flags)
          return CORERC_STORAGE;
       }
       
-      p = szField;
-      *p = 0;
-      for (i = 0; pParms->acbitsDivision[i]; i++) {
-         if (i > 0) *p++ = '-';
-         sprintf(p, "%d", pParms->acbitsDivision[i]);
-         p = strchr(p, 0);
-      }
-
-#if 0      
-      if (fprintf(file, "division: %s\n", szField) == EOF) {
-         fclose(file);
-         return CORERC_STORAGE;
-      }
-#endif      
-
       if (fclose(file) == EOF)
          return CORERC_STORAGE;
    }

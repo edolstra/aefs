@@ -18,7 +18,7 @@
 #ifndef _COREFS_H
 #define _COREFS_H
 
-#include "types.h"
+#include "sysdep.h"
 #include "cipher.h"
 
 
@@ -93,13 +93,12 @@ CoreResult coreDecryptSectorData(octet * pabSrc,
 typedef struct {
       int flCryptoFlags; /* CCRYPT_* */
       int flOpenFlags; /* SOF_* */
+      int fReadOnly;
       int cMaxCryptedFiles; /* > 0 */
       int cMaxOpenStorageFiles; /* > 0, <= cMaxCryptedFiles */
       int csMaxCached; /* > 0 */
       int csIOGranularity; /* > 0, <= csMaxCached */
       int csISFGrow; /* > 0 */
-      char * pszPathSep; /* presently not used */
-      int acbitsDivision[32]; /* presently not used */
       void (* dirtyCallBack)(CryptedVolume * pVolume, Bool fDirty);
       void * pUserData;
 } CryptedVolumeParms;

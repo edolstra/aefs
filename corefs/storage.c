@@ -180,13 +180,12 @@ void coreSetDefVolumeParms(CryptedVolumeParms * pParms)
    pParms->flCryptoFlags = 0;
    pParms->flOpenFlags = SOF_READWRITE | SOF_DENYWRITE |
       SOF_RANDOMSEQUENTIAL;
+   pParms->fReadOnly = FALSE;
    pParms->cMaxCryptedFiles = 512;
    pParms->cMaxOpenStorageFiles = 8;
    pParms->csMaxCached = 1024;
    pParms->csIOGranularity = 512;
    pParms->csISFGrow = 64;
-   pParms->pszPathSep = "/"; /* not portable! */
-   pParms->acbitsDivision[0] = 0;
    pParms->dirtyCallBack = 0;
    pParms->pUserData = 0;
 }
@@ -244,6 +243,10 @@ CoreResult coreAccessVolume(char * pszBasePath, Key * pKey,
       return CORERC_NOT_ENOUGH_MEMORY;
    }
    strcpy(pVolume->pszBasePath, pszBasePath);
+
+   if (pVolume->parms.fReadOnly)
+       pVolume->parms.flOpenFlags = (pVolume->parms.flOpenFlags &
+           ~SOF_RWMASK) | SOF_READONLY;
 
    *ppVolume = pVolume;
 
@@ -612,6 +615,8 @@ CoreResult coreCreateFile(CryptedVolume * pVolume,
    CoreResult cr;
    CryptedFile * pFile;
 
+   if (pVolume->parms.fReadOnly) return CORERC_READ_ONLY;
+
    if (storageFileExists(pVolume, id)) return CORERC_ID_EXISTS;
 
    /* Create a CryptedFile for this file. */
@@ -637,6 +642,8 @@ CoreResult coreDestroyFile(CryptedVolume * pVolume, CryptedFileID id)
    CoreResult cr;
    char szPathName[MAX_STORAGE_PATH_NAME];
    CryptedFile * pFile;
+
+   if (pVolume->parms.fReadOnly) return CORERC_READ_ONLY;
 
    cr = accessFile(pVolume, id, &pFile);
    if (cr) return cr;
@@ -670,7 +677,7 @@ CoreResult coreFlushFile(CryptedVolume * pVolume, CryptedFileID id)
    if (cr) return cr;
 
    if (pFile->csDirty) {
-      
+
       papDirty = malloc(pFile->csDirty * sizeof(CryptedSector *));
       if (!papDirty) return CORERC_NOT_ENOUGH_MEMORY;
 
@@ -699,6 +706,8 @@ CoreResult coreSetFileAllocation(CryptedVolume * pVolume,
    FilePos cbNewSize;
    CryptedFile * pFile;
 
+   if (pVolume->parms.fReadOnly) return CORERC_READ_ONLY;
+
    cr = accessFile(pVolume, id, &pFile);
    if (cr) return cr;
 
@@ -714,18 +723,6 @@ CoreResult coreSetFileAllocation(CryptedVolume * pVolume,
       return CORERC_OK;
    else
       return CORERC_STORAGE;
-}
-
-
-CryptedFileID coreQueryFileID(CryptedFile * pFile)
-{
-   return pFile->id;
-}
-
-
-CryptedVolume * coreQueryFileVolume(CryptedFile * pFile)
-{
-   return pFile->pVolume;
 }
 
 
@@ -1109,6 +1106,8 @@ static CoreResult writeBuffer(CryptedSector * pStart, int c,
    CoreResult cr;
    FilePos cbWritten;
    
+   assert(!pStart->pFile->pVolume->parms.fReadOnly);
+
    cr = openStorageFile(pStart->pFile, FALSE, 0);
    if (cr) return cr;
          
@@ -1243,6 +1242,8 @@ CoreResult coreSetSectorData(CryptedVolume * pVolume,
    CoreResult cr;
    CryptedSector * pSector;
    
+   if (pVolume->parms.fReadOnly) return CORERC_READ_ONLY;
+
    if (offset + bytes > PAYLOAD_SIZE)
       return CORERC_INVALID_PARAMETER;
 
