@@ -6,17 +6,35 @@ MANIFEST := Makefile \
 
 ifeq ($(SYSTEM), os2)
 
-DDK    = d:/programming/ddk/base
-MSC60  = d:/programming/ddk/msc60
+DDK_H = d:\\programming\\ddk\\base
+IFS_H = d:\\programming\\headers\\ifs
 
-CC16 = cl
+#CC16 = cl
+CC16 = wcc
 LINK16 = link
 
-C16FLAGS = /c /W3 /Zp /G2s /Anlw /Onir # /Fc # /Od
+# /c    = compile?
+# /W3   = warning level
+# /Zp   = pack on ?
+# /G2s  = 286 / no stack checking
+# /Anlw = ? large /
+# /Onir = disable unsafe / enable intrinsics / disable inline return
+#C16FLAGS = /c /W3 /Zp /G2s /Anlw /Onir # /Fc # /Od
+
+# /bd = build DLL
+# /wx = warnings
+# /oi = expand intrinsics
+# /3  = optimize for 386
+# /ml = large memory model
+# /zu = SS != DGROUP
+# /s  = remove stack overflow checks
+# /r  = save segment registers across calls
+C16FLAGS = /bd /wx /oi /3 /ml /zu /s /r
+
 L16FLAGS = /map /nod /exepack /packd /a:16 /far
 
-C16INC = -I$(DDK)/h \
- -Id:/programming/headers/ifs
+#C16INC = -I$(DDK_H)/h -I$(IFS_H)
+C16INC = /i=$(DDK_H)\\h /i=$(IFS_H) /i=$(WATCOM)\\h
 
 L16LIBS = dhcalls.lib fshelper.lib
 

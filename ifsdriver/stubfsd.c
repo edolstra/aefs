@@ -1,7 +1,7 @@
 /* stubfsd.c -- Ring 0 IFS stub.  Passes requests to the ring 3 daemon.
-   Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
+   Copyright (C) 1999, 2002 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: stubfsd.c,v 1.6 2001/11/14 14:32:06 eelco Exp $
+   $Id: stubfsd.c,v 1.7 2002/07/17 21:02:44 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,6 +17,8 @@
    along with this program; if not, write to the Free Software Foundation,
    Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
 
+#include <string.h>
+
 #define INCL_DOSERRORS
 #include <os2.h>
 
@@ -28,9 +30,6 @@
 #include "stubfsd.h"
 
 #undef FS_ATTACH
-
-
-/* void memcpy(void * p, void * q, int b); */
 
 
 /* Calling protocol for FSD functions. */
@@ -73,6 +72,9 @@ HVMLOCK ahvmlock[2];
 /* Exchange buffers */
 PFSREQUEST pRequest;
 PFSDATA    pFSData;
+
+/* To keep the linker happy; Watcom emits references to this. */
+int big_code_;
 
 
 /* Christ!  The kernel sometimes passes "null" pointers that are
@@ -258,6 +260,8 @@ static APIRET daemonStarted(PSETXCHGBUFFERS pxchg)
    
    rc = FSH_SEMCLEAR(&semSerialize);
    if (rc) return rc;
+
+   return NO_ERROR;
 }
 
 
@@ -420,7 +424,6 @@ FS_FSCTL(
          return daemonStopped();
 
       case FSCTL_STUBFSD_GET_REQUEST: /* wait for next request */
-
          if (queryCurrentPid() != pidDaemon)
             return ERROR_STUBFSD_NOT_DAEMON;
 
