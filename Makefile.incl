@@ -1,0 +1,35 @@
+AEFS_VERSION = "\"AEFS 0.1\""
+
+SYSTEM = os2
+SHELL = ash # pdksh or bash are also okay
+OPTFLAGS = -mcpu=pentium -O2 -fomit-frame-pointer
+CFLAGS = -Zmt -Wall -Wno-parentheses -pedantic \
+ -DDEBUG -DSYSTEM=$(SYSTEM) $(INCL) $(OPTFLAGS) \
+ -DAEFS_VERSION=$(AEFS_VERSION)
+LDFLAGS = -s -Zcrtdll
+SYSLIB = -lbsd -lgcc 
+INCL = -I$(BASE)/corefs -I$(BASE)/ciphers -I$(BASE)/misc \
+ -I$(BASE)/ifsdriver -I$(BASE)/system -I$(BASE)/system/$(SYSTEM) \
+ -I$(BASE)/utils -I$(BASE)/ifsdaemon
+CP = cp
+RM = -rm -v
+FASTRM = $(RM)
+EXE = .exe
+INSTALLDIR = $(BASE)/bin
+
+%.d: %.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) -MM $< \
+		| sed "s/\($*\)\.o[ :]*/\1.o $@ : /g" > $@
+
+default: all
+
+.PHONY: clean all
+
+clean-default:
+	$(RM) *.d *.o *.s *.a *.exe *~ core
+
+clean-extra:
+
+clean: clean-default clean-extra
+
+install: all
