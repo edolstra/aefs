@@ -3,33 +3,40 @@ include $(BASE)/Makefile.incl
 
 SUBDIRS := \
  misc system ciphers corefs utils nfsd \
- ifsdriver ifsdaemon ifsutils fuse
+ ifsdriver ifsdaemon ifsutils fuse emxdoc
 
 MANIFEST := COPYING Makefile Makefile.incl Makefile.conf.in \
  PGPKEY config.h.in config.sub config.guess \
  configure configure.in install-sh readme.src
 
-all clean clean-stuff install depend:
+all-sub clean clean-stuff install depend:
 	for subdir in $(SUBDIRS); do \
-	  (cd $$subdir && $(MAKE) -w $@) || exit 1; \
+	  (cd $$subdir && $(MAKE) -w $(@:-sub=)) || exit 1; \
 	done
 
-ifeq ($(SYSTEM), os2)
-all: docs
+all: all-sub all-local
 
-docs: readme.txt readme.inf # readme.html
+all-local: docs
+
+docs: readme.txt readme.html
 
 readme.txt: readme.src
-	emxdoc -T -o $@ $<
+	$(EMXDOC) -T -o $@ $<
 
 readme.html: readme.src
-	emxdoc -H -o $@ $<
+	$(EMXDOC) -H -o $@ $<
+
+ifeq ($(SYSTEM), os2)
+docs: readme.inf
 
 readme.inf: readme.src
-	emxdoc -I -o readme.ipf $<
+	$(EMXDOC) -I -o readme.ipf $<
 	ipfc readme.ipf $@
 	rm readme.ipf
 endif
+
+clean-extra:
+	$(RM) readme.txt readme.html readme.inf readme.ipf
 
 CHECKSUMS:
 	md5sum -b `find . -type f` | pgp -staf +clearsig > $@

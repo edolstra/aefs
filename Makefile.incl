@@ -25,6 +25,8 @@ CFLAGS += -g
 LDFLAGS += -g
 endif
 
+EMXDOC = $(BASE)/emxdoc/emxdoc
+
 %.d: %.c
 	$(CC) $(CFLAGS) -MM -MG $< \
 		| sed "s/\($*\)\.o[ :]*/\1.o $@ : /g" > $@
