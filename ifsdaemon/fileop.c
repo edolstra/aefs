@@ -1,7 +1,7 @@
 /* fileop.c -- File operations (move and delete).
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: fileop.c,v 1.6 2000/12/31 11:35:21 eelco Exp $
+   $Id: fileop.c,v 1.7 2001/03/07 19:45:30 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -89,12 +89,10 @@ APIRET fsMove(ServerData * pServerData, struct move * pmove)
    CoreResult cr;
    VolData * pVolData;
    CryptedVolume * pVolume;
-   APIRET rc;
    CHAR szSrcDir[CCHMAXPATH], szSrcName[CCHMAXPATH];
    CryptedFileID idSrcDir;
    CHAR szDstDir[CCHMAXPATH], szDstName[CCHMAXPATH];
    CryptedFileID idDstDir;
-   CryptedDirEntry * pEntry;
    
    if (VERIFYFIXED(pmove->szSrc) ||
        verifyPathName(pmove->szSrc) ||
