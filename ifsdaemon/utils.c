@@ -1,6 +1,8 @@
 /* utils.c -- Helper routines for the daemon.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: utils.c,v 1.5 2000/12/30 23:58:02 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -89,10 +91,12 @@ APIRET coreResultToOS2(CoreResult cr)
       case CORERC_INVALID_PARAMETER: return ERROR_INVALID_PARAMETER;
       case CORERC_INVALID_NAME: return ERROR_INVALID_NAME;
       case CORERC_BAD_CHECKSUM: return ERROR_CRC;
-      case CORERC_STORAGE: return ERROR_SEEK;
       case CORERC_NOT_DIRECTORY: return ERROR_PATH_NOT_FOUND;
       case CORERC_READ_ONLY: return ERROR_WRITE_PROTECT;
-      default: return ERROR_AEFS_BASE + 100 + cr;
+      default:
+         if (IS_CORERC_SYS(cr))
+            return ERROR_SEEK;
+         return ERROR_AEFS_BASE + 100 + cr;
    }
 }
 
