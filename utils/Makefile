@@ -2,11 +2,11 @@ BASE = ..
 include $(BASE)/Makefile.incl
 
 MANIFEST = Makefile \
- aefsck.c aefsck.h aefsdump.c checkvectors.pl \
+ aefsck.c aefsck.h aefsdump.c aefsutil.c checkvectors.pl \
  mkaefs.c testcipher.c testvec \
  utilutils.c utilutils.h
 
-PROGS = mkaefs.c aefsck.c aefsdump.c
+PROGS = mkaefs.c aefsck.c aefsdump.c aefsutil.c
 # testcipher.c # cp2aefs.c dumpaefs.c 
 
 SRCS = $(PROGS) utilutils.c
