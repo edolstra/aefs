@@ -20,7 +20,8 @@ AC_CHECK_FUNCS(setfsuid)
 AC_CHECK_FUNCS(mlockall)
 
 AC_SEARCH_LIBS(socket, socket)
-AC_SEARCH_LIBS(xdr_void, nsl)
+AC_SEARCH_LIBS(xdr_void, nsl rpc)
+AC_SEARCH_LIBS(syslog, syslog)
 
 AC_C_INLINE
 
