@@ -1,6 +1,6 @@
 /* stubfsd.h -- Defines the interface between the ring 0 and ring 3
    components of an FSD.
-   Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

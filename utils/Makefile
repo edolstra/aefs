@@ -35,7 +35,8 @@ clean-extra:
 	$(RM) $(PROGS:.c=$(EXE))
 
 install: all
-	$(CP) $(PROGS:.c=$(EXE)) $(INSTALLDIR)
+	$(INSTALL_DIR) $(bindir)
+	$(INSTALL_PROGRAM) $(PROGS:.c=$(EXE)) $(bindir)
 
 ifneq ($(MAKECMDGOALS),clean)
 include $(SRCS:.c=.d)

@@ -24,7 +24,8 @@ clean-extra:
 	$(RM) aefsdmn$(EXE)
 
 install: all
-	$(CP) aefsdmn$(EXE) $(INSTALLDIR)
+	$(INSTALL_DIR) $(bindir)
+	$(INSTALL_PROGRAM) aefsdmn$(EXE) $(bindir)
 
 ifneq ($(MAKECMDGOALS),clean)
 include $(SRCS:.c=.d)

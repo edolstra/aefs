@@ -27,4 +27,5 @@ clean-extra:
 	$(RM) stubfsd.ifs *.cod *.obj *.map
 
 install: all
-	$(CP) stubfsd.ifs $(INSTALLDIR)
+	$(INSTALL_DIR) $(bindir)
+	$(INSTALL_PROGRAM) stubfsd.ifs $(bindir)

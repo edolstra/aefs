@@ -1,7 +1,7 @@
 /* aefsdmn.c -- Daemon main program.  Gets requests from the ring 0
    IFS and dispatches them to the various worker routines in the other
    C files in this directory.  Also implements the lazy writer.
-   Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
