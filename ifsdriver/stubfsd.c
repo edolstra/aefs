@@ -1,7 +1,7 @@
 /* stubfsd.c -- Ring 0 IFS stub.  Passes requests to the ring 3 daemon.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: stubfsd.c,v 1.5 2001/09/23 13:30:15 eelco Exp $
+   $Id: stubfsd.c,v 1.6 2001/11/14 14:32:06 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ PFN Device_Help;
 char pascal FS_NAME[] = "STUBFSD\000\000\000\000";
 ULONG pascal FS_ATTRIBUTE = FSA_REMOTE;
 
-/* The pid if the daemon process.  0 = no daemon is currently
+/* The pid of the daemon process.  0 = no daemon is currently
    attached. */
 PID pidDaemon;
 
