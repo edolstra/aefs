@@ -1,5 +1,5 @@
-/* superblock.c -- Standard superblock code.
-   Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
+/* superblock.c -- Superblock code.
+   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -245,8 +245,7 @@ CoreResult coreReadSuperBlock(char * pszBasePath, char * pszKey,
       (char *) pSuperBlock;
    strcpy(pSuperBlock->pszBasePath, pszBasePath);
 
-   if (cr = readSuperBlock1(pSuperBlock, pszKey, pParms, papCipher))
-   {
+   if (cr = readSuperBlock1(pSuperBlock, pszKey, pParms, papCipher)) {
       sysFreeSecureMem(pSuperBlock);
       return cr;
    }
