@@ -249,54 +249,103 @@ int do_readlink(struct fuse_in_header * in, char * outbuf)
 }
 
 
-static int filler(int fd, CryptedFileID id, char * name)
-{
-    struct fuse_dirent dirent;
-    size_t reclen;
-    size_t res;
+typedef struct {
+    unsigned int len;
+    unsigned char * buffer;
+} DirContents;
 
-    dirent.ino = id;
-    dirent.namelen = strlen(name);
-    strncpy(dirent.name, name, sizeof(dirent.name));
-    dirent.type = 0;
-    reclen = FUSE_DIRENT_SIZE(&dirent);
-    res = write(fd, &dirent, reclen);
-    if (res != reclen) {
-        perror("writing directory file");
-        return -EIO;
-    }
-    return 0;
+
+static CoreResult filler(DirContents * contents, CryptedFileID id, char * name)
+{
+    /* Copied from fill_dir() in FUSE. */
+    size_t namelen = strlen(name);
+    size_t entsize = FUSE_DIRENT_ALIGN(FUSE_NAME_OFFSET + namelen);
+    struct fuse_dirent *dirent;
+    
+    if (namelen > FUSE_NAME_MAX) return CORERC_INVALID_NAME;
+
+    contents->buffer = realloc(contents->buffer, contents->len + entsize); /* !!! insecure */
+    if (!contents->buffer) return CORERC_NOT_ENOUGH_MEMORY;
+
+    dirent = (struct fuse_dirent *) (contents->buffer + contents->len);
+    memset(dirent, 0, entsize);
+    dirent->ino = id;
+    dirent->namelen = namelen;
+    strncpy(dirent->name, name, namelen);
+    dirent->type = 0;
+    contents->len += FUSE_DIRENT_SIZE(dirent);
+    
+    return CORERC_OK;
 }
 
 
-int do_getdir(struct fuse_in_header * in, struct fuse_getdir_out * out)
+int do_opendir(struct fuse_in_header * in, struct fuse_open_in * arg,
+    struct fuse_open_out * out)
 {
     CoreResult cr;
     CryptedFileID idDir = in->nodeid;
     CryptedFileInfo info;
     CryptedDirEntry * pFirst, * pCur;
+    DirContents * contents;
 
     logMsg(LOG_DEBUG, "getdir %ld", idDir);
-
-    out->fd = open("/tmp/fuse_tmp", O_CREAT | O_TRUNC | O_RDWR, 0600);
-    if (out->fd == -1) return -errno;
-    unlink("/tmp/fuse_tmp");
-
+        
     cr = coreQueryFileInfo(pVolume, idDir, &info);
     if (cr) return core2sys(cr);
 
-    filler(out->fd, idDir, ".");
-    filler(out->fd, info.idParent, "..");
+    contents = malloc(sizeof(DirContents));
+    if (!contents) return -ENOMEM;
+
+    contents->len = 0;
+    contents->buffer = 0;
+
+    if (cr = filler(contents, idDir, ".")) goto barf;
+    if (cr = filler(contents, info.idParent, "..")) goto barf;
 
     cr = coreQueryDirEntries(pVolume, idDir, &pFirst);
     if (cr) return core2sys(cr);
 
     for (pCur = pFirst; pCur; pCur = pCur->pNext) {
-        filler(out->fd, pCur->idFile, pCur->pszName);
+        if (cr = filler(contents, pCur->idFile, pCur->pszName)) goto barf;
     }
 
     coreFreeDirEntries(pFirst); /* !!! */
 
+    out->fh = (unsigned long) contents;
+    
+    return 0;
+
+ barf:
+    free(contents->buffer);
+    free(contents);
+    return core2sys(cr);
+}
+
+
+int do_readdir(struct fuse_in_header * in, struct fuse_read_in * arg, 
+    char * outbuf)
+{
+    DirContents * contents = (DirContents *) arg->fh;
+    
+    size_t size = 0;
+    
+    if (arg->offset < contents->len) {
+        size = arg->size;
+        if (arg->offset + size > contents->len)
+            size = contents->len - arg->offset;
+        memcpy(outbuf, contents->buffer + arg->offset, size);
+    }
+    
+    return size;
+}
+
+
+int do_releasedir(struct fuse_in_header * in, struct fuse_release_in * arg)
+{
+    DirContents * contents = (DirContents *) arg->fh;
+    logMsg(LOG_DEBUG, "releasedir");
+    free(contents->buffer);
+    free(contents);
     return 0;
 }
 
@@ -552,6 +601,17 @@ int do_fsync(struct fuse_in_header * in, struct fuse_fsync_in * arg)
     commitVolume();
     /* Maybe we should also sync the underlying files, but that's
        hard (e.g., how do we sync closed storage files?). */
+    return 0;
+}
+
+
+int do_init(struct fuse_in_header * in, struct fuse_init_in_out * arg,
+    struct fuse_init_in_out * out)
+{
+    logMsg(LOG_DEBUG, "init %u %u", arg->major, arg->minor);
+    memset(out, 0, sizeof(*out));
+    out->major = FUSE_KERNEL_VERSION;
+    out->minor = FUSE_KERNEL_MINOR_VERSION;
     return 0;
 }
 

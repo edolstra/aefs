@@ -39,8 +39,6 @@ int do_setattr(struct fuse_in_header * in, struct fuse_setattr_in * arg,
 int do_getattr(struct fuse_in_header * in, 
     struct fuse_attr_out * out);
 int do_readlink(struct fuse_in_header * in, char * outbuf);
-int do_getdir(struct fuse_in_header * in, 
-    struct fuse_getdir_out * out);
 int do_mknod(struct fuse_in_header * in, struct fuse_mknod_in * arg, 
     char * pszName, struct fuse_entry_out * out);
 int do_mkdir(struct fuse_in_header * in, struct fuse_mkdir_in * arg,
@@ -59,6 +57,13 @@ int do_write(struct fuse_in_header * in, struct fuse_write_in * arg,
     void * pData, struct fuse_write_out * out);
 int do_statfs(struct fuse_in_header * in, struct fuse_statfs_out * out);
 int do_fsync(struct fuse_in_header * in, struct fuse_fsync_in * arg);
+int do_init(struct fuse_in_header * in, struct fuse_init_in_out * arg,
+    struct fuse_init_in_out * out);
+int do_opendir(struct fuse_in_header * in, struct fuse_open_in * arg,
+    struct fuse_open_out * out);
+int do_readdir(struct fuse_in_header * in, struct fuse_read_in * arg, 
+    char * outbuf);
+int do_releasedir(struct fuse_in_header * in, struct fuse_release_in * arg);
 
 
 #endif /* !_AEFSFUSE_H */

@@ -43,7 +43,6 @@
 static int fdFuse = 0;
 static char buf[FUSE_MAX_IN];
 static ssize_t buflen;
-static char outbuf[FUSE_MAX_IN]; /* !!! IN -> OUT */
 
 
 static void sendReply(struct fuse_in_header * in, int error,
@@ -59,31 +58,35 @@ static void sendReply(struct fuse_in_header * in, int error,
         error = -ERANGE;
     }
 
-    if(error)
+    if (error)
         argsize = 0;
 
     outsize = sizeof(struct fuse_out_header) + argsize;
     outbuf = (char *) malloc(outsize);
     out = (struct fuse_out_header *) outbuf;
+    out->len = outsize;
     out->unique = in->unique;
     out->error = error;
-    if(argsize != 0)
+    if (argsize != 0)
         memcpy(outbuf + sizeof(struct fuse_out_header), arg, argsize);
 
     if (1) {
-        logMsg(LOG_DEBUG, "   unique: %i, error: %i (%s), outsize: %i", out->unique,
+        logMsg(LOG_DEBUG, "   unique: %llu, error: %i (%s), outsize: %i", out->unique,
             out->error, strerror(-out->error), outsize);
     }
                 
     res = write(fdFuse, outbuf, outsize);
-    if(res == -1) {
+    if (res == -1) {
         /* ENOENT means the operation was interrupted */
-        if(errno != ENOENT)
-            logMsg(LOG_ERR, "error writing fuse device:", strerror(errno));
+        if (errno != ENOENT)
+            logMsg(LOG_ERR, "error writing fuse device: %s", strerror(errno));
     }
 
     free(outbuf);
 }
+
+
+static char outbuf[FUSE_MAX_IN]; /* !!! IN -> OUT */
 
 
 void processCommand()
@@ -96,11 +99,11 @@ void processCommand()
     char * pszFrom, * pszTo;
 
     if (1) {
-        logMsg(LOG_DEBUG, "unique: %i, opcode: %i, ino: %li, insize: %i", in->unique,
+        logMsg(LOG_DEBUG, "unique: %llu, opcode: %i, ino: %lu, insize: %i", in->unique,
             in->opcode, in->nodeid, buflen);
         fflush(stdout);
     }
-    
+
     argsize = buflen - sizeof(struct fuse_in_header);
         
     switch(in->opcode) {
@@ -129,12 +132,6 @@ void processCommand()
         res = do_readlink(in, outbuf2);
         sendReply(in, res, outbuf2, !res ? strlen(outbuf2) : 0);
         free(outbuf2);
-        break;
-
-    case FUSE_GETDIR:
-        res = do_getdir(in, (struct fuse_getdir_out *) outbuf);
-        sendReply(in, res, outbuf, sizeof(struct fuse_getdir_out));
-        if (!res) close(((struct fuse_getdir_out *) outbuf)->fd);
         break;
 
     case FUSE_MKNOD:
@@ -183,7 +180,7 @@ void processCommand()
         res = do_open(in, (struct fuse_open_in *) inarg);
         if (res == 0) {
             struct fuse_open_out out;
-            out.fh = 0; /* we don't use this */
+            memset(&out, 0, sizeof(out));
             sendReply(in, res, &out, sizeof out);
         } else
             sendReply(in, res, 0, 0);
@@ -223,6 +220,43 @@ void processCommand()
         /* File handle closed, which we don't care about. */
         sendReply(in, 0, 0, 0);
         break;
+
+    case FUSE_INIT: {
+        struct fuse_init_in_out out;
+        res = do_init(in, (struct fuse_init_in_out *) inarg, &out);
+        sendReply(in, res, &out, sizeof(out));
+        break;
+    }
+
+#if 0
+    case FUSE_GETDIR:
+        res = do_getdir(in, (struct fuse_getdir_out *) outbuf);
+        sendReply(in, res, outbuf, sizeof(struct fuse_getdir_out));
+        if (!res) close(((struct fuse_getdir_out *) outbuf)->fd);
+        break;
+#endif
+
+    case FUSE_OPENDIR: {
+        struct fuse_open_out out;
+        memset(&out, 0, sizeof(out)); 
+        res = do_opendir(in, (struct fuse_open_in *) inarg, &out);
+        sendReply(in, res, &out, sizeof(out));
+        break;
+    }
+
+    case FUSE_READDIR: {
+        outbuf2 = malloc(((struct fuse_read_in *) inarg)->size);
+        res = do_readdir(in, (struct fuse_read_in *) inarg, outbuf2);
+        sendReply(in, res > 0 ? 0 : res, outbuf2, res > 0 ? res : 0);
+        free(outbuf2);
+        break;
+    }
+
+    case FUSE_RELEASEDIR: {
+        res = do_releasedir(in, (struct fuse_release_in *) inarg);
+        sendReply(in, res, 0, 0);
+        break;
+    }
 
     default:
         logMsg(LOG_ERR, "Operation %i not implemented", in->opcode);
