@@ -1,5 +1,5 @@
 /* mntaefs.c -- AEFS mount program.
-   Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -95,7 +95,7 @@ int main(int argc, char * * argv)
    
    pszProgramName = argv[0];
 
-   while ((c = getopt_long(argc, argv, "fk:r", options, 0)) != EOF) {
+   while ((c = getopt_long(argc, argv, "fk:nr", options, 0)) != EOF) {
       switch (c) {
          case 0:
             break;
@@ -174,7 +174,7 @@ int main(int argc, char * * argv)
       pszKey = szKey;
       if (readKey("key: ", sizeof(szKey), szKey)) {
          fprintf(stderr, "%s: error reading key\n", pszProgramName);
-         return 0;
+         return 1;
       }
    }
 
