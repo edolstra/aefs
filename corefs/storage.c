@@ -656,7 +656,6 @@ CoreResult coreCreateFile(CryptedVolume * pVolume,
 CoreResult coreDestroyFile(CryptedVolume * pVolume, CryptedFileID id)
 {
    CoreResult cr;
-   SysResult sr;
    char szPathName[MAX_STORAGE_PATH_NAME];
    CryptedFile * pFile;
 
