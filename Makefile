@@ -4,7 +4,7 @@ include $(BASE)/Makefile.incl
 SUBDIRS = misc system/$(SYSTEM) ciphers corefs \
  utils ifsdriver ifsdaemon ifsutils
 
-all clean clean-stuff install:
+all clean clean-stuff install depend:
 	for subdir in $(SUBDIRS); do \
 	  (cd $$subdir && $(MAKE) -w $@) || exit 1; \
 	done

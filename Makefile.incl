@@ -1,7 +1,7 @@
 AEFS_VERSION = "\"AEFS 0.1\""
 
 SYSTEM = os2
-SHELL = ash # pdksh or bash are also okay
+SHELL = sh # pdksh or bash are also okay
 OPTFLAGS = -mcpu=pentium -O2 -fomit-frame-pointer
 CFLAGS = -Zmt -Wall -Wno-parentheses -pedantic \
  -DDEBUG -DSYSTEM=$(SYSTEM) $(INCL) $(OPTFLAGS) \
@@ -33,3 +33,5 @@ clean-extra:
 clean: clean-default clean-extra
 
 install: all
+
+depend:
