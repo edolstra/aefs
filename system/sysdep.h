@@ -19,6 +19,8 @@
 #ifndef _SYSDEP_H
 #define _SYSDEP_H
 
+#include "config.h"
+
 #include "types.h"
 
 
@@ -74,5 +76,14 @@ void sysFreeSecureMem(void * pMem);
 
 void sysInitPRNG();
 void sysGetRandomBits(int bits, octet * dst);
+
+
+#if HAVE_STRICMP
+#elif HAVE_STRCASECMP
+#define stricmp strcasecmp
+#define strnicmp strncasecmp
+#else
+#error Missing stricmp or strcasecmp!
+#endif
 
 #endif /* !_SYSDEP_H */
