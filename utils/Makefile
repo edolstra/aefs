@@ -28,13 +28,15 @@ timings: testcipher$(EXE)
 	-rm -f $@
 	testcipher$(EXE) t none $(TIMES) >>$@
 	testcipher$(EXE) t twofish-128 $(TIMES) >>$@
-	testcipher$(EXE) t twofish_ref-128 $(TIMES) >>$@
+#	testcipher$(EXE) t twofish_ref-128 $(TIMES) >>$@
 	testcipher$(EXE) t rijndael-128 $(TIMES) >>$@
+
+testcipher$(EXE): testcipher.o
 
 # Check the ciphers against a few test vectors that are known
 # to be correct.
 check: checkvectors.pl testcipher$(EXE) testvec
-	checkvectors.pl < testvec
+	perl checkvectors.pl < testvec
 
 clean-extra:
 	$(RM) $(PROGS:.c=$(EXE))
