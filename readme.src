@@ -10,8 +10,8 @@
 
   AEFS is a cryptographic file system for OS/2 and Unix-like operating
   systems.  It allows transparent access to encrypted files stored on
-  any file system -- it's not necessary to dedicate disk partitions.  
-  A number of block ciphers are currently supported (Rijndael and
+  any file system -- it's not necessary to dedicate disk partitions.
+  Several block ciphers are currently supported (Rijndael and
   Twofish).  Extended attributes are supported under OS/2.
 
 
@@ -781,4 +781,4 @@
   This software was written by Eelco Dolstra.  Send bug reports,
   patches, or other comments to þtt{<eelco@cs.uu.nl>}.
 
-  $Id: readme.src,v 1.8 2001/09/23 11:43:32 eelco Exp $
+  $Id: readme.src,v 1.9 2001/09/23 11:46:04 eelco Exp $
