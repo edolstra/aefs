@@ -1,0 +1,68 @@
+dnl configure.in   -*-shell-script-*-
+dnl Process this file with autoconf to produce a configure script. 
+
+AC_INIT(Makefile.conf.in)
+AC_CONFIG_HEADER(config.h)
+
+AC_CANONICAL_SYSTEM
+
+AC_PROG_CC
+AC_PROG_INSTALL
+AC_CHECK_PROG(CP,cp,cp -v)
+AC_CHECK_PROG(RM,rm,rm -vf)
+
+AC_CHECK_FUNCS(snprintf)
+AC_CHECK_FUNCS(strcasecmp)
+AC_CHECK_FUNCS(stricmp)
+AC_CHECK_FUNCS(daemon)
+AC_CHECK_FUNCS(setfsuid)
+AC_CHECK_FUNCS(mlockall)
+AC_CHECK_FUNCS(chown)
+
+AC_SEARCH_LIBS(socket, socket)
+AC_SEARCH_LIBS(xdr_void, nsl rpc)
+AC_SEARCH_LIBS(syslog, syslog)
+
+AC_C_INLINE
+
+AC_C_BIGENDIAN
+AC_CHECK_SIZEOF(int, 4)
+AC_CHECK_SIZEOF(long, 4)
+
+
+case $build_os in
+os2_emx)
+        SYSTEM=os2
+        SHELL=sh.exe
+        SYSCFLAGS=-Zmt
+        SYSLDFLAGS=-Zcrtdll
+        SYSLIBS="-lbsd -lgcc"
+        EXEEXT=.exe
+        ;;
+*)
+        SYSTEM=posix
+        SHELL=/bin/sh
+        EXEEXT=
+        ;;
+esac        
+AC_SUBST(SYSTEM)
+AC_SUBST(SHELL)
+AC_SUBST(SYSINCL)
+AC_SUBST(SYSCFLAGS)
+AC_SUBST(SYSLDFLAGS)
+AC_SUBST(SYSLIBS)
+AC_SUBST(EXEEXT)
+
+case $build_cpu in
+i[[567]]86)
+        OPTFLAGS="-O2 -mcpu=pentium -fomit-frame-pointer"
+        ;;
+*)
+        OPTFLAGS="-O2"
+        ;;
+esac                
+AC_SUBST(OPTFLAGS)
+
+AC_SUBST(SHELL)
+
+AC_OUTPUT(Makefile.conf)
