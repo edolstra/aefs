@@ -129,11 +129,14 @@ void processCommand()
         do_symlink(f, in, (char *) inarg, 
                    ((char *) inarg) + strlen((char *) inarg) + 1);
         break;
+#endif
 
     case FUSE_RENAME:
-        do_rename(f, in, (struct fuse_rename_in *) inarg);
+        res = do_rename(in, (struct fuse_rename_in *) inarg);
+        sendReply(in, res, 0, 0);
         break;
-            
+
+#if 0
     case FUSE_LINK:
         do_link(f, in, (struct fuse_link_in *) inarg);
         break;

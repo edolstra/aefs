@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <signal.h>
 #include <assert.h>
@@ -19,6 +20,19 @@
 
 
 char * pszProgramName;
+
+bool fDebug = false;
+
+
+void dprintf(const char * fmt, ...)
+{
+    va_list args;
+    if (fDebug) {
+	va_start(args, fmt);
+	vfprintf(stderr, fmt, args);
+	va_end(args);
+    }
+}
 
 
 static SuperBlock * pSuperBlock;
@@ -69,13 +83,32 @@ static void storeAttr(CryptedFileInfo * info, struct fuse_attr * attr)
 }
 
 
+/* Stamp a file's mtime. */
+static CoreResult stampFile(CryptedFileID idFile)
+{
+    CoreResult cr;
+    CryptedFileInfo info;
+
+    /* Update the directory's last-written (mtime) timestamp. */
+    cr = coreQueryFileInfo(pVolume, idFile, &info);
+    if (cr) return cr;
+    
+    info.timeWrite = time(0);
+    
+    cr = coreSetFileInfo(pVolume, idFile, &info);
+    if (cr) return cr;
+
+    return CORERC_OK;
+}
+
+
 int do_lookup(struct fuse_in_header * in, char * name, struct fuse_lookup_out * out)
 {
     CoreResult cr;
     CryptedFileID idDir = in->ino, idFile;
     CryptedFileInfo info;
 
-/*     fprintf(stderr, "lookup %ld %s\n", idDir, name); */
+    dprintf("lookup %ld %s\n", idDir, name);
 
     cr = coreQueryIDFromPath(pVolume, idDir, name, &idFile, 0);
     if (cr) return core2sys(cr);
@@ -97,29 +130,29 @@ int do_setattr(struct fuse_in_header * in, struct fuse_setattr_in * arg,
     CryptedFileID idFile = in->ino;
     CryptedFileInfo info;
 
-/*     fprintf(stderr, "setattr %ld\n", idFile); */
+    dprintf("setattr %ld\n", idFile);
 
     cr = coreQueryFileInfo(pVolume, idFile, &info);
     if (cr) return core2sys(cr);
 
     if (arg->valid & FATTR_MODE) {
-/* 	fprintf(stderr, "set mode %od\n", arg->attr.mode); */
+	dprintf("set mode %od\n", arg->attr.mode);
 	info.flFlags = 
 	    (info.flFlags & ~07777) | (arg->attr.mode & 07777);
     }
 
     if (arg->valid & FATTR_UID) {
-/* 	fprintf(stderr, "set uid %d\n", arg->attr.uid); */
+	dprintf("set uid %d\n", arg->attr.uid);
 	info.uid = arg->attr.uid;
     }
 
     if (arg->valid & FATTR_GID) {
-/* 	fprintf(stderr, "set gid %d\n", arg->attr.gid); */
+	dprintf("set gid %d\n", arg->attr.gid);
 	info.gid = arg->attr.gid;
     }
 
     if (arg->valid & FATTR_UTIME) {
-/* 	fprintf(stderr, "set utime %ld\n", arg->attr.mtime); */
+	dprintf("set utime %ld\n", arg->attr.mtime);
 	info.timeWrite = arg->attr.mtime;
     }
 
@@ -127,7 +160,7 @@ int do_setattr(struct fuse_in_header * in, struct fuse_setattr_in * arg,
     if (cr) return core2sys(cr);
 
     if (arg->valid & FATTR_SIZE) {
-/* 	fprintf(stderr, "set size %Ld\n", arg->attr.size); */
+	dprintf("set size %Ld\n", arg->attr.size);
 	cr = coreSetFileSize(pVolume, idFile, arg->attr.size);
 	if (cr) return core2sys(cr);
 	cr = coreQueryFileInfo(pVolume, idFile, &info);
@@ -146,7 +179,7 @@ int do_getattr(struct fuse_in_header * in, struct fuse_getattr_out * out)
     CryptedFileID idFile = in->ino;
     CryptedFileInfo info;
 
-/*     fprintf(stderr, "getattr %ld\n", idFile); */
+    dprintf("getattr %ld\n", idFile);
 
     cr = coreQueryFileInfo(pVolume, idFile, &info);
     if (cr) return core2sys(cr);
@@ -184,7 +217,7 @@ int do_getdir(struct fuse_in_header * in, struct fuse_getdir_out * out)
     CryptedFileInfo info;
     CryptedDirEntry * pFirst, * pCur;
 
-/*     fprintf(stderr, "getdir %ld\n", idDir); */
+    dprintf("getdir %ld\n", idDir);
 
     out->fd = creat("/tmp/fuse_tmp", 0600);
     if (out->fd == -1) return -errno;
@@ -217,8 +250,8 @@ int createFile(CryptedFileID idDir, char * pszName,
     CryptedFileID idFile;
     CryptedFileInfo info;
 
-/*     fprintf(stderr, "create %ld %s %ho %hx\n",  */
-/* 	idDir, pszName, mode, rdev); */
+    dprintf("create %ld %s %ho %hx\n",
+	idDir, pszName, mode, rdev);
 
     mode = mode & (CFF_IFMT | 07777);
     switch (mode & CFF_IFMT) {
@@ -248,6 +281,9 @@ int createFile(CryptedFileID idDir, char * pszName,
 	coreDeleteFile(pVolume, idFile);
 	return core2sys(cr);
     }
+
+    cr = stampFile(idDir);
+    if (cr) return core2sys(cr);
 
     if (ino) *ino = idFile;
     if (attr) storeAttr(&info, attr);
@@ -279,7 +315,7 @@ int do_remove(struct fuse_in_header * in, char * pszName)
     CryptedFileInfo info;
     CryptedDirEntry * pFirstEntry;
 
-/*     fprintf(stderr, "remove %ld %s\n", idDir, pszName); */
+    dprintf("remove %ld %s\n", idDir, pszName);
 
     cr = coreQueryIDFromPath(pVolume, idDir, pszName, &idFile, 0);
     if (cr) return core2sys(cr);
@@ -298,6 +334,10 @@ int do_remove(struct fuse_in_header * in, char * pszName)
     cr = coreMoveDirEntry(pVolume, pszName, idDir, 0, 0);
     if (cr) return core2sys(cr);
 
+    /* Stamp the directory's mtime. */
+    cr = stampFile(idDir);
+    if (cr) return core2sys(cr);
+
     /* Decrease reference count and delete if appropriate. */
     info.cRefs--;
     if (CFF_ISDIR(info.flFlags) || (info.cRefs == 0))
@@ -309,13 +349,35 @@ int do_remove(struct fuse_in_header * in, char * pszName)
 }
 
 
+int do_rename(struct fuse_in_header * in, struct fuse_rename_in * arg)
+{
+    CoreResult cr;
+    CryptedFileID idFrom = in->ino, idTo = arg->newdir;
+    char * pszFrom = arg->names;
+    char * pszTo = arg->names + strlen(pszFrom) + 1;
+
+    dprintf("rename %ld %s %ld %s\n", idFrom, pszFrom, idTo, pszTo);
+
+    cr = coreMoveDirEntry(pVolume,
+        pszFrom, idFrom,
+        pszTo, idTo);
+    if (cr) return core2sys(cr);
+    
+    /* Stamp the mtimes of the directories. */
+    if (cr = stampFile(idFrom)) return core2sys(cr);
+    if ((idFrom != idTo) && (cr = stampFile(idTo))) return core2sys(cr);
+
+    return 0;
+}
+
+
 int do_open(struct fuse_in_header * in, struct fuse_open_in * arg)
 {
     CoreResult cr;
     CryptedFileID idFile = in->ino;
     CryptedFileInfo info;
 
-/*     fprintf(stderr, "open %ld\n", idFile); */
+    dprintf("open %ld\n", idFile);
 
     cr = coreQueryFileInfo(pVolume, idFile, &info);
     if (cr) return core2sys(cr);
@@ -330,7 +392,7 @@ int do_read(struct fuse_in_header * in, struct fuse_read_in * arg, char * outbuf
     CryptedFileID idFile = in->ino;
     CryptedFilePos cbRead;
 
-/*     fprintf(stderr, "read %ld %Ld %d\n", idFile, arg->offset, arg->size); */
+    dprintf("read %ld %Ld %d\n", idFile, arg->offset, arg->size);
 
     cr = coreReadFromFile(pVolume, idFile, arg->offset, arg->size, outbuf, &cbRead);
     if (cr) return core2sys(cr);
@@ -345,12 +407,15 @@ int do_write(struct fuse_in_header * in, struct fuse_write_in * arg)
     CryptedFileID idFile = in->ino;
     CryptedFilePos cbWritten;
 
-/*     fprintf(stderr, "write %ld %Ld %d\n", idFile, arg->offset, arg->size); */
+    dprintf("write %ld %Ld %d\n", idFile, arg->offset, arg->size);
 
     cr = coreWriteToFile(pVolume, idFile, arg->offset, arg->size, arg->buf, &cbWritten);
     if (cr) return core2sys(cr);
 
     if (arg->size != cbWritten) return -EIO;
+
+    cr = stampFile(idFile);
+    if (cr) return core2sys(cr);
 
     return 0;
 }
@@ -376,7 +441,7 @@ int main(int argc, char * * argv)
     pszBasePath = argv[1];
 
     unmount_cmd = getenv(FUSE_UMOUNT_CMD_ENV);
-    fprintf(stderr, "unmount_cmd: `%s', \n", unmount_cmd);
+    dprintf("unmount_cmd: `%s', \n", unmount_cmd);
 
     sysInitPRNG();
 
