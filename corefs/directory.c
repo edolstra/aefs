@@ -1,7 +1,7 @@
 /* directory.c -- Directory access and modification.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: directory.c,v 1.4 2001/12/28 19:21:02 eelco Exp $
+   $Id: directory.c,v 1.5 2003/01/24 13:30:46 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
    Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
 
 #include <assert.h>
+#include <string.h>
 
 #include "corefs.h"
 #include "sysdep.h"

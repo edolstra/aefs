@@ -1,7 +1,7 @@
 /* sector.c -- Sector encryption/decryption in CBC mode.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: sector.c,v 1.3 2001/09/23 13:30:11 eelco Exp $
+   $Id: sector.c,v 1.4 2003/01/24 13:30:46 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
    Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
 
 #include <assert.h>
+#include <string.h>
 
 #include "sysdep.h"
 #include "corefs.h"

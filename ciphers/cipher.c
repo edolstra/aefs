@@ -1,7 +1,7 @@
 /* cipher.c -- Key creation and destruction.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: cipher.c,v 1.3 2001/09/23 13:30:08 eelco Exp $
+   $Id: cipher.c,v 1.4 2003/01/24 13:30:45 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,6 +16,8 @@
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
    Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
+
+#include <string.h>
 
 #include "cipher.h"
 #include "sysdep.h"
