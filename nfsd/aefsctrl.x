@@ -1,10 +1,11 @@
-const AEFSKEY_MAXPATHLEN = 250;
+const AEFSCTRL_MAXPATHLEN = 250;
 
 const AF_READONLY   = 1;
 const AF_MOUNTDIRTY = 2;
+const AF_LAZYWRITE  = 4;
 
 struct addfsargs {
-        string path<AEFSKEY_MAXPATHLEN>;
+        string path<AEFSCTRL_MAXPATHLEN>;
         string key<1024>;
 	int flags; /* AF_* */
 	int stor_uid;
@@ -28,9 +29,10 @@ struct addfsres {
         int cr; /* see ../corefs/corefs.h */
 };
 
-program AEFSKEY_PROGRAM {
-    version AEFSKEY_VERSION_1 {
-        void AEFSKEYPROC_NULL(void) = 0;
-        addfsres AEFSKEYPROC_ADDFS(addfsargs) = 1;
+program AEFSCTRL_PROGRAM {
+    version AEFSCTRL_VERSION_1 {
+        void AEFSCTRLPROC_NULL(void) = 0;
+        addfsres AEFSCTRLPROC_ADDFS(addfsargs) = 1;
+	void AEFSCTRLPROC_FLUSH(void) = 123;
     } = 1;
 } = 101438;

@@ -9,8 +9,8 @@ all: $(PROG1) $(PROG2)
 SRCS1 = aefsnfsd.c \
  nfs_prot_svc.c nfs_prot_xdr.c \
  mount_svc.c mount_xdr.c \
- aefskey_svc.c aefskey_xdr.c
-SRCS2 = aefsadd.c aefskey_clnt.c aefskey_xdr.c
+ aefsctrl_svc.c aefsctrl_clnt.c aefsctrl_xdr.c
+SRCS2 = aefsadd.c aefsctrl_clnt.c aefsctrl_xdr.c
 SRCS = $(SRCS1) $(SRCS2)
 
 LIB = $(BASE)/corefs/corefs.a $(BASE)/ciphers/ciphers.a \
@@ -30,7 +30,7 @@ clean-extra:
 	$(RM) $(PROG1) $(PROG2)
 	$(RM) nfs_prot.h nfs_prot_clnt.c nfs_prot_svc.c nfs_prot_xdr.c
 	$(RM) mount.h mount_clnt.c mount_svc.c mount_xdr.c
-	$(RM) aefskey.h aefskey_clnt.c aefskey_svc.c aefskey_xdr.c
+	$(RM) aefsctrl.h aefsctrl_clnt.c aefsctrl_svc.c aefsctrl_xdr.c
 
 install: all
 	$(INSTALL_DIR) $(bindir)

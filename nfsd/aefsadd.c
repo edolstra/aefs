@@ -5,7 +5,7 @@
 #include "getopt.h"
 
 #include "corefs.h"
-#include "aefskey.h"
+#include "aefsctrl.h"
 #include "utilutils.h"
 
 
@@ -24,14 +24,15 @@ Usage: %s [OPTION]... PATH\n\
 Inform the AEFS NFS server of the encryption key to be used\n\
 for the specified path.\n\
 \n\
-      --help         display this help and exit\n\
-      --version      output version information and exit\n\
-  -f, --force        force loading of dirty volume\n\
-  -g, --gid=UID      specify the gid of the storage files\n\
-  -k, --key=KEY      use specified key, do not ask (dangerous!)\n\
-  -m, --mode=MODE    specify the mode of new storage files\n\
-  -r, --readonly     load read-only\n\
-  -u, --uid=UID      specify the uid of the storage files\n\
+      --help          display this help and exit\n\
+      --version       output version information and exit\n\
+  -f, --force         force loading of dirty volume\n\
+  -g, --gid=UID       specify the gid of the storage files\n\
+  -k, --key=KEY       use specified key, do not ask (dangerous!)\n\
+      --lazy=[on|off] turn lazy writing on (default) or off\n\
+  -m, --mode=MODE     specify the mode of new storage files\n\
+  -r, --readonly      load read-only\n\
+  -u, --uid=UID       specify the uid of the storage files\n\
 \n\
 If the key is not specified on the command-line, the user is asked\n\
 to enter the key.\n\
@@ -53,6 +54,7 @@ int main(int argc, char * * argv)
     int c;
     Bool fForceMount = FALSE;
     Bool fReadOnly = FALSE;
+    Bool fLazyWrite = TRUE;
     char szKey[1024], * pszKey = 0, * pszBasePath;
     struct sockaddr_in addr;
     struct timeval time;
@@ -72,6 +74,7 @@ int main(int argc, char * * argv)
         { "uid", required_argument, 0, 'u' },
         { "gid", required_argument, 0, 'g' },
         { "mode", required_argument, 0, 'm' },
+        { "lazy", required_argument, 0, 11 },
         { 0, 0, 0, 0 } 
     };      
 
@@ -129,6 +132,19 @@ int main(int argc, char * * argv)
                 }
                 break;
 
+            case 11: /* --lazy */
+                if (strcmp(optarg, "on") == 0) 
+                    fLazyWrite = TRUE;
+                else if (strcmp(optarg, "off") == 0) 
+                    fLazyWrite = FALSE;
+                else {
+                    fprintf(stderr, 
+                        "%s: invalid argument to --lazy: %s", 
+                        pszProgramName, optarg);
+                    printUsage(1);
+                }
+                break;
+                
             default:
                 printUsage(1);
         }
@@ -159,7 +175,7 @@ int main(int argc, char * * argv)
     time.tv_usec = 500 * 1000;
 
     socket = RPC_ANYSOCK;
-    clnt = clnttcp_create(&addr, AEFSKEY_PROGRAM, AEFSKEY_VERSION_1,
+    clnt = clnttcp_create(&addr, AEFSCTRL_PROGRAM, AEFSCTRL_VERSION_1,
         &socket, 0, 0);
     if (!clnt) {
         clnt_pcreateerror("unable to connect to aefsnfsd (is it running?)");
@@ -172,13 +188,14 @@ int main(int argc, char * * argv)
     args.key = pszKey;
     args.flags = 
         (fReadOnly ? AF_READONLY : 0) |
-        (fForceMount ? AF_MOUNTDIRTY : 0);
+        (fForceMount ? AF_MOUNTDIRTY : 0) |
+        (fLazyWrite ? AF_LAZYWRITE : 0);
     args.stor_uid = uid;
     args.stor_gid = gid;
     args.stor_mode = mode;
     args.fs_uid = uid ? uid : -1;
     args.fs_gid = gid ? gid : -1;
-    res = aefskeyproc_addfs_1(&args, clnt);
+    res = aefsctrlproc_addfs_1(&args, clnt);
     if (!res) {
         clnt_perror(clnt, "unable to add key to aefsnfsd");
         goto end;
@@ -211,7 +228,7 @@ int main(int argc, char * * argv)
             break;
         case ADDFS_DIRTY:
             fprintf(stderr, "%s: file system is dirty, "
-                "run `aefsck -v %s' and retry\n",
+                "run `aefsck -f %s' and retry\n",
                 pszProgramName, pszBasePath);
             break;
         default:

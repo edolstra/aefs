@@ -19,7 +19,7 @@
 
 #include "nfs_prot.h"
 #include "mount.h"
-#include "aefskey.h"
+#include "aefsctrl.h"
 
 
 #define NOTIMPL assert(0); return 0;
@@ -31,7 +31,7 @@
 void nfs_program_2(struct svc_req * rqstp, SVCXPRT * transp);
 void mountprog_1(struct svc_req * rqstp, SVCXPRT * transp);
 void nlm_prog_1(struct svc_req * rqstp, SVCXPRT * transp);
-void aefskey_program_1(struct svc_req * rqstp, SVCXPRT * transp);
+void aefsctrl_program_1(struct svc_req * rqstp, SVCXPRT * transp);
 
 
 typedef unsigned int fsid;
@@ -40,6 +40,7 @@ typedef struct {
         SuperBlock * pSuperBlock;
         int uid, gid;
         int cRefs;
+        Bool fLazyWrite;
 } Filesystem;
 
 
@@ -82,7 +83,7 @@ static void logMsg(int level, char * pszMsg, ...)
 }
 
 
-void encodeFH(nfs_fh * fh, fsid fs, CryptedFileID id)
+static void encodeFH(nfs_fh * fh, fsid fs, CryptedFileID id)
 {
     assert((fs < MAX_FILESYSTEMS) && apFilesystems[fs]);
     ((uint32 *) fh->data) [0] = htonl(id);
@@ -90,7 +91,7 @@ void encodeFH(nfs_fh * fh, fsid fs, CryptedFileID id)
 }
 
 
-nfsstat decodeFH(nfs_fh * fh, fsid * pfs, CryptedFileID * pid)
+static nfsstat decodeFH(nfs_fh * fh, fsid * pfs, CryptedFileID * pid)
 {
     *pid = ntohl(((uint32 *) fh->data) [0]);
     *pfs = ntohl(((uint32 *) fh->data) [1]);
@@ -101,7 +102,7 @@ nfsstat decodeFH(nfs_fh * fh, fsid * pfs, CryptedFileID * pid)
 }
 
 
-void canonicalizePath(char * src, char * dst)
+static void canonicalizePath(char * src, char * dst)
 {
     int inSep = 0;
 
@@ -123,7 +124,7 @@ void canonicalizePath(char * src, char * dst)
 }
 
 
-nfsstat core2nfsstat(CoreResult cr)
+static nfsstat core2nfsstat(CoreResult cr)
 {
     switch (cr) {
         case CORERC_OK: return NFS_OK;
@@ -150,7 +151,7 @@ nfsstat core2nfsstat(CoreResult cr)
 }
 
 
-void smashUGID(fsid id, CryptedFileInfo * pInfo)
+static void smashUGID(fsid id, CryptedFileInfo * pInfo)
 {
     if (apFilesystems[id]->uid != -1)
         pInfo->uid = apFilesystems[id]->uid;
@@ -159,7 +160,7 @@ void smashUGID(fsid id, CryptedFileInfo * pInfo)
 }
 
 
-nfsstat storeAttr(fattr * pAttr, fsid fs, CryptedFileID idFile)
+static nfsstat storeAttr(fattr * pAttr, fsid fs, CryptedFileID idFile)
 {
     CoreResult cr;
     CryptedFileInfo info;
@@ -199,7 +200,7 @@ nfsstat storeAttr(fattr * pAttr, fsid fs, CryptedFileID idFile)
 }
 
 
-nfsstat getParentDir(fsid fs, CryptedFileID idDir, 
+static nfsstat getParentDir(fsid fs, CryptedFileID idDir, 
     CryptedFileID * pidParent)
 {
     CoreResult cr;
@@ -225,7 +226,7 @@ typedef struct {
 } DirCacheEntry;
 
 
-void freeDirCacheEntry(DirCacheEntry * pEntry)
+static void freeDirCacheEntry(DirCacheEntry * pEntry)
 {
     if (pEntry->pFirst) coreFreeDirEntries(pEntry->pFirst);
     if (pEntry->papSortedByID) free(pEntry->papSortedByID);
@@ -237,7 +238,7 @@ void freeDirCacheEntry(DirCacheEntry * pEntry)
 static DirCacheEntry * dirCache[DIRCACHE_SIZE];
 
 
-int compareIDs(const void * p1, const void * p2)
+static int compareIDs(const void * p1, const void * p2)
 {
     return
         (* * (CryptedDirEntry * *) p1).idFile -
@@ -245,7 +246,7 @@ int compareIDs(const void * p1, const void * p2)
 }
 
 
-nfsstat queryDirEntries(fsid fs, CryptedFileID idDir,
+static nfsstat queryDirEntries(fsid fs, CryptedFileID idDir,
     DirCacheEntry * * ppEntry)
 {
     int i, j;
@@ -314,7 +315,7 @@ nfsstat queryDirEntries(fsid fs, CryptedFileID idDir,
 
 
 /* Remove the cached directory contents. */
-void dirtyDir(fsid fs, CryptedFileID idDir)
+static void dirtyDir(fsid fs, CryptedFileID idDir)
 {
     int i, j;
     for (i = 0; i < DIRCACHE_SIZE; i++)
@@ -329,7 +330,7 @@ void dirtyDir(fsid fs, CryptedFileID idDir)
 
 
 /* Stamp a file's mtime. */
-nfsstat stampFile(fsid fs, CryptedFileID idFile)
+static nfsstat stampFile(fsid fs, CryptedFileID idFile)
 {
     CoreResult cr;
     CryptedFileInfo info;
@@ -347,7 +348,9 @@ nfsstat stampFile(fsid fs, CryptedFileID idFile)
 }
 
 
-int authCaller(struct svc_req * rqstp, User * pUser)
+/* Check that the caller is permitted to talk to us.  Fill in the
+   credentials structure. */
+static int authCaller(struct svc_req * rqstp, User * pUser)
 {
     struct sockaddr_in * caller;
     struct authunix_parms * cred;
@@ -360,7 +363,7 @@ int authCaller(struct svc_req * rqstp, User * pUser)
     if (ntohl(caller->sin_addr.s_addr) != INADDR_LOOPBACK)
         return NFSERR_PERM;
     
-    /* The call should come from a priviledged port. */
+    /* The call should come from a privileged port. */
     if (ntohs(caller->sin_port) >= IPPORT_RESERVED)
         return NFSERR_PERM;
 
@@ -378,7 +381,7 @@ int authCaller(struct svc_req * rqstp, User * pUser)
 }
 
 
-int isInGroup(User * pUser, int gid)
+static int isInGroup(User * pUser, int gid)
 {
     int i;
     if (gid == pUser->gid) return 1;
@@ -388,7 +391,7 @@ int isInGroup(User * pUser, int gid)
 }
 
 
-int havePerm(int what, User * pUser, CryptedFileInfo * pInfo)
+static int havePerm(int what, User * pUser, CryptedFileInfo * pInfo)
 {
     return
         ((pInfo->uid == pUser->uid) && 
@@ -400,7 +403,9 @@ int havePerm(int what, User * pUser, CryptedFileInfo * pInfo)
 }
 
 
-nfsstat havePerm2(int what, User * pUser, fsid fs, CryptedFileID idFile)
+static nfsstat havePerm2(int what, User * pUser, fsid fs,
+    CryptedFileID idFile)
+
 {
     CoreResult cr;
     CryptedFileInfo info;
@@ -414,7 +419,145 @@ nfsstat havePerm2(int what, User * pUser, fsid fs, CryptedFileID idFile)
 }
 
 
-int makeSocket(int protocol)
+/* Called by corefs whenever it marks a sector as dirty. */
+static void dirtyCallBack(CryptedVolume * pVolume, Bool fDirty)
+{
+    CoreResult cr;
+    Filesystem * pFS = apFilesystems[(fsid)
+        coreQueryVolumeParms(pVolume)->pUserData];
+    
+    logMsg(LOG_DEBUG, "dirtyCallBack, fDirty=%d", fDirty);
+
+    if (fDirty) { /* the volume now has dirty sectors */
+
+        if (!(pFS->pSuperBlock->flFlags & SBF_DIRTY)) {
+            pFS->pSuperBlock->flFlags |= SBF_DIRTY;
+            cr = coreWriteSuperBlock(pFS->pSuperBlock,
+                CWS_NOWRITE_SUPERBLOCK1);
+            if (cr)
+                logMsg(LOG_ERR, "error setting dirty flag, cr=%d", cr);
+        }
+
+    } else { /* the volume now has no dirty sectors */
+        /* Do nothing.  The superblock's dirty flag is periodically
+           cleared by the lazy writer or by volumeDirty(). */
+    }
+
+}
+
+
+/* Flush all dirty data, clear the dirty bit. */
+static nfsstat commitVolume(fsid fs)
+{
+    CoreResult cr;
+
+    logMsg(LOG_DEBUG, "flushing volume");
+
+    /* Flush dirty data. */
+    cr = coreFlushVolume(GET_VOLUME(fs));
+    if (cr) {
+        logMsg(LOG_ERR, "error flushing volume, cr=%d", cr);
+        return core2nfsstat(cr);
+    }
+
+    /* In the OS/2 daemon, we close the storage files at this
+       point.  That's because the OS/2 kernel doesn't commit file
+       size changes until the file is closed, so there is an
+       indefinitely long time window in which data might be lost
+       due to a system failure.  But Unices seem to be a bit more
+       sensible in this regard, so we don't do that here. */
+
+    /* Clear the dirty bit in the superblock. */
+    if (GET_SUPERBLOCK(fs)->flFlags & SBF_DIRTY) {
+        GET_SUPERBLOCK(fs)->flFlags &= ~SBF_DIRTY;
+        cr = coreWriteSuperBlock(GET_SUPERBLOCK(fs),
+            CWS_NOWRITE_SUPERBLOCK1);
+        if (cr) {
+            logMsg(LOG_ERR, "error clearing dirty flag, cr=%d", cr);
+            GET_SUPERBLOCK(fs)->flFlags |= SBF_DIRTY; /* retry */
+            return core2nfsstat(cr);
+        }
+    }
+
+    return NFS_OK;
+}
+
+
+/* Should be called when the volume has changed.  If lazy writing is
+   enabled, flush all dirty data.  Otherwise, do nothing. */
+static nfsstat volumeDirty(fsid fs)
+{
+    if (!apFilesystems[fs]->fLazyWrite) 
+        return commitVolume(fs);
+    else
+        return NFS_OK;
+}
+
+
+/* Lazy writer thread.  Periodically commit volumes to the underlying
+   storage. */
+static void lazyWriter()
+{
+    struct sockaddr_in addr;
+    struct timeval time;
+    int socket;
+    CLIENT * clnt;
+    void * res;
+
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(2050);
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    memset(addr.sin_zero, 0, sizeof(addr.sin_zero));
+
+    time.tv_sec = 0;
+    time.tv_usec = 500 * 1000;
+
+    socket = RPC_ANYSOCK;
+    clnt = clnttcp_create(&addr, NFS_PROGRAM, NFS_VERSION,
+        &socket, 0, 0);
+    if (!clnt) {
+        clnt_pcreateerror("lazy writer cannot connect to aefsnfsd");
+        return;
+    }
+
+    clnt->cl_auth = authunix_create_default();
+
+    while (1) {
+        
+        res = aefsctrlproc_flush_1(0, clnt);
+        if (!res) clnt_perror(clnt, "error calling nfsproc_flush");
+        
+        sleep(5);
+    }
+}
+
+
+/* Start the lazy writer thread or process. */
+static int startLazyWriter()
+{
+    pid_t child;
+
+    child = fork();
+
+    if (!child) { /* The child goes here. */
+        logMsg(LOG_DEBUG, "lazy writer started");
+        lazyWriter();
+        _exit(1);
+    }
+
+    /* The parent goes here. */
+
+    if (child == -1) {
+        logMsg(LOG_ALERT, "error starting lazy writer process: %s",
+            strerror(errno));
+        return 1;
+    }
+    
+    return 0;
+}
+
+
+static int makeSocket(int protocol)
 {
     int s, res;
     struct sockaddr_in addr;
@@ -436,7 +579,7 @@ int makeSocket(int protocol)
 }
 
 
-int createAndRegister(int protocol)
+static int createAndRegister(int protocol)
 {
     SVCXPRT * transp;
     int s;
@@ -463,8 +606,8 @@ int createAndRegister(int protocol)
             mountprog_1, 0) ||
 /*         !svc_register(transp, NLM_PROG, NLM_VERS,  */
 /*             nlm_prog_1, protocol) || */
-        !svc_register(transp, AEFSKEY_PROGRAM, AEFSKEY_VERSION_1,
-            aefskey_program_1, 0)
+        !svc_register(transp, AEFSCTRL_PROGRAM, AEFSCTRL_VERSION_1,
+            aefsctrl_program_1, 0)
         )
     {
         fprintf(stderr,
@@ -475,7 +618,6 @@ int createAndRegister(int protocol)
 
     return 0;
 }
-
 
 
 static void printUsage(int status)
@@ -553,16 +695,22 @@ int main(int argc, char * * argv)
     (void) pmap_unset(NFS_PROGRAM, NFS_VERSION);
     (void) pmap_unset(MOUNTPROG, MOUNTVERS);
 /*     (void) pmap_unset(NLM_PROG, NLM_VERS); */
-    (void) pmap_unset(AEFSKEY_PROGRAM, AEFSKEY_VERSION_1);
+    (void) pmap_unset(AEFSCTRL_PROGRAM, AEFSCTRL_VERSION_1);
 
-    if (createAndRegister(IPPROTO_UDP) == -1) return -1;
-    if (createAndRegister(IPPROTO_TCP) == -1) return -1;
+    if (createAndRegister(IPPROTO_UDP) == -1) return 1;
+    if (createAndRegister(IPPROTO_TCP) == -1) return 1;
 
 #ifdef HAVE_DAEMON
     if (!fDebug) daemon(0, 0);
 #endif
+    
+    /* Start the lazy writer *after* we have daemonized, so it will
+       be a daemon as well. */
+    if (startLazyWriter()) return 1;
 
     if (!fDebug) openlog("aefsdmn", LOG_DAEMON, 0);
+
+    logMsg(LOG_INFO, "aefsdmn started");
 
     svc_run();
     fprintf(stderr, "svc_run returned\n");
@@ -671,7 +819,8 @@ attrstat * nfsproc_setattr_2_svc(sattrargs * args, struct svc_req * rqstp)
         }
     }
     
-    coreFlushVolume(GET_VOLUME(fs)); /* check??? */
+    res.status = volumeDirty(fs);
+    if (res.status) return &res;
 
     res.status = storeAttr(&res.attrstat_u.attributes, fs, idFile);
    
@@ -686,7 +835,7 @@ void * nfsproc_root_2_svc(void * arg, struct svc_req * rqstp)
 }
 
 
-nfsstat lookup(fsid fs, CryptedFileID idDir, char * pszName, 
+static nfsstat lookup(fsid fs, CryptedFileID idDir, char * pszName, 
     User * pUser, CryptedFileID * pidFound)
 {
     DirCacheEntry * pEntry;
@@ -884,7 +1033,8 @@ attrstat * nfsproc_write_2_svc(writeargs * args, struct svc_req * rqstp)
     res.status = stampFile(fs, idFile);
     if (res.status) return &res;
 
-    coreFlushVolume(GET_VOLUME(fs)); /* check??? */
+    res.status = volumeDirty(fs);
+    if (res.status) return &res;
 
     res.status = storeAttr(&res.attrstat_u.attributes, fs, idFile);
     
@@ -892,8 +1042,8 @@ attrstat * nfsproc_write_2_svc(writeargs * args, struct svc_req * rqstp)
 }
 
 
-nfsstat createFile(diropargs * where, sattr * attrs, User * pUser,
-    fsid * pfs, CryptedFileID * pidFile)
+static nfsstat createFile(diropargs * where, sattr * attrs, 
+    User * pUser, fsid * pfs, CryptedFileID * pidFile)
 {
     CryptedFileInfo info, dirinfo;
     fsid fs;
@@ -947,7 +1097,8 @@ nfsstat createFile(diropargs * where, sattr * attrs, User * pUser,
     /* Stamp the directory's mtime. */
     if (res = stampFile(fs, idDir)) return res;
 
-    coreFlushVolume(GET_VOLUME(fs)); /* check??? */
+    res = volumeDirty(fs);
+    if (res) return res;
 
     *pfs = fs;
     *pidFile = idFile;
@@ -982,7 +1133,7 @@ diropres * nfsproc_create_2_svc(createargs * args, struct svc_req * rqstp)
 }
 
 
-nfsstat removeFile(fsid fs, CryptedFileID idDir, 
+static nfsstat removeFile(fsid fs, CryptedFileID idDir, 
     char * pszName, int fDir, User * pUser)
 {
     nfsstat res;
@@ -1032,7 +1183,8 @@ nfsstat removeFile(fsid fs, CryptedFileID idDir,
         cr = coreSetFileInfo(GET_VOLUME(fs), idFile, &info);
     if (cr) res = core2nfsstat(cr);
 
-    coreFlushVolume(GET_VOLUME(fs)); /* check??? */
+    res = volumeDirty(fs);
+    if (res) return res;
 
     return NFS_OK;
 }
@@ -1101,7 +1253,8 @@ nfsstat * nfsproc_rename_2_svc(renameargs * args, struct svc_req * rqstp)
     if (res = stampFile(fs, idFrom)) return &res;
     if (res = stampFile(fs, idTo)) return &res;
 
-    coreFlushVolume(GET_VOLUME(fs)); /* check??? */
+    res = volumeDirty(fs);
+    if (res) return &res;
 
     res = NFS_OK;
     return &res;
@@ -1141,7 +1294,9 @@ nfsstat * nfsproc_link_2_svc(linkargs * args, struct svc_req * rqstp)
     /* !!! inc ref count */
 
     dirtyDir(fs, idDir);
-    coreFlushVolume(GET_VOLUME(fs)); /* check??? */
+
+    res = volumeDirty(fs);
+    if (res) return &res;
     
     res = NFS_OK;
     return &res;
@@ -1186,7 +1341,8 @@ nfsstat * nfsproc_symlink_2_svc(symlinkargs * args, struct svc_req * rqstp)
         return &res;
     }
     
-    coreFlushVolume(GET_VOLUME(fs)); /* check??? */
+    res = volumeDirty(fs);
+    if (res) return &res;
 
     res = NFS_OK;
     return &res;
@@ -1411,6 +1567,7 @@ void * mountproc_umnt_1_svc(dirpath * path, struct svc_req * rqstp)
             pFS->cRefs--;
             /* !!! print error if cRefs < 0 */
             if (pFS->cRefs <= 0) {
+                commitVolume(i);
                 coreDropSuperBlock(GET_SUPERBLOCK(i));
                 free(pFS);
                 apFilesystems[i] = 0;
@@ -1464,34 +1621,27 @@ exports * mountproc_exportall_1_svc(void * v, struct svc_req * rqstp)
 }
 
 
-void * aefskeyproc_null_1_svc(void * v, struct svc_req * rqstp)
+void * aefsctrlproc_null_1_svc(void * v, struct svc_req * rqstp)
 {
-    logMsg(LOG_DEBUG, "aefskeyproc_null");
+    logMsg(LOG_DEBUG, "aefsctrlproc_null");
     return VOIDOBJ;
 }
 
 
-addfsres * aefskeyproc_addfs_1_svc(addfsargs * args, struct svc_req * rqstp)
+addfsres * aefsctrlproc_addfs_1_svc(addfsargs * args, struct svc_req * rqstp)
 {
     static addfsres res;
     CryptedVolumeParms parms;
-    char szCanon[AEFSKEY_MAXPATHLEN + 16];
+    char szCanon[AEFSCTRL_MAXPATHLEN + 16];
     SuperBlock * pSuperBlock;
     CoreResult cr;
     int i;
 
-    logMsg(LOG_DEBUG, "aefskeyproc_addfs");
+    logMsg(LOG_DEBUG, "aefsctrlproc_addfs");
 
     res.cr = 0;
     
     canonicalizePath(args->path, szCanon);
-
-    coreSetDefVolumeParms(&parms);
-    parms.fReadOnly = args->flags & AF_READONLY;
-    parms.cred.fEnforce = TRUE;
-    parms.cred.uid = args->stor_uid;
-    parms.cred.gid = args->stor_gid;
-    parms.cred.mode = args->stor_mode;
 
     /* Perhaps we already have the key? */
     for (i = 0; i < MAX_FILESYSTEMS; i++)
@@ -1509,6 +1659,15 @@ addfsres * aefskeyproc_addfs_1_svc(addfsargs * args, struct svc_req * rqstp)
         res.stat = ADDFS_MAX_FS;
         return &res;
     }
+
+    coreSetDefVolumeParms(&parms);
+    parms.fReadOnly = args->flags & AF_READONLY;
+    parms.dirtyCallBack = dirtyCallBack;
+    parms.pUserData = (void *) i; /* hack! */
+    parms.cred.fEnforce = TRUE;
+    parms.cred.uid = args->stor_uid;
+    parms.cred.gid = args->stor_gid;
+    parms.cred.mode = args->stor_mode;
 
     /* Read the superblock, initialize volume structures. */
 retry:
@@ -1546,7 +1705,26 @@ retry:
     apFilesystems[i]->uid = args->fs_uid;
     apFilesystems[i]->gid = args->fs_gid;
     apFilesystems[i]->cRefs = 0;
+    apFilesystems[i]->fLazyWrite = args->flags & AF_LAZYWRITE;;
 
     res.stat = ADDFS_OK;
     return &res;
+}
+
+
+void * aefsctrlproc_flush_1_svc(void * v, struct svc_req * rqstp)
+{
+    int i;
+    User user;
+
+    logMsg(LOG_DEBUG, "nfsproc_flush");
+
+    /* Should we authenticate the caller? (=> DoS attacks) */
+/*     if (authCaller(rqstp, &user)) return VOIDOBJ; */
+
+    for (i = 0; i < MAX_FILESYSTEMS; i++)
+        if (apFilesystems[i] && apFilesystems[i]->fLazyWrite)
+            commitVolume(i);
+    
+    return VOIDOBJ;
 }
