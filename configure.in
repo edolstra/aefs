@@ -17,6 +17,7 @@ AC_CHECK_FUNCS(strcasecmp)
 AC_CHECK_FUNCS(stricmp)
 AC_CHECK_FUNCS(daemon)
 AC_CHECK_FUNCS(setfsuid)
+AC_CHECK_FUNCS(mlockall)
 
 AC_C_INLINE
 
