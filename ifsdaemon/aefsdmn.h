@@ -1,7 +1,7 @@
 /* aefsdmn.h -- Header file for the daemon code.
-   Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
+   Copyright (C) 1999, 2002 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsdmn.h,v 1.7 2001/09/23 13:30:13 eelco Exp $
+   $Id: aefsdmn.h,v 1.8 2002/01/21 19:44:42 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,8 +23,6 @@
 #define INCL_DOSERRORS
 #include <os2.h>
 
-#include <syslog.h>
-
 #include "stubfsd.h"
 
 #include "aefsdint.h"
@@ -32,6 +30,7 @@
 #include "corefs.h"
 #include "coreutils.h"
 #include "superblock.h"
+#include "logging.h"
 
 
 typedef struct _ServerData ServerData;
@@ -125,8 +124,6 @@ struct _VolData {
 
 
 /* Global functions. */
-
-void logMsg(int level, char * pszMsg, ...);
 
 int processArgs(ServerData * pServerData, int argc, char * * argv,
    int startup);

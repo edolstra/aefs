@@ -1,9 +1,9 @@
 /* aefsdmn.c -- Daemon main program.  Gets requests from the ring 0
    IFS and dispatches them to the various worker routines in the other
    C files in this directory.  Also implements the lazy writer.
-   Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
+   Copyright (C) 1999, 2002 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsdmn.c,v 1.9 2001/09/23 13:30:13 eelco Exp $
+   $Id: aefsdmn.c,v 1.10 2002/01/21 19:44:42 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -41,23 +41,6 @@ static char * pszProgramName;
 
 
 #define LOCKSEM_TIMEOUT 60000 /* 1 min */
-
-
-static int debug = 0;
-
-
-/* Write a message to the log file. */
-void logMsg(int level, char * pszMsg, ...)
-{
-   va_list args;
-   if ((level == L_DBG) && !debug) return;
-   va_start(args, pszMsg);
-/*    vfprintf(stderr, pszMsg, args); */
-/*    fprintf(stderr, "\n"); */
-/*    fflush(stderr); */
-   vsyslog(level, pszMsg, args);
-   va_end(args);
-}
 
 
 static void printDaemonStats(ServerData * pServerData)
@@ -173,11 +156,11 @@ int processArgs(ServerData * pServerData, int argc, char * * argv,
             return 1;
 
          case 3: /* --no-debug */
-            debug = 0;
+            fDebug = false;
             break;
 
          case 4: /* --debug */
-            debug = 1;
+            fDebug = true;
             break;
 
          case 5: /* --cache */
