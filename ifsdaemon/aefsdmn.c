@@ -709,6 +709,8 @@ static int runDaemon(ServerData * pServerData)
             pServerData->pRequest->data.attach.vpfsd.data[0];
          SearchData * pSearchData = (SearchData *)
             pServerData->pRequest->data.findfirst.fsfsd.data[0];
+         ULONG volume2 =
+            pServerData->pRequest->data.opencreate.vpfsd.data[0];
          ULONG volume3 =
             pServerData->pRequest->data.findfirst.vpfsd.data[0];
       
@@ -727,6 +729,10 @@ static int runDaemon(ServerData * pServerData)
                         dropVolume(pServerData,
                            pServerData->paVolumes[volume1]);
                      }
+                     break;
+                  case FSRQ_OPENCREATE:
+                     if (rccopy == NO_ERROR)
+                        pServerData->paVolumes[volume2]->cOpenFiles--;
                      break;
                   case FSRQ_FINDFIRST:
                      if ((!rccopy) || (rccopy == ERROR_EAS_DIDNT_FIT)) {
