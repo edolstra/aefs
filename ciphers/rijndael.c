@@ -48,6 +48,19 @@ typedef uint32 u4byte; /* a 32 bit unsigned integer type   */
 
 #define byte(x,n)   ((u1byte)((x) >> (8 * n)))
 
+#ifdef WORDS_BIGENDIAN
+static inline u4byte swap(u4byte x)
+{
+    return 
+        (x >> 24) |
+        ((x >> 8) & (0x0000ff00)) |
+        ((x << 8) & (0x00ff0000)) |
+        (x << 24);
+}
+#else
+#define swap(x) (x)
+#endif
+
 #define LARGE_TABLES
 
 static u1byte  sbx_tab[256];
@@ -267,8 +280,8 @@ static void set_key(KeyData * key, const u4byte in_key[],
 
     key->k_len = (key_len + 31) / 32;
 
-    key->e_key[0] = in_key[0]; key->e_key[1] = in_key[1];
-    key->e_key[2] = in_key[2]; key->e_key[3] = in_key[3];
+    key->e_key[0] = swap(in_key[0]); key->e_key[1] = swap(in_key[1]);
+    key->e_key[2] = swap(in_key[2]); key->e_key[3] = swap(in_key[3]);
 
     switch(key->k_len)
     {
@@ -277,13 +290,13 @@ static void set_key(KeyData * key, const u4byte in_key[],
                     loop4(i);
                 break;
 
-        case 6: key->e_key[4] = in_key[4]; t = key->e_key[5] = in_key[5];
+        case 6: key->e_key[4] = swap(in_key[4]); t = key->e_key[5] = swap(in_key[5]);
                 for(i = 0; i < 8; ++i) 
                     loop6(i);
                 break;
 
-        case 8: key->e_key[4] = in_key[4]; key->e_key[5] = in_key[5];
-                key->e_key[6] = in_key[6]; t = key->e_key[7] = in_key[7];
+        case 8: key->e_key[4] = swap(in_key[4]); key->e_key[5] = swap(in_key[5]);
+                key->e_key[6] = swap(in_key[6]); t = key->e_key[7] = swap(in_key[7]);
                 for(i = 0; i < 7; ++i) 
                     loop8(i);
                 break;
@@ -317,10 +330,10 @@ static void rijndaelEncryptBlock(Key * pKey, octet * pabBlock)
 {   u4byte  b0[4], b1[4], *kp;
     KeyData * key = pKey->pExpandedKey;
     
-    b0[0] = 0[(u4byte *) pabBlock] ^ key->e_key[0];
-    b0[1] = 1[(u4byte *) pabBlock] ^ key->e_key[1];
-    b0[2] = 2[(u4byte *) pabBlock] ^ key->e_key[2];
-    b0[3] = 3[(u4byte *) pabBlock] ^ key->e_key[3];
+    b0[0] = swap(0[(u4byte *) pabBlock]) ^ key->e_key[0];
+    b0[1] = swap(1[(u4byte *) pabBlock]) ^ key->e_key[1];
+    b0[2] = swap(2[(u4byte *) pabBlock]) ^ key->e_key[2];
+    b0[3] = swap(3[(u4byte *) pabBlock]) ^ key->e_key[3];
 
     kp = key->e_key + 4;
 
@@ -340,10 +353,10 @@ static void rijndaelEncryptBlock(Key * pKey, octet * pabBlock)
     f_nround(b1, b0, kp); f_nround(b0, b1, kp);
     f_nround(b1, b0, kp); f_lround(b0, b1, kp);
 
-    0[(u4byte *) pabBlock] = b0[0];
-    1[(u4byte *) pabBlock] = b0[1];
-    2[(u4byte *) pabBlock] = b0[2];
-    3[(u4byte *) pabBlock] = b0[3];
+    0[(u4byte *) pabBlock] = swap(b0[0]);
+    1[(u4byte *) pabBlock] = swap(b0[1]);
+    2[(u4byte *) pabBlock] = swap(b0[2]);
+    3[(u4byte *) pabBlock] = swap(b0[3]);
 }
 
 /* decrypt a block of text  */
@@ -365,10 +378,10 @@ static void rijndaelDecryptBlock(Key * pKey, octet * pabBlock)
 {   u4byte  b0[4], b1[4], *kp;
     KeyData * key = pKey->pExpandedKey;
 
-    b0[0] = 0[(u4byte *) pabBlock] ^ key->e_key[4 * key->k_len + 24];
-    b0[1] = 1[(u4byte *) pabBlock] ^ key->e_key[4 * key->k_len + 25];
-    b0[2] = 2[(u4byte *) pabBlock] ^ key->e_key[4 * key->k_len + 26];
-    b0[3] = 3[(u4byte *) pabBlock] ^ key->e_key[4 * key->k_len + 27];
+    b0[0] = swap(0[(u4byte *) pabBlock]) ^ key->e_key[4 * key->k_len + 24];
+    b0[1] = swap(1[(u4byte *) pabBlock]) ^ key->e_key[4 * key->k_len + 25];
+    b0[2] = swap(2[(u4byte *) pabBlock]) ^ key->e_key[4 * key->k_len + 26];
+    b0[3] = swap(3[(u4byte *) pabBlock]) ^ key->e_key[4 * key->k_len + 27];
 
     kp = key->d_key + 4 * (key->k_len + 5);
 
@@ -388,10 +401,10 @@ static void rijndaelDecryptBlock(Key * pKey, octet * pabBlock)
     i_nround(b1, b0, kp); i_nround(b0, b1, kp);
     i_nround(b1, b0, kp); i_lround(b0, b1, kp);
 
-    0[(u4byte *) pabBlock] = b0[0];
-    1[(u4byte *) pabBlock] = b0[1];
-    2[(u4byte *) pabBlock] = b0[2];
-    3[(u4byte *) pabBlock] = b0[3];
+    0[(u4byte *) pabBlock] = swap(b0[0]);
+    1[(u4byte *) pabBlock] = swap(b0[1]);
+    2[(u4byte *) pabBlock] = swap(b0[2]);
+    3[(u4byte *) pabBlock] = swap(b0[3]);
 }
 
 
