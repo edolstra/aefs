@@ -1,8 +1,8 @@
 /* aefsutil.c -- List directories, extract files, or dump entire
    directories from an AEFS file system.
-   Copyright (C) 2001 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsutil.c,v 1.6 2001/03/07 19:43:39 feep Exp $
+   $Id: aefsutil.c,v 1.7 2001/09/23 11:23:17 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -510,7 +510,7 @@ int main(int argc, char * * argv)
             break;
 
          case 2: /* --version */
-            printf("aefsdump - %s\n", AEFS_VERSION);
+            printf("aefsutil - %s\n", AEFS_VERSION);
             exit(0);
             break;
             
