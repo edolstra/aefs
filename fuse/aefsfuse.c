@@ -4,8 +4,7 @@
 #include <signal.h>
 #include <assert.h>
 #include <errno.h>
-
-#include <fuse.h>
+#include <string.h>
 
 #include "getopt.h"
 
@@ -15,6 +14,8 @@
 #include "coreutils.h"
 #include "superblock.h"
 #include "utilutils.h"
+
+#include "aefsfuse.h"
 
 
 char * pszProgramName;
@@ -51,172 +52,225 @@ static int core2sys(CoreResult cr)
 }
 
 
-static int aefs_getattr(const char * path, struct stat * stbuf)
+static void storeAttr(CryptedFileInfo * info, struct fuse_attr * attr)
+{
+    attr->mode = info->flFlags;
+    attr->nlink = info->cRefs;
+    attr->uid = getuid();
+    attr->gid = getgid();
+    attr->rdev = 0;
+    attr->size = info->cbFileSize;
+/*     attr->blksize = SECTOR_SIZE; !!! */
+    attr->blocks = info->csSet;
+    attr->atime = info->timeAccess;
+    attr->mtime = info->timeWrite;
+    attr->ctime = info->timeAccess; /* !!! */
+    attr->_dummy = 4096; /* ??? */
+}
+
+
+int do_lookup(struct fuse_in_header * in, char * name, struct fuse_lookup_out * out)
 {
     CoreResult cr;
-    CryptedFileID idFile;
+    CryptedFileID idDir = in->ino, idFile;
     CryptedFileInfo info;
 
-/*     fprintf(stderr, "getattr %s\n", path); */
+/*     fprintf(stderr, "lookup %ld %s\n", idDir, name); */
 
-    cr = coreQueryIDFromPath(pVolume, pSuperBlock->idRoot, path, &idFile, 0);
+    cr = coreQueryIDFromPath(pVolume, idDir, name, &idFile, 0);
     if (cr) return core2sys(cr);
 
     cr = coreQueryFileInfo(pVolume, idFile, &info);
     if (cr) return core2sys(cr);
 
-    stbuf->st_mode = info.flFlags;
-    stbuf->st_nlink = info.cRefs;
-    stbuf->st_uid = getuid();
-    stbuf->st_gid = getgid();
-    stbuf->st_size = info.cbFileSize;
-    stbuf->st_blksize = SECTOR_SIZE;
-    stbuf->st_rdev = 0;
-    stbuf->st_blocks = info.csSet;
-    stbuf->st_dev = 0;
-    stbuf->st_ino = idFile;
-    stbuf->st_atime = info.timeAccess;
-    stbuf->st_mtime = info.timeWrite;
-    stbuf->st_ctime = info.timeAccess; /* !!! */
+    out->ino = idFile;
+    storeAttr(&info, &out->attr);
 
     return 0;
 }
 
 
-static int aefs_readlink(const char * path, char * buf, size_t size)
+int do_getattr(struct fuse_in_header * in, struct fuse_getattr_out * out)
 {
-    return -ENOTSUP;
+    CoreResult cr;
+    CryptedFileID idFile = in->ino;
+    CryptedFileInfo info;
+
+/*     fprintf(stderr, "getattr %ld\n", idFile); */
+
+    cr = coreQueryFileInfo(pVolume, idFile, &info);
+    if (cr) return core2sys(cr);
+
+    storeAttr(&info, &out->attr);
+
+    return 0;
 }
 
 
-static int aefs_getdir(const char * path, fuse_dirh_t h, fuse_dirfil_t filler)
+#if 0
+int aefs_readlink(const char * path, char * buf, size_t size)
+{
+    return -ENOTSUP;
+}
+#endif
+
+
+static int filler(int fd, CryptedFileID id, char * name)
+{
+    struct fuse_dirent dirent;
+    size_t reclen;
+    size_t res;
+
+    dirent.ino = id;
+    dirent.namelen = strlen(name);
+    strncpy(dirent.name, name, sizeof(dirent.name));
+    dirent.type = 0;
+    reclen = FUSE_DIRENT_SIZE(&dirent);
+    res = write(fd, &dirent, reclen);
+    if(res != reclen) {
+        perror("writing directory file");
+        return -EIO;
+    }
+    return 0;
+}
+
+int do_getdir(struct fuse_in_header * in, struct fuse_getdir_out * out)
 {
     CoreResult cr;
-    CryptedFileID idDir;
+    CryptedFileID idDir = in->ino;
+    CryptedFileInfo info;
     CryptedDirEntry * pFirst, * pCur;
 
-/*     fprintf(stderr, "getdir %s\n", path); */
+/*     fprintf(stderr, "getdir %ld\n", idDir); */
 
-    cr = coreQueryIDFromPath(pVolume, pSuperBlock->idRoot, path, &idDir, 0);
+    out->fd = creat("/tmp/fuse_tmp", 0600);
+    if (out->fd == -1) return -errno;
+    unlink("/tmp/fuse_tmp");
+
+    cr = coreQueryFileInfo(pVolume, idDir, &info);
     if (cr) return core2sys(cr);
+
+    filler(out->fd, idDir, ".");
+    filler(out->fd, info.idParent, "..");
 
     cr = coreQueryDirEntries(pVolume, idDir, &pFirst);
     if (cr) return core2sys(cr);
 
-    filler(h, ".", 0);
-    filler(h, "..", 0);
-
     for (pCur = pFirst; pCur; pCur = pCur->pNext) {
-        filler(h, (char *) pCur->pabName, 0);
+        filler(out->fd, pCur->idFile, (char *) pCur->pabName);
     }
 
+    coreFreeDirEntries(pFirst); /* !!! */
+
     return 0;
 }
 
 
-static int aefs_mknod(const char * path, mode_t mode, dev_t rdev)
+#if 0
+int aefs_mknod(const char * path, mode_t mode, dev_t rdev)
 {
     return -ENOTSUP;
 }
 
 
-static int aefs_mkdir(const char * path, mode_t mode)
+int aefs_mkdir(const char * path, mode_t mode)
 {
     return -ENOTSUP;
 }
 
 
-static int aefs_unlink(const char * path)
+int aefs_unlink(const char * path)
 {
     return -ENOTSUP;
 }
 
 
-static int aefs_rmdir(const char * path)
+int aefs_rmdir(const char * path)
 {
     return -ENOTSUP;
 }
 
 
-static int aefs_symlink(const char * from, const char * to)
+int aefs_symlink(const char * from, const char * to)
 {
     return -ENOTSUP;
 }
 
 
-static int aefs_rename(const char * from, const char * to)
+int aefs_rename(const char * from, const char * to)
 {
     return -ENOTSUP;
 }
 
 
-static int aefs_link(const char * from, const char * to)
+int aefs_link(const char * from, const char * to)
 {
     return -ENOTSUP;
 }
 
 
-static int aefs_chmod(const char * path, mode_t mode)
+int aefs_chmod(const char * path, mode_t mode)
 {
     return -ENOTSUP;
 }
 
 
-static int aefs_chown(const char * path, uid_t uid, gid_t gid)
+int aefs_chown(const char * path, uid_t uid, gid_t gid)
 {
     return -ENOTSUP;
 }
 
 
-static int aefs_truncate(const char * path, off_t size)
+int aefs_truncate(const char * path, off_t size)
 {
     return -ENOTSUP;
 }
 
 
-static int aefs_utime(const char * path, struct utimbuf * buf)
+int aefs_utime(const char * path, struct utimbuf * buf)
 {
     return -ENOTSUP;
 }
+#endif
 
 
-static int aefs_open(const char * path, int flags)
+int do_open(struct fuse_in_header * in, struct fuse_open_in * arg)
 {
     CoreResult cr;
-    CryptedFileID idFile;
+    CryptedFileID idFile = in->ino;
+    CryptedFileInfo info;
 
-/*     fprintf(stderr, "open %s\n", path); */
+/*     fprintf(stderr, "open %ld\n", idFile); */
 
-    cr = coreQueryIDFromPath(pVolume, pSuperBlock->idRoot, path, &idFile, 0);
+    cr = coreQueryFileInfo(pVolume, idFile, &info);
     if (cr) return core2sys(cr);
 
     return 0;
 }
 
 
-static int aefs_read(const char * path, char * buf, size_t size, off_t offset)
+int do_read(struct fuse_in_header * in, struct fuse_read_in * arg, char * outbuf)
 {
     CoreResult cr;
-    CryptedFileID idFile;
+    CryptedFileID idFile = in->ino;
     CryptedFilePos cbRead;
 
-/*     fprintf(stderr, "read %s %ld %d\n", path, offset, size); */
+/*     fprintf(stderr, "read %ld %Ld %d\n", idFile, arg->offset, arg->size); */
 
-    cr = coreQueryIDFromPath(pVolume, pSuperBlock->idRoot, path, &idFile, 0);
-    if (cr) return core2sys(cr);
-
-    cr = coreReadFromFile(pVolume, idFile, offset, size, buf, &cbRead);
+    cr = coreReadFromFile(pVolume, idFile, arg->offset, arg->size, outbuf, &cbRead);
     if (cr) return core2sys(cr);
 
     return cbRead;
 }
 
 
-static int aefs_write(const char * path, const char * buf, size_t size,
+#if 0
+int aefs_write(const char * path, const char * buf, size_t size,
     off_t offset)
 {
     return -ENOTSUP;
 }
+#endif
 
 
 static void exit_handler()
@@ -250,27 +304,6 @@ static void set_signal_handlers()
 }
 
 
-static struct fuse_operations operations = {
-    getattr:	aefs_getattr,
-    readlink:	aefs_readlink,
-    getdir:     aefs_getdir,
-    mknod:	aefs_mknod,
-    mkdir:	aefs_mkdir,
-    symlink:	aefs_symlink,
-    unlink:	aefs_unlink,
-    rmdir:	aefs_rmdir,
-    rename:     aefs_rename,
-    link:	aefs_link,
-    chmod:	aefs_chmod,
-    chown:	aefs_chown,
-    truncate:	aefs_truncate,
-    utime:	aefs_utime,
-    open:	aefs_open,
-    read:	aefs_read,
-    write:	aefs_write,
-};
-
-
 static char *unmount_cmd;
 
 static void cleanup()
@@ -281,8 +314,6 @@ static void cleanup()
 
 int main(int argc, char * * argv)
 {
-    unsigned int flags;
-    struct fuse * fuse;
     CryptedVolumeParms parms;
     CoreResult cr;
     char szKey[1024], * pszKey = 0, * pszBasePath;
@@ -322,11 +353,7 @@ retry:
     
     pVolume = pSuperBlock->pVolume;
 
-/*     flags = FUSE_DEBUG; */
-    flags = 0;
-    fuse = fuse_new(0, flags);
-    fuse_set_operations(fuse, &operations);
-    fuse_loop(fuse);
+    runLoop();
 
     return 0;
 }

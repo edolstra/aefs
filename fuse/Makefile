@@ -7,13 +7,11 @@ PROG = aefsfuse$(EXE)
 
 all: $(PROG)
 
-SRCS = aefsfuse.c
+SRCS = aefsfuse.c loop.c
 
 LIBS = $(BASE)/corefs/corefs.a $(BASE)/ciphers/ciphers.a \
  $(BASE)/system/$(SYSTEM)/sysdep.a $(BASE)/misc/misc.a \
  $(BASE)/utils/utilutils.o
-
-SYSLIBS += -lfuse
 
 $(PROG): $(SRCS:.c=.o) $(LIBS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(SRCS:.c=.o) $(LIBS) $(SYSLIBS) -o $@
