@@ -1,7 +1,7 @@
 /* aefsfuse.c -- FUSE front-end to AEFS.
    Copyright (C) 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsfuse.c,v 1.12 2001/12/28 19:21:03 eelco Exp $
+   $Id: aefsfuse.c,v 1.13 2001/12/31 16:17:58 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -198,6 +198,30 @@ int do_getattr(struct fuse_in_header * in, struct fuse_getattr_out * out)
 }
 
 
+int do_readlink(struct fuse_in_header * in, char * outbuf)
+{
+    CoreResult cr;
+    CryptedFileID idLink = in->ino;
+    CryptedFileInfo info;
+    CryptedFilePos cbRead;
+
+    logMsg(LOG_DEBUG, "readlink %ld", idLink);
+
+    cr = coreQueryFileInfo(pVolume, idLink, &info);
+    if (cr) return core2sys(cr);
+
+    if (!CFF_ISLNK(info.flFlags)) return -EINVAL;
+    if (info.cbFileSize >= PATH_MAX) return -ENAMETOOLONG;
+
+    cr = coreReadFromFile(pVolume, idLink, 0,
+        info.cbFileSize, (octet *) outbuf, &cbRead);
+    if (cr) return core2sys(cr);
+    outbuf[info.cbFileSize] = 0;
+
+    return 0;
+}
+
+
 static int filler(int fd, CryptedFileID id, char * name)
 {
     struct fuse_dirent dirent;
@@ -316,10 +340,10 @@ int do_mkdir(struct fuse_in_header * in, struct fuse_mkdir_in * arg)
 #endif
 
 
-int do_remove(struct fuse_in_header * in, char * pszName)
+int removeFile(CryptedFileID idDir, char * pszName)
 {
     CoreResult cr;
-    CryptedFileID idDir = in->ino, idFile;
+    CryptedFileID idFile;
     CryptedFileInfo info;
     CryptedDirEntry * pFirstEntry;
 
@@ -357,25 +381,66 @@ int do_remove(struct fuse_in_header * in, char * pszName)
 }
 
 
+
+int do_remove(struct fuse_in_header * in, char * pszName)
+{
+    return removeFile(in->ino, pszName);
+}
+
+
+int do_symlink(struct fuse_in_header * in, 
+    char * pszName, char * pszTarget)
+{
+    CoreResult cr;
+    CryptedFileID idLink;
+    CryptedFilePos cbWritten;
+    int res;
+
+    res = createFile(in->ino, pszName, 
+        0777 | CFF_IFLNK, 0, &idLink, 0);
+    if (res) return res;
+    
+    logMsg(LOG_DEBUG, "symlink %ld %s", idLink, pszTarget);
+
+    cr = coreWriteToFile(pVolume, idLink, 0,
+        strlen(pszTarget), (octet *) pszTarget, &cbWritten);
+    if (cr) return core2sys(cr);
+
+    return 0;
+}
+
+
 int do_rename(struct fuse_in_header * in, struct fuse_rename_in * arg)
 {
     CoreResult cr;
     CryptedFileID idFrom = in->ino, idTo = arg->newdir;
     char * pszFrom = arg->names;
     char * pszTo = arg->names + strlen(pszFrom) + 1;
+    int res;
 
     logMsg(LOG_DEBUG, "rename %ld %s %ld %s", idFrom, pszFrom, idTo, pszTo);
 
+    /* Remove the to-name, if it exists. */
+    res = removeFile(idTo, pszTo);
+    if (res && res != -ENOENT) return res;
+    
+    /* Rename. */
     cr = coreMoveDirEntry(pVolume,
         pszFrom, idFrom,
         pszTo, idTo);
     if (cr) return core2sys(cr);
-    
+
     /* Stamp the mtimes of the directories. */
     if (cr = stampFile(idFrom)) return core2sys(cr);
     if ((idFrom != idTo) && (cr = stampFile(idTo))) return core2sys(cr);
 
     return 0;
+}
+
+
+int do_link(struct fuse_in_header * in, struct fuse_link_in * arg)
+{
+    return -ENOTSUP;
 }
 
 

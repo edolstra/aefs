@@ -1,7 +1,7 @@
 /* loop.c -- Implements communication with the FUSE kernel module.
    Copyright (C) 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: loop.c,v 1.6 2001/12/26 21:49:58 eelco Exp $
+   $Id: loop.c,v 1.7 2001/12/31 16:17:58 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <limits.h>
 
 #include "sysdep.h"
 #include "logging.h"
@@ -115,11 +116,12 @@ void processCommand()
         sendReply(in, res, outbuf, sizeof(struct fuse_setattr_out));
         break;
 
-#if 0
     case FUSE_READLINK:
-        do_readlink(f, in);
+        outbuf2 = malloc(PATH_MAX + 1);
+        res = do_readlink(in, outbuf2);
+        sendReply(in, res, outbuf2, !res ? strlen(outbuf2) : 0);
+        free(outbuf2);
         break;
-#endif
 
     case FUSE_GETDIR:
         res = do_getdir(in, (struct fuse_getdir_out *) outbuf);
@@ -146,23 +148,21 @@ void processCommand()
         sendReply(in, res, 0, 0);
         break;
 
-#if 0
     case FUSE_SYMLINK:
-        do_symlink(f, in, (char *) inarg, 
-                   ((char *) inarg) + strlen((char *) inarg) + 1);
+        res = do_symlink(in, (char *) inarg,
+            ((char *) inarg) + strlen((char *) inarg) + 1);
+        sendReply(in, res, 0, 0);
         break;
-#endif
 
     case FUSE_RENAME:
         res = do_rename(in, (struct fuse_rename_in *) inarg);
         sendReply(in, res, 0, 0);
         break;
 
-#if 0
     case FUSE_LINK:
-        do_link(f, in, (struct fuse_link_in *) inarg);
+        res = do_link(in, (struct fuse_link_in *) inarg);
+        sendReply(in, res, 0, 0);
         break;
-#endif
 
     case FUSE_OPEN:
         res = do_open(in, (struct fuse_open_in *) inarg);
