@@ -1,7 +1,7 @@
 /* utils.c -- Helper routines for the daemon.
-   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2001 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: utils.c,v 1.7 2001/09/19 18:48:25 eelco Exp $
+   $Id: utils.c,v 1.8 2001/09/22 10:04:18 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -135,7 +135,7 @@ void splitPath(char * pszFull, char * pszPrefix, char * pszLast)
    while (!IS_PATH_SEPARATOR(*p2))
        if (p2-- == pszFull) {
            *pszPrefix = 0;
-           break;
+           return;
        }
 
    memcpy(pszPrefix, pszFull, p2 - pszFull + 1);
