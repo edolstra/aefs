@@ -1,7 +1,7 @@
 /* aefsadd.c -- Utility to add file systems to the AEFS NFS server.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsadd.c,v 1.3 2000/12/26 19:45:09 eelco Exp $
+   $Id: aefsadd.c,v 1.4 2000/12/27 18:42:57 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -237,7 +237,7 @@ int main(int argc, char * * argv)
                     break;
                 case CORERC_STORAGE:
                     fprintf(stderr, "%s: I/O error "
-                        "accessing the cipher text\n",
+                        "accessing the ciphertext\n",
                         pszProgramName);
                     break;
                 default:
