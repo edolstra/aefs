@@ -1,7 +1,7 @@
 /* aefsfuse.c -- FUSE front-end to AEFS.
    Copyright (C) 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsfuse.c,v 1.16 2003/01/19 22:49:31 eelco Exp $
+   $Id: aefsfuse.c,v 1.17 2003/01/24 13:30:12 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -644,6 +644,11 @@ retry:
         writeResult(cr);
         goto exit;
     }
+
+    /* FUSE expects that the root inode has index 1.  Fortunately
+       that's the same as AEFS's default root inode number, but it
+       doesn't have to be.  We should fix this (in FUSE, probably). */
+    assert(pSuperBlock->idRoot == FUSE_ROOT_INO);
 
     fd = fuse_mount(pszMountPoint, 0);
     if (fd == -1) {
