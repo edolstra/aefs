@@ -1,7 +1,7 @@
 /* superblock.c -- Superblock code.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: superblock.c,v 1.10 2001/09/23 13:30:11 eelco Exp $
+   $Id: superblock.c,v 1.11 2001/11/22 16:18:20 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -26,6 +26,16 @@
 #include "sysdep.h"
 #include "superblock.h"
 #include "sha.h"
+
+
+void printKey(const char * what, unsigned int cbKey, octet * pabKey)
+{
+   int i;
+   printf("%s: ", what);
+   for (i = 0; i < cbKey; i++)
+      printf("%02x", (int) pabKey[i]);
+   printf("\n");
+}
 
 
 static CoreResult cipherResultToCore(CipherResult cr)
@@ -103,6 +113,58 @@ CoreResult coreHashKey(char * pszKey, octet * pabKey,
 }
 
 
+/* Round x up to a multiple of y. */
+#define ROUND_UP(x, y) ((x) ? (((x) - 1) / (y) + 1) * (y) : 0)
+
+
+static CoreResult readDataKey(SuperBlock * pSuperBlock, 
+   CryptedVolumeParms * pParms, Key * pPassKey)
+{
+   SysResult sr;
+   CipherResult cr2;
+   char szFileName[MAX_VOLUME_BASE_PATH_NAME + 128];
+   File * pFile;
+   FilePos cbRead;
+   unsigned int cbEncDataKey, cb;
+   octet abEncDataKey[MAX_KEY_SIZE + MAX_BLOCK_SIZE];
+   octet * p2;
+
+   cbEncDataKey = ROUND_UP(pPassKey->cbKey, pPassKey->cbBlock);
+
+   /* Read the encrypted data key. */
+   sprintf(szFileName, "%s" ENCDATAKEY_NAME, pSuperBlock->szBasePath);
+   sr = sysOpenFile(szFileName, SOF_READONLY | SOF_DENYWRITE,
+      pParms->cred, &pFile);
+   if (sr) {
+      return sys2core(sr);
+   }
+
+   if (sr = sysReadFromFile(pFile, cbEncDataKey, abEncDataKey, &cbRead)) {
+      sysCloseFile(pFile);
+      return sys2core(sr);
+   }
+
+   sysCloseFile(pFile);
+
+   /* Decrypt the data key. */
+   printKey("encrypted data key", cbEncDataKey, abEncDataKey);
+   for (cb = cbEncDataKey, p2 = abEncDataKey;
+        cb > 0; cb -= pPassKey->cbBlock, p2 += pPassKey->cbBlock)
+      pPassKey->pCipher->decryptBlock(pPassKey, p2);
+   memcpy(pSuperBlock->abDataKey, abEncDataKey, pPassKey->cbKey);
+   memset(abEncDataKey, 0, sizeof(abEncDataKey)); /* burn */
+   printKey("data key", pPassKey->cbKey, pSuperBlock->abDataKey);
+
+   /* Construct a cipher instance. */
+   cr2 = cryptCreateKey(pPassKey->pCipher, 
+      pPassKey->cbBlock, pPassKey->cbKey, 
+      pSuperBlock->abDataKey, &pSuperBlock->pKey);
+   if (cr2) return cipherResultToCore(cr2);
+
+   return CORERC_OK;
+}
+
+
 /* Read info about the cipher and flags (i.e. CBC mode) used for this
    volume.  Create a key instance. */
 static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
@@ -117,13 +179,10 @@ static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
    char szCipher[64] = "";
    FilePos cbRead;
    unsigned int cbKey = 0, cbBlock = 0;
-   octet abKey[MAX_KEY_SIZE];
+   Key * pPassKey;
 
    /* Read the unencrypted superblock. */
-   
-   if (snprintf(szFileName, sizeof(szFileName), "%s" SUPERBLOCK1_NAME,
-      pSuperBlock->pszBasePath) >= sizeof(szFileName))
-      return CORERC_INVALID_PARAMETER;
+   sprintf(szFileName, "%s" SUPERBLOCK1_NAME, pSuperBlock->szBasePath);
 
    sr = sysOpenFile(szFileName,
       SOF_READONLY | SOF_DENYNONE,
@@ -160,6 +219,8 @@ static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
                pParms->flCryptoFlags |= CCRYPT_USE_CBC;
             else
                pParms->flCryptoFlags &= ~CCRYPT_USE_CBC;
+         } else if (strcmp(szName, "encrypted-key") == 0) {
+            pSuperBlock->fEncryptedKey = strcmp(szValue, "1") == 0;
          }
       }
        
@@ -176,14 +237,23 @@ static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
 
    /* Hash the user's key string into the cbKey-bytes wide key
       expected by the cipher. */
-   cr = coreHashKey(pszKey, abKey, cbKey);
+   cr = coreHashKey(pszKey, pSuperBlock->abDataKey, cbKey);
    if (cr) return cr;
+   printKey("pass key", cbKey, pSuperBlock->abDataKey);
 
    /* Construct a cipher instance (key). */
    cr2 = cryptCreateKey(*papCipher,
-      cbBlock, cbKey, abKey, &pSuperBlock->pKey);
-   memset(abKey, 0, MAX_KEY_SIZE); /* burn */
+      cbBlock, cbKey, pSuperBlock->abDataKey, &pPassKey);
    if (cr2) return cipherResultToCore(cr2);
+
+   /* Read the actual data key, if necessary. */
+   if (pSuperBlock->fEncryptedKey) {
+      cr = readDataKey(pSuperBlock, pParms, pPassKey);
+      cryptDestroyKey(pPassKey);
+      if (cr) return cr;
+   } else {
+      pSuperBlock->pKey = pPassKey;
+   }
 
    return CORERC_OK;
 }
@@ -198,9 +268,7 @@ static CoreResult openSuperBlock2(SuperBlock * pSuperBlock,
 
    if (pSuperBlock->pSB2File) return CORERC_OK;
 
-   if (snprintf(szFileName, sizeof(szFileName), "%s" SUPERBLOCK2_NAME,
-      pSuperBlock->pszBasePath) >= sizeof(szFileName))
-      return CORERC_INVALID_PARAMETER;
+   sprintf(szFileName, "%s" SUPERBLOCK2_NAME, pSuperBlock->szBasePath);
 
    sr = sysOpenFile(szFileName,
       (fCreate ? SOF_CREATE_IF_NEW : 0) | 
@@ -260,7 +328,7 @@ static CoreResult createVolume(SuperBlock * pSuperBlock,
    CryptedVolumeParms * pParms)
 {
    return coreAccessVolume(
-      pSuperBlock->pszBasePath,
+      pSuperBlock->szBasePath,
       pSuperBlock->pKey,
       pParms,
       &pSuperBlock->pVolume);
@@ -279,13 +347,13 @@ CoreResult coreReadSuperBlock(char * pszBasePath, char * pszKey,
 
    *ppSuperBlock = 0;
 
-   pSuperBlock = sysAllocSecureMem(sizeof(SuperBlock) +
-      strlen(pszBasePath) + 1);
+   if (strlen(pszBasePath) >= MAX_VOLUME_BASE_PATH_NAME)
+      return CORERC_INVALID_PARAMETER;
+
+   pSuperBlock = sysAllocSecureMem(sizeof(SuperBlock));
    if (!pSuperBlock) return CORERC_NOT_ENOUGH_MEMORY;
 
-   pSuperBlock->pszBasePath = sizeof(SuperBlock) +
-      (char *) pSuperBlock;
-   strcpy(pSuperBlock->pszBasePath, pszBasePath);
+   strcpy(pSuperBlock->szBasePath, pszBasePath);
    pSuperBlock->pSB2File = 0;
 
    if (cr = readSuperBlock1(pSuperBlock, pszKey, pParms, papCipher)) {
@@ -337,16 +405,16 @@ CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock,
 
       if (snprintf(szBuffer, sizeof(szBuffer),
          "cipher: %s-%d-%d\n"
-         "use-cbc: %d\n",
+         "use-cbc: %d\n"
+         "encrypted-key: %d\n", 
          pSuperBlock->pKey->pCipher->pszID,
          pSuperBlock->pKey->cbKey * 8,
          pSuperBlock->pKey->cbBlock * 8,
-         pParms->flCryptoFlags & CCRYPT_USE_CBC) >= sizeof(szBuffer))
+         pParms->flCryptoFlags & CCRYPT_USE_CBC,
+         pSuperBlock->fEncryptedKey) >= sizeof(szBuffer))
          return CORERC_INVALID_PARAMETER;
-      
-      if (snprintf(szFileName, sizeof(szFileName), "%s" SUPERBLOCK1_NAME,
-         pSuperBlock->pszBasePath) >= sizeof(szFileName))
-         return CORERC_INVALID_PARAMETER;
+
+      sprintf(szFileName, "%s" SUPERBLOCK1_NAME, pSuperBlock->szBasePath);
 
       sr = sysOpenFile(szFileName,
          SOF_CREATE_IF_NEW | SOF_TRUNC_IF_EXISTS |
@@ -392,6 +460,75 @@ CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock,
 
    pSuperBlock->version = SBV_CURRENT;
    pSuperBlock->magic = SUPERBLOCK2_MAGIC;
+
+   return CORERC_OK;
+}
+
+
+/* Round x up to a multiple of y. */
+#define ROUND_UP(x, y) ((x) ? (((x) - 1) / (y) + 1) * (y) : 0)
+
+
+CoreResult coreWriteDataKey(SuperBlock * pSuperBlock, 
+   char * pszPassPhrase)
+{
+   SysResult sr;
+   CoreResult cr;
+   CipherResult cr2;
+   unsigned int cbKey = pSuperBlock->pKey->cbKey, 
+      cbBlock = pSuperBlock->pKey->cbBlock;
+   octet abPassKey[MAX_KEY_SIZE];
+   octet abEncDataKey[MAX_KEY_SIZE + MAX_BLOCK_SIZE];
+   unsigned int cbEncDataKey, cb;
+   octet * p;
+   Key * pPassKey;
+   char szFileName[MAX_VOLUME_BASE_PATH_NAME + 128];
+   File * pFile;
+   FilePos cbWritten;
+
+   printf("pass phrase: `%s'\n", pszPassPhrase);
+
+   /* Hash the pass phrase into the pass key. */
+   cr = coreHashKey(pszPassPhrase, abPassKey, cbKey);
+   if (cr) return cr;
+
+   printKey("pass key", cbKey, abPassKey);
+
+   /* Construct a cipher instance. */
+   cr2 = cryptCreateKey(pSuperBlock->pKey->pCipher, 
+      cbBlock, cbKey, abPassKey, &pPassKey);
+   memset(abPassKey, 0, sizeof(abPassKey)); /* burn */
+   if (cr2) return 0;
+
+   /* Encrypt the data key. */
+   cbEncDataKey = ROUND_UP(cbKey, cbBlock);
+   printf("%d\n", cbEncDataKey);
+   /* this is just to pad with random bits to prevent known
+      plaintext attacks against the key file */
+   sysGetRandomBits(cbEncDataKey * 8, abEncDataKey);
+   memcpy(abEncDataKey, pSuperBlock->abDataKey, cbKey);
+   printKey("data key 2", cbEncDataKey, abEncDataKey);
+   for (cb = cbEncDataKey, p = abEncDataKey;
+	cb > 0; cb -= cbBlock, p += cbBlock)
+      pPassKey->pCipher->encryptBlock(pPassKey, p);
+   /* !!! should we use CBC here? */
+   printKey("encrypted data key", cbEncDataKey, abEncDataKey);
+
+   /* Write the encrypted data key to basepath/KEY. */
+   sprintf(szFileName, "%s" ENCDATAKEY_NAME, pSuperBlock->szBasePath);
+   sr = sysOpenFile(szFileName, SOF_WRITEONLY | SOF_DENYALL |
+      SOF_CREATE_IF_NEW | SOF_TRUNC_IF_EXISTS,
+      coreQueryVolumeParms(pSuperBlock->pVolume)->cred, &pFile);
+   if (sr) return sys2core(sr);
+
+   if (sr = sysWriteToFile(pFile, cbEncDataKey,
+	  abEncDataKey, &cbWritten))
+   {
+      sysCloseFile(pFile);
+      return sys2core(sr);
+   }
+
+   sysCloseFile(pFile);
 
    return CORERC_OK;
 }

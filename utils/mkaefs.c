@@ -1,7 +1,7 @@
 /* mkaefs.c -- AEFS file system creation program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: mkaefs.c,v 1.10 2001/11/15 13:18:07 eelco Exp $
+   $Id: mkaefs.c,v 1.11 2001/11/22 16:18:20 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -39,17 +39,140 @@
 char * pszProgramName;
 
 
-static Key * makeKey(char * pszCipher, char * pszKey)
+static CoreResult makeRootDir(CryptedVolume * pVolume,
+   CryptedFileID * pidRootDir)
+{
+   CoreResult cr;
+   CryptedFileID idRootDir;
+   CryptedFileInfo info;
+
+   *pidRootDir = 0;
+
+   /* Create a new directory. */
+   memset(&info, 0, sizeof(info));
+   info.flFlags = CFF_IFDIR | 0700; /* rwx for user */
+   info.cRefs = 1;
+   info.cbFileSize = 0;
+   info.timeWrite = info.timeAccess = info.timeCreation = time(0);
+   info.idParent = 0;
+   /* uid and gid are set to 0 */
+   cr = coreCreateBaseFile(pVolume, &info, &idRootDir);
+   if (cr) return cr;
+
+   *pidRootDir = idRootDir;
+
+   return CORERC_OK;
+}
+
+
+static int createISF(CryptedVolume * pVolume)
+{
+   CoreResult cr;
+   
+   cr = coreCreateFile(pVolume, INFOSECTORFILE_ID, 1);
+   if (cr) {
+      fprintf(stderr, "%s: unable to init info sector file: %s\n",
+         pszProgramName, core2str(cr));
+      return 1;
+   }
+   
+   cr = coreInitISF(pVolume);
+   if (cr) {
+      fprintf(stderr, "%s: unable to init info sector file: %s\n",
+         pszProgramName, core2str(cr));
+      return 1;
+   }
+
+   return 0;
+}
+
+
+static int initVolume(char * pszBasePath, octet * pabDataKey, 
+   Key * pDataKey, CryptedVolume * pVolume, char * pszPassPhrase)
+{
+   CoreResult cr;
+   CryptedFileID idRootDir;
+   SuperBlock superblock;
+   time_t now;
+   
+   /* Create the ISF. */
+   if (createISF(pVolume)) return 1;
+   
+   /* Create the root directory. */
+   cr = makeRootDir(pVolume, &idRootDir);
+   if (cr) {
+      fprintf(stderr, "%s: unable to create root directory: %s\n",
+         pszProgramName, core2str(cr));
+      return 1;
+   }
+
+   /* Create the superblock in-core. */
+   strcpy(superblock.szBasePath, pszBasePath);
+   superblock.pVolume = pVolume;
+   superblock.pKey = pDataKey;
+   superblock.flFlags = 0;
+   superblock.idRoot = idRootDir;
+   superblock.fEncryptedKey = true;
+   strcpy(superblock.szLabel, "AEFS");
+   time(&now);
+   strftime(superblock.szDescription,
+      sizeof(superblock.szDescription),
+      "Volume created on %a, %d %b %Y %H:%M:%S UTC",
+      gmtime(&now));
+   superblock.pSB2File = 0;
+
+   /* Write the superblock. */
+   cr = coreWriteSuperBlock(&superblock, 0);
+   if (cr) {
+      fprintf(stderr, "%s: unable to write the superblocks: %s\n",
+         pszProgramName, core2str(cr));
+      return 1;
+   }
+
+   /* Write the encrypted data key. */
+   if (1) {
+      
+      memcpy(superblock.abDataKey, pabDataKey, MAX_KEY_SIZE);
+      cr = coreWriteDataKey(&superblock, pszPassPhrase);
+      memset(superblock.abDataKey, 0, MAX_KEY_SIZE);
+      if (cr) {
+	 fprintf(stderr, "%s: unable to write the data key: %s\n",
+	    pszProgramName, core2str(cr));
+	 return 1;
+      }
+
+   }
+
+   return 0;
+}
+
+
+/* Round x up to a multiple of y. */
+#define ROUND_UP(x, y) ((x) ? (((x) - 1) / (y) + 1) * (y) : 0)
+
+
+static int createVolumeInPath(char * pszBasePath, 
+   char * pszCipher, char * pszKey, bool fUseCBC)
 {
    CoreResult cr;
    CipherResult cr2;
-   char szKey[1024], szKey2[1024];
-   octet abKey[MAX_KEY_SIZE];
    Cipher * pCipher;
    unsigned int cbBlock, cbKey;
-   Key * pKey;
+   char szKey[1024], szKey2[1024];
+   int res;
+   CryptedVolume * pVolume;
+   char szBasePath[MAX_VOLUME_BASE_PATH_NAME], * p;
+   CryptedVolumeParms parms;
+   octet abDataKey[MAX_KEY_SIZE];
+   Key * pDataKey;
 
-   if (!pszCipher) pszCipher = (*cipherTable)->pszID;
+   if (strlen(pszBasePath) + 1 >= MAX_VOLUME_BASE_PATH_NAME) {
+      fprintf(stderr, "%s: base path too long\n", pszProgramName);
+      return 1;
+   }
+   strcpy(szBasePath, pszBasePath);
+
+   if (!pszCipher) pszCipher = cipherTable[0]->pszID;
    
    /* Find the specified cipher. */
    pCipher = findCipher(cipherTable, pszCipher,
@@ -84,146 +207,6 @@ static Key * makeKey(char * pszCipher, char * pszKey)
       memset(szKey2, 0, sizeof(szKey2)); /* burn */
    }
 
-   /* Hash the key the user entered into the cbKey-bytes wide key
-      expected by the cipher. */
-   cr = coreHashKey(pszKey, abKey, cbKey);
-   memset(szKey, 0, sizeof(szKey)); /* burn */
-   if (cr) {
-      fprintf(stderr, "%s: error hashing key: %s\n",
-         pszProgramName, core2str(cr));
-      return 0;
-   }
-
-#if 0   
-   {
-      int i;
-      printf("real key: ");
-      for (i = 0; i < cbKey; i++)
-         printf("%02x", (int) abKey[i]);
-      printf("\n");
-   }
-#endif   
-
-   /* Construct a cipher instance. */
-   cr2 = cryptCreateKey(pCipher, cbBlock, cbKey, abKey, &pKey);
-   memset(abKey, 0, sizeof(abKey)); /* burn */
-   if (cr2) {
-      fprintf(stderr, "%s: cannot construct cipher `%s' "
-         "(use `--help' to see a list of known ciphers)\n",
-         pszProgramName, pszCipher);
-      return 0;
-   }
-
-   return pKey;
-}
-
-
-static CoreResult makeRootDir(CryptedVolume * pVolume,
-   CryptedFileID * pidRootDir)
-{
-   CoreResult cr;
-   CryptedFileID idRootDir;
-   CryptedFileInfo info;
-
-   *pidRootDir = 0;
-
-   /* Create a new directory. */
-   memset(&info, 0, sizeof(info));
-   info.flFlags = CFF_IFDIR | 0700; /* rwx for user */
-   info.cRefs = 1;
-   info.cbFileSize = 0;
-   info.timeWrite = info.timeAccess = info.timeCreation = time(0);
-   info.idParent = 0;
-   /* uid and gid are set to 0 */
-   cr = coreCreateBaseFile(pVolume, &info, &idRootDir);
-   if (cr) return cr;
-
-   *pidRootDir = idRootDir;
-
-   return CORERC_OK;
-}
-
-
-int createISF(CryptedVolume * pVolume)
-{
-   CoreResult cr;
-   
-   cr = coreCreateFile(pVolume, INFOSECTORFILE_ID, 1);
-   if (cr) {
-      fprintf(stderr, "%s: unable to init info sector file: %s\n",
-         pszProgramName, core2str(cr));
-      return 1;
-   }
-   
-   cr = coreInitISF(pVolume);
-   if (cr) {
-      fprintf(stderr, "%s: unable to init info sector file: %s\n",
-         pszProgramName, core2str(cr));
-      return 1;
-   }
-
-   return 0;
-}
-
-
-int initVolume(char * pszBasePath, Key * pKey,
-   CryptedVolume * pVolume)
-{
-   CoreResult cr;
-   CryptedFileID idRootDir;
-   SuperBlock superblock;
-   time_t now;
-   
-   /* Create the ISF. */
-   if (createISF(pVolume)) return 1;
-   
-   /* Create the root directory. */
-   cr = makeRootDir(pVolume, &idRootDir);
-   if (cr) {
-      fprintf(stderr, "%s: unable to create root directory: %s\n",
-         pszProgramName, core2str(cr));
-      return 1;
-   }
-
-   /* Create the superblock in-core. */
-   superblock.pszBasePath = pszBasePath;
-   superblock.pVolume = pVolume;
-   superblock.pKey = pKey;
-   superblock.flFlags = 0;
-   superblock.idRoot = idRootDir;
-   strcpy(superblock.szLabel, "AEFS");
-   time(&now);
-   strftime(superblock.szDescription,
-      sizeof(superblock.szDescription),
-      "Volume created on %a, %d %b %Y %H:%M:%S UTC",
-      gmtime(&now));
-   superblock.pSB2File = 0;
-
-   /* Write the superblock. */
-   cr = coreWriteSuperBlock(&superblock, 0);
-   if (cr) {
-      fprintf(stderr, "%s: unable to write the superblocks: %s\n",
-         pszProgramName, core2str(cr));
-      return 1;
-   }
-
-   return 0;
-}
-
-
-
-int createVolumeInPath(char * pszBasePath, Key * pKey,
-   bool fUseCBC)
-{
-   CoreResult cr;
-   int res;
-   CryptedVolume * pVolume;
-   char szBasePath[MAX_VOLUME_BASE_PATH_NAME], * p;
-   CryptedVolumeParms parms;
-
-   if (strlen(pszBasePath) >= sizeof(szBasePath) - 2) return 1;
-   strcpy(szBasePath, pszBasePath);
-
    /* Remove trailing slashes (mkdir doesn't like them). */
    for (p = szBasePath + strlen(szBasePath) - 1;
         p >= szBasePath && ((*p == '/') || (*p == '\\'));
@@ -237,20 +220,61 @@ int createVolumeInPath(char * pszBasePath, Key * pKey,
       return 1;
    }
 
-   /* Append a slash, because that's what corefs wants. */
-   strcat(szBasePath, "/");
-
-   /* Create a CryptedVolume structure. */
+   /* Determine the volume parameters. */
    coreSetDefVolumeParms(&parms);
    if (fUseCBC) 
       parms.flCryptoFlags |= CCRYPT_USE_CBC;
    else
       parms.flCryptoFlags &= ~CCRYPT_USE_CBC;
    parms.csISFGrow = 1;
-/*    parms.acbitsDivision[0] = 8; */
-/*    parms.acbitsDivision[1] = 0; */
-   
-   cr = coreAccessVolume(szBasePath, pKey, &parms, &pVolume);
+
+   /* Append a slash, because that's what corefs wants. */
+   strcat(szBasePath, "/");
+
+   /* Terminology: 
+      - pass phrase: a variable-length string given by the user.
+      - pass key: the pass phrase hashed using coreHashKey().
+      - data key: a randomly generated key used to encrypt the
+      data on the file system.
+      - encrypted data key: the contents of the file basepath/KEY,
+      being the data key encrypted with the pass key.  If
+      basepath/KEY does not exist, then data key == pass key.
+      The ciphers used in encrypting the data key and the volume
+      data are the same (simpler that way; otherwise we would have
+      to have two flags to specify the ciphers).
+   */
+          
+   if (1) {
+
+      /* Generate the data key. */
+      sysGetRandomBits(cbKey * 8, abDataKey);
+
+   } else {
+
+      /* Hash the key the user entered into the cbKey-bytes wide key
+	 expected by the cipher. */
+      cr = coreHashKey(pszKey, abDataKey, cbKey);
+      memset(szKey, 0, sizeof(szKey)); /* burn */
+      if (cr) {
+	 fprintf(stderr, "%s: error hashing key: %s\n",
+	    pszProgramName, core2str(cr));
+	 return 0;
+      }
+
+   }
+
+   printKey("data key", cbKey, abDataKey);
+
+   /* Construct a cipher instance. */
+   cr2 = cryptCreateKey(pCipher, cbBlock, cbKey, abDataKey, &pDataKey);
+   if (cr2) {
+      fprintf(stderr, "%s: cannot construct cipher instance\n", 
+	 pszProgramName);
+      return 0;
+   }
+
+   /* Create a CryptedVolume structure. */
+   cr = coreAccessVolume(szBasePath, pDataKey, &parms, &pVolume);
    if (cr) {
       fprintf(stderr, "%s: unable to create superblock: %s\n",
          pszProgramName, core2str(cr));
@@ -259,7 +283,8 @@ int createVolumeInPath(char * pszBasePath, Key * pKey,
 
    /* Initialize the volume (i.e. create a root directory and write
       the superblocks. */
-   res = initVolume(szBasePath, pKey, pVolume);
+   res = initVolume(szBasePath, abDataKey, pDataKey, pVolume, pszKey);
+   memset(abDataKey, 0, sizeof(abDataKey)); /* burn */
    
    /* Drop the volume, commit all writes. */
    cr = coreDropVolume(pVolume);
@@ -325,7 +350,6 @@ int main(int argc, char * * argv)
 {
    bool fUseCBC = true;
    int res;
-   Key * pKey;
    int c;
    char * pszKey = 0, * pszCipher = 0, * pszBasePath;
 
@@ -383,16 +407,9 @@ int main(int argc, char * * argv)
 
    pszBasePath = argv[optind++];
 
-   /* Construct a cipher instance. */
-   pKey = makeKey(pszCipher, pszKey);
-   if (pszKey) memset(pszKey, 0, strlen(pszKey)); /* burn */
-   if (!pKey) return 1;
-
    /* Make the volume. */
-   res = createVolumeInPath(pszBasePath, pKey, fUseCBC);
-
-   /* Clean up. */
-   cryptDestroyKey(pKey);
+   res = createVolumeInPath(pszBasePath, pszCipher, pszKey, fUseCBC);
+   if (pszKey) memset(pszKey, 0, strlen(pszKey)); /* burn */
 
    return res;
 }

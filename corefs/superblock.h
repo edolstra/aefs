@@ -1,7 +1,7 @@
 /* superblock.h -- Header file to the standard superblock code.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: superblock.h,v 1.4 2001/09/23 13:30:11 eelco Exp $
+   $Id: superblock.h,v 1.5 2001/11/22 16:18:20 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -50,21 +50,25 @@
 /* File names for the superblock files. */
 #define SUPERBLOCK1_NAME "SUPERBLK.1" /* unencrypted part */
 #define SUPERBLOCK2_NAME "SUPERBLK.2" /* encrypted part */
+#define ENCDATAKEY_NAME  "KEY"        /* encrypted data key */
 
 /* Values for coreWriteSuperBlock(flags). */
 #define CWS_NOWRITE_SUPERBLOCK1 1
 
 
 typedef struct {
-      char * pszBasePath;
+      char szBasePath[MAX_VOLUME_BASE_PATH_NAME];
       CryptedVolume * pVolume;
       Key * pKey;
+      /* Only needed for coreWriteKey(). */
+      octet abDataKey[MAX_KEY_SIZE];
 
       unsigned int version;
       unsigned int flFlags;
       CryptedFileID idRoot;
       char szLabel[12]; /* DOS disk label */
       char szDescription[128];
+      bool fEncryptedKey;
 
       uint32 magic;
 
@@ -94,6 +98,9 @@ CoreResult coreReadSuperBlock(char * pszBasePath, char * pszKey,
 
 CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, 
    unsigned int flags);
+
+CoreResult coreWriteDataKey(SuperBlock * pSuperBlock, 
+   char * pszPassPhrase);
 
 CoreResult coreDropSuperBlock(SuperBlock * pSuperBlock);
 

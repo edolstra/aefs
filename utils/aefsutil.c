@@ -2,7 +2,7 @@
    directories from an AEFS file system.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsutil.c,v 1.7 2001/09/23 11:23:17 eelco Exp $
+   $Id: aefsutil.c,v 1.8 2001/11/22 16:18:20 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -70,8 +70,8 @@ static int showInfo(SuperBlock * pSuperBlock, unsigned int flFlags)
     Root ID: %08lx\n\
   DOS label: \"%s\"\n\
 Description: \"%s\"\n\
-      Flags: %s\n\
-Cipher type: %s-%d-%d (%s)\n\
+      Flags: %sdirty, %sencrypted-key\n\
+Cipher type: %s-%d-%d (%s) in %s mode\n\
 ",
       (pSuperBlock->version >> 16) & 0xff,
       (pSuperBlock->version >> 8) & 0xff,
@@ -79,11 +79,14 @@ Cipher type: %s-%d-%d (%s)\n\
       pSuperBlock->idRoot,
       pSuperBlock->szLabel,
       pSuperBlock->szDescription,
-      pSuperBlock->flFlags & SBF_DIRTY ? "dirty " : "",
+      pSuperBlock->flFlags & SBF_DIRTY ? "" : "not-",
+      pSuperBlock->fEncryptedKey ? "" : "no-",
       pSuperBlock->pKey->pCipher->pszID,
       pSuperBlock->pKey->cbKey * 8,
       pSuperBlock->pKey->cbBlock * 8,
-      pSuperBlock->pKey->pCipher->pszDescription
+      pSuperBlock->pKey->pCipher->pszDescription,
+      coreQueryVolumeParms(pSuperBlock->pVolume)->flCryptoFlags & CCRYPT_USE_CBC 
+      ? "Cipher Block Chaining" : "Electronic Code Book"
       );
    return 0;
 }

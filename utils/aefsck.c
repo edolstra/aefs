@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsck.c,v 1.16 2001/09/23 13:30:24 eelco Exp $
+   $Id: aefsck.c,v 1.17 2001/11/22 16:18:20 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -345,10 +345,8 @@ static char * printFileName(State * pState, CryptedFileID id)
 static void makeStorageName(State * pState, CryptedFileID id,
    char * szBuffer)
 {
-   assert(strlen(pState->pSuperBlock->pszBasePath) <=
-      MAX_VOLUME_BASE_PATH_NAME);
    sprintf(szBuffer, "%s%08lx.enc",
-      pState->pSuperBlock->pszBasePath, id);
+      pState->pSuperBlock->szBasePath, id);
 }
 
 
@@ -367,7 +365,7 @@ static int addFiles(State * pState)
    
    pState->cFiles = 0;
    
-   if (!(dir = opendir(pState->pSuperBlock->pszBasePath))) {
+   if (!(dir = opendir(pState->pSuperBlock->szBasePath))) {
       printf("filesystem: %s, aborting\n", strerror(errno));
       return res | AEFSCK_ABORT;
    }

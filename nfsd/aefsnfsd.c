@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.24 2001/09/23 13:30:18 eelco Exp $
+   $Id: aefsnfsd.c,v 1.25 2001/11/22 16:18:20 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1691,7 +1691,7 @@ fhstatus * mountproc_mnt_1_svc(dirpath * path, struct svc_req * rqstp)
     for (i = 0; i < MAX_FILESYSTEMS; i++) {
         pFS = apFilesystems[i];
         if (pFS &&
-            (strcmp(szCanon, GET_SUPERBLOCK(i)->pszBasePath) == 0)) {
+            (strcmp(szCanon, GET_SUPERBLOCK(i)->szBasePath) == 0)) {
             encodeFH((nfs_fh *) res.fhstatus_u.fhs_fhandle,
                 i, GET_SUPERBLOCK(i)->idRoot);
             pFS->cRefs++;
@@ -1731,7 +1731,7 @@ void * mountproc_umnt_1_svc(dirpath * path, struct svc_req * rqstp)
     for (i = 0; i < MAX_FILESYSTEMS; i++) {
         pFS = apFilesystems[i];
         if (pFS &&
-            (strcmp(szCanon, GET_SUPERBLOCK(i)->pszBasePath) == 0)) {
+            (strcmp(szCanon, GET_SUPERBLOCK(i)->szBasePath) == 0)) {
             pFS->cRefs--;
             /* !!! print error if cRefs < 0 */
             if (pFS->cRefs <= 0) {
@@ -1772,7 +1772,7 @@ exports * mountproc_export_1_svc(void * v, struct svc_req * rqstp)
     for (i = 0; i < MAX_FILESYSTEMS; i++) {
         if (apFilesystems[i]) {
             *prev = &nodes[i];
-            nodes[i].ex_dir = GET_SUPERBLOCK(i)->pszBasePath;
+            nodes[i].ex_dir = GET_SUPERBLOCK(i)->szBasePath;
             nodes[i].ex_groups = &group;
             prev = &nodes[i].ex_next;
         }
@@ -1822,7 +1822,7 @@ addfsres * aefsctrlproc_addfs_1_svc(addfsargs * args, struct svc_req * rqstp)
     /* Perhaps we already have the key? */
     for (i = 0; i < MAX_FILESYSTEMS; i++)
         if (apFilesystems[i] &&
-            (strcmp(szCanon, GET_SUPERBLOCK(i)->pszBasePath) == 0)) {
+            (strcmp(szCanon, GET_SUPERBLOCK(i)->szBasePath) == 0)) {
             res.stat = ADDFS_HAVE_KEY;
             return &res;
         }
