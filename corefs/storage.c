@@ -1,7 +1,7 @@
 /* storage.c -- Storage and cache management.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: storage.c,v 1.14 2001/09/23 13:30:11 eelco Exp $
+   $Id: storage.c,v 1.15 2001/11/22 16:13:03 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -40,7 +40,7 @@ typedef struct _CryptedFile CryptedFile;
 typedef struct _CryptedSector CryptedSector;
 
 struct _CryptedVolume {
-      char * pszBasePath;
+      char szBasePath[MAX_VOLUME_BASE_PATH_NAME];
 
       /* The cipher instance (key). */
       Key * pKey;
@@ -221,15 +221,16 @@ CoreResult coreAccessVolume(char * pszBasePath, Key * pKey,
    if (pParms->cMaxOpenStorageFiles < 1)
       return CORERC_INVALID_PARAMETER;
    
-   if (strlen(pszBasePath) + 2 > MAX_VOLUME_BASE_PATH_NAME)
+   if (strlen(pszBasePath) >= MAX_VOLUME_BASE_PATH_NAME)
       return CORERC_INVALID_PARAMETER;
    
    /* Allocate the CryptedVolume. */
-   pVolume = malloc(sizeof(CryptedVolume));
+   pVolume = sysAllocSecureMem(sizeof(CryptedVolume));
    if (!pVolume)
       return CORERC_NOT_ENOUGH_MEMORY;
 
    /* Init the CryptedVolume. */
+   strcpy(pVolume->szBasePath, pszBasePath);
    pVolume->pKey = pKey;
    pVolume->parms = *pParms;
    pVolume->cCryptedFiles = 0;
@@ -248,14 +249,6 @@ CoreResult coreAccessVolume(char * pszBasePath, Key * pKey,
    
    for (i = 0; i < SECTOR_HASH_TABLE_SIZE; i++)
       pVolume->SectorHashTable[i] = 0;
-   
-   /* Copy the base path name. */
-   pVolume->pszBasePath = malloc(strlen(pszBasePath) + 1);
-   if (!pVolume->pszBasePath) {
-      free(pVolume);
-      return CORERC_NOT_ENOUGH_MEMORY;
-   }
-   strcpy(pVolume->pszBasePath, pszBasePath);
 
    if (pVolume->parms.fReadOnly)
        pVolume->parms.flOpenFlags = (pVolume->parms.flOpenFlags &
@@ -286,11 +279,8 @@ CoreResult coreDropVolume(CryptedVolume * pVolume)
    assert(pVolume->csInCache == 0);
    assert(pVolume->csDirty == 0);
                       
-   /* Free the base path. */
-   free(pVolume->pszBasePath);
-
    /* Free the CryptedVolume. */
-   free(pVolume);
+   sysFreeSecureMem(pVolume);
    
    return CORERC_OK;
 }
@@ -411,8 +401,7 @@ static void removeFileFromMRUList(CryptedFile * p)
 static void makeStoragePathName(CryptedVolume * pVolume,
    CryptedFileID id, char * pszPathName)
 {
-   sprintf(pszPathName, "%s%08lx.enc",
-      pVolume->pszBasePath, id);
+   sprintf(pszPathName, "%s%08lx.enc", pVolume->szBasePath, id);
 }
 
 
