@@ -877,6 +877,7 @@ static int createRoot(State * pState)
    info.cbFileSize = 0;
    info.timeWrite = info.timeAccess = info.timeCreation = time(0);
    info.idParent = 0;
+   /* uid and gid are set to 0 */
    cr = coreCreateBaseFile(pState->pVolume, &info,
       &pState->pSuperBlock->idRoot);
    if (cr) {
@@ -1631,6 +1632,7 @@ static int createLostFoundDir(State * pState)
    info.cbFileSize = 0;
    info.timeWrite = info.timeAccess = info.timeCreation = time(0);
    info.idParent = pState->pSuperBlock->idRoot;
+   /* uid and gid are set to 0 */
    cr = coreCreateBaseFile(pState->pVolume, &info, &id);
    if (cr) {
       printf("lost+found: cannot create, cr = %d\n", cr);
