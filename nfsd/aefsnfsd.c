@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.17 2001/02/13 16:41:10 eelco Exp $
+   $Id: aefsnfsd.c,v 1.18 2001/03/04 21:51:05 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -221,7 +221,7 @@ static nfsstat storeAttr(fattr * pAttr, fsid fs, CryptedFileID idFile)
     pAttr->size = info.cbFileSize;
     pAttr->blocksize = SECTOR_SIZE;
     pAttr->rdev = 0;
-    pAttr->blocks = info.csAllocated;
+    pAttr->blocks = info.csSet;
     pAttr->fsid = 0;
     pAttr->fileid = idFile;
     pAttr->atime.seconds = info.timeAccess;
