@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.14 2000/12/31 01:09:25 eelco Exp $
+   $Id: aefsnfsd.c,v 1.15 2000/12/31 11:06:02 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -210,8 +210,6 @@ static nfsstat storeAttr(fattr * pAttr, fsid fs, CryptedFileID idFile)
     switch (info.flFlags & CFF_IFMT) {
         case CFF_IFREG: pAttr->type = NFREG; break;
         case CFF_IFDIR: pAttr->type = NFDIR; break;
-        case CFF_IFBLK: pAttr->type = NFBLK; break;
-        case CFF_IFCHR: pAttr->type = NFCHR; break;
         case CFF_IFLNK: pAttr->type = NFLNK; break;
         default: pAttr->type = NFNON;
     }
@@ -1134,6 +1132,15 @@ static nfsstat createFile(diropargs * where, sattr * attrs,
     nfsstat res;
 
     *pidFile = 0;
+
+    switch (attrs->mode & 0170000) {
+        case 0100000: /* regular file */
+        case 0120000: /* symlink */
+        case 0040000: /* directory */
+            break;
+        default: /* device nodes are not supported */
+            return NFSERR_ACCES;
+    }
 
     res = decodeFH(&where->dir, &fs, &idDir);
     if (res) return res;
