@@ -1,7 +1,7 @@
 /* storage.c -- Storage and cache management.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: storage.c,v 1.17 2002/11/22 09:49:55 eelco Exp $
+   $Id: storage.c,v 1.18 2003/01/23 00:16:53 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -165,11 +165,10 @@ static inline unsigned int sectorHashTableHash(CryptedFileID id,
 static int cmpSectors(const void * p1, const void * p2)
 {
    int d;
-   d = (int) ((CryptedSector *) p1)->pFile -
-       (int) ((CryptedSector *) p2)->pFile;
-   if (d) 
-      d = ((CryptedSector *) p1)->sectorNumber -
-          ((CryptedSector *) p2)->sectorNumber;
+   CryptedSector * s1 = * (CryptedSector * *) p1;
+   CryptedSector * s2 = * (CryptedSector * *) p2;
+   d = (int) s1->pFile - (int) s2->pFile;
+   if (!d) d = s1->sectorNumber - s2->sectorNumber;
    return d;
 }
 
@@ -297,15 +296,18 @@ CoreResult coreFlushVolume(CryptedVolume * pVolume)
 {
    CoreResult cr;
    CryptedSector * * papDirty, * p, * * q;
-   
+   int n, m;
+
    if (pVolume->csDirty) {
       
       papDirty = malloc(pVolume->csDirty * sizeof(CryptedSector *));
       if (!papDirty) return CORERC_NOT_ENOUGH_MEMORY;
 
-      for (p = pVolume->pFirstSector, q = papDirty; p;
-           p = p->pNextInMRU)
-         if (p->fDirty) *q++ = p;
+      for (p = pVolume->pFirstSector, q = papDirty, n = 0, m = 0; p;
+           p = p->pNextInMRU, m++)
+         if (p->fDirty) *q++ = p, n++;
+      assert(pVolume->csInCache == m);
+      assert(pVolume->csDirty == n);
 
       sortSectorList(pVolume->csDirty, papDirty);
 
@@ -683,6 +685,7 @@ CoreResult coreFlushFile(CryptedVolume * pVolume, CryptedFileID id)
    CoreResult cr;
    CryptedSector * * papDirty, * p, * * q;
    CryptedFile * pFile;
+   int n;
 
    cr = accessFile(pVolume, id, &pFile);
    if (cr) return cr;
@@ -692,9 +695,10 @@ CoreResult coreFlushFile(CryptedVolume * pVolume, CryptedFileID id)
       papDirty = malloc(pFile->csDirty * sizeof(CryptedSector *));
       if (!papDirty) return CORERC_NOT_ENOUGH_MEMORY;
 
-      for (p = pFile->pFirstSector, q = papDirty; p;
+      for (p = pFile->pFirstSector, q = papDirty, n = 0; p;
            p = p->pNextInFile)
-         if (p->fDirty) *q++ = p;
+         if (p->fDirty) *q++ = p, n++;
+      assert(pVolume->csDirty == n);
 
       sortSectorList(pFile->csDirty, papDirty);
 
@@ -1210,7 +1214,8 @@ static void dirtySector(CryptedVolume * pVolume,
    if (!pSector->fDirty) {
       pSector->fDirty = true;
       pSector->pFile->csDirty++;
-      if (pVolume->csDirty++ == 0 && pVolume->parms.dirtyCallBack)
+      pVolume->csDirty++;
+      if (pVolume->csDirty == 1 && pVolume->parms.dirtyCallBack)
          pVolume->parms.dirtyCallBack(pVolume, true);
    }
 }
