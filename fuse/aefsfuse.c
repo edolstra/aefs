@@ -122,6 +122,19 @@ static CoreResult stampFile(CryptedFileID idFile)
 static unsigned long generation = 0;
 
 
+static void fillEntryOut(struct fuse_entry_out * out,
+    CryptedFileID idFile, CryptedFileInfo * info, struct fuse_attr * attr)
+{
+    out->ino = idFile;
+    out->generation = generation++;
+    out->entry_valid = 1; /* sec */
+    out->entry_valid_nsec = 0;
+    out->attr_valid = 1; /* sec */
+    out->attr_valid_nsec = 0;
+    storeAttr(info, attr);
+}
+
+
 int do_lookup(struct fuse_in_header * in, char * name, struct fuse_entry_out * out)
 {
     CoreResult cr;
@@ -136,10 +149,8 @@ int do_lookup(struct fuse_in_header * in, char * name, struct fuse_entry_out * o
     cr = coreQueryFileInfo(pVolume, idFile, &info);
     if (cr) return core2sys(cr);
 
-    out->ino = idFile;
-    out->generation = generation++;
-    storeAttr(&info, &out->attr);
-
+    fillEntryOut(out, idFile, &info, &out->attr);
+    
     return 0;
 }
 
@@ -330,9 +341,7 @@ int createFile(CryptedFileID idDir, char * pszName,
     cr = stampFile(idDir);
     if (cr) return core2sys(cr);
 
-    out->ino = idFile;
-    out->generation = generation++;
-    storeAttr(&info, &out->attr);
+    fillEntryOut(out, idFile, &info, &out->attr);
 
     return 0;
 }
