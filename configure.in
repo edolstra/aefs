@@ -16,6 +16,13 @@ AC_CHECK_FUNCS(chsize)
 AC_CHECK_FUNCS(strcasecmp)
 AC_CHECK_FUNCS(stricmp)
 AC_CHECK_FUNCS(daemon)
+AC_CHECK_FUNCS(setfsuid)
+
+AC_C_INLINE
+
+AC_C_BIGENDIAN
+AC_CHECK_SIZEOF(int, 4)
+AC_CHECK_SIZEOF(long, 4)
 
 
 case $build_os in

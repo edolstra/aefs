@@ -3,11 +3,8 @@
 
 #include "types.h"
 
-/* !!! We defined uint32 as *at least* 32 bits wide.  But this code
-   depends on it being *precisely* 32 bits wide. */
-
 /* 
- * $Id: sha.h,v 1.1 2000/01/03 22:23:49 eelco Exp $
+ * $Id: sha.h,v 1.2 2000/12/26 21:40:26 eelco Exp $
  */
 
 /* The SHA block size and message digest sizes, in bytes */

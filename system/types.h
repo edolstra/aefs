@@ -1,5 +1,7 @@
 /* types.h -- Declares data types.
-   Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
+
+   $Id: types.h,v 1.2 2000/12/26 21:40:28 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,9 +20,10 @@
 #ifndef _TYPES_H
 #define _TYPES_H
 
-#include "sysspec.h"
+#include "config.h"
 
 
+/* Booleans. */
 typedef int Bool;
 
 #ifndef TRUE
@@ -28,6 +31,20 @@ typedef int Bool;
 #endif
 #ifndef FALSE
 #define FALSE 0
+#endif
+
+
+/* uint8 (or octet) should be an unsigned integer exactly 8 bits
+   long.  So if you're using a PDP, you're out of luck :-) */
+typedef unsigned char uint8;
+typedef uint8 octet;
+
+
+/* uint32 should be an unsigned integer exactly 32 bits long. */
+#if SIZEOF_INT == 4
+typedef unsigned int uint32;
+#elif SIZEOF_LONG == 4
+typdef unsigned long uint32;
 #endif
 
 

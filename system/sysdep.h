@@ -2,6 +2,8 @@
    system-independent FS code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: sysdep.h,v 1.5 2000/12/26 21:40:28 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -20,8 +22,8 @@
 #define _SYSDEP_H
 
 #include "config.h"
-
 #include "types.h"
+#include "sysspec.h"
 
 
 typedef struct _File File;
