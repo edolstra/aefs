@@ -26,10 +26,10 @@ TIMES = 1000000 # blocks (= 16 MB for 128 bit ciphers)
 
 timings: testcipher$(EXE) 
 	-rm -f $@
-	testcipher$(EXE) t none $(TIMES) >>$@
-	testcipher$(EXE) t twofish-128 $(TIMES) >>$@
-#	testcipher$(EXE) t twofish_ref-128 $(TIMES) >>$@
-	testcipher$(EXE) t rijndael-128 $(TIMES) >>$@
+	./testcipher$(EXE) t none $(TIMES) >>$@
+	./testcipher$(EXE) t twofish-128 $(TIMES) >>$@
+#	./testcipher$(EXE) t twofish_ref-128 $(TIMES) >>$@
+	./testcipher$(EXE) t rijndael-128 $(TIMES) >>$@
 
 testcipher$(EXE): testcipher.o
 
