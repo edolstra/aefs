@@ -1,7 +1,7 @@
 /* storage.c -- Storage and cache management.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: storage.c,v 1.18 2003/01/23 00:16:53 eelco Exp $
+   $Id: storage.c,v 1.19 2003/01/24 13:17:16 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -698,7 +698,7 @@ CoreResult coreFlushFile(CryptedVolume * pVolume, CryptedFileID id)
       for (p = pFile->pFirstSector, q = papDirty, n = 0; p;
            p = p->pNextInFile)
          if (p->fDirty) *q++ = p, n++;
-      assert(pVolume->csDirty == n);
+      assert(pFile->csDirty == n);
 
       sortSectorList(pFile->csDirty, papDirty);
 
