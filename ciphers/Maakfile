@@ -1,0 +1,11 @@
+import stdlibs;
+import ../common.mk;
+
+default = ciphersLib;
+
+ciphersSrcs =
+  [ ./cipher.c ./ciphertable.c ./identity.c
+    ./twofish.c ./rijndael.c ./sha.c
+  ];
+
+ciphersLib = makeArchive {in = ciphersSrcs, cflags = cflags};

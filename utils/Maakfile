@@ -1,0 +1,17 @@
+import stdlibs;
+import ../common.mk;
+import ../system/posix;
+import ../ciphers;
+import ../corefs;
+
+default = utils;
+
+utils = [mkaefs];
+
+mkaefs = put (./mkaefs, makeProgram ([./mkaefs.c ./utilutils.c]));
+
+makeProgram = {srcs}: link 
+  { in = srcs
+  , cflags = cflags
+  , libs = [corefsLib ciphersLib sysdepLib]
+  };

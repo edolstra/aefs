@@ -1,0 +1,6 @@
+import stdlibs;
+import ../../common.mk;
+
+default = sysdepLib;
+
+sysdepLib = makeArchive {in = ./posix.c, cflags = cflags};

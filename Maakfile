@@ -1,0 +1,11 @@
+import stdlibs;
+import ./system/posix;
+import ./ciphers;
+import ./corefs;
+import ./utils;
+
+incls = "-I{./} -I{./system} -I{./system/posix} -I{./ciphers} -I{./corefs}";
+defs = "-DSYSTEM_posix -DAEFS_VERSION=\"AEFS0.2.1\"";
+cflags = [incls defs];
+
+default = utils;

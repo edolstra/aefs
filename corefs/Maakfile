@@ -1,0 +1,12 @@
+import stdlibs;
+import ../common.mk;
+
+default = corefsLib;
+
+corefsSrcs =
+  [ ./sector.c ./storage.c ./infosector.c ./basefile.c
+    ./directory.c ./ea.c ./coreutils.c ./superblock.c ./comparators.c
+  ];
+
+corefsLib = makeArchive {in = corefsSrcs, cflags = cflags};
+
