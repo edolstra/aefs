@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsck.c,v 1.22 2001/12/30 21:43:15 eelco Exp $
+   $Id: aefsck.c,v 1.23 2002/01/14 21:34:28 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -526,7 +526,10 @@ static int createInfoSector(State * pState, FSItem * fsi)
 {
    int res = 0;
    CoreResult cr;
-   
+
+   /* Don't try to read it. */
+   coreFetchSectors(pState->pVolume, INFOSECTORFILE_ID, fsi->id, 1, CFETCH_NO_READ);
+
    cr = coreSetFileInfo(pState->pVolume, fsi->id, &fsi->info);
    if (cr) {
       printf("isf: cannot resize: %s\n", core2str(cr));
@@ -560,9 +563,6 @@ static int checkInfoSector(State * pState, FSItem * fsi)
           return res;
       }
    }
-
-/*    coreFetchSectors(pState->pVolume, INFOSECTORFILE_ID, */
-/*       (fsi->id / 256) * 256, 256, 0); */
 
    cr = coreQueryFileInfo(pState->pVolume, fsi->id, &fsi->info);
    if (cr) {
@@ -1634,11 +1634,14 @@ static int findLostFoundDir(State * pState)
    CoreResult cr;
    CryptedFileID id;
    CryptedFileInfo info;
+   /* !!! hack! coreQueryIDFromPath temporarily modifies its argument
+      in place, so it shouldn't be a read-only string. */
+   char szLostFound[32] = "lost+found";
    
    if (pState->idLostFound) return res;
    
    cr = coreQueryIDFromPath(pState->pVolume,
-      pState->pSuperBlock->idRoot, "lost+found", &id, 0);
+      pState->pSuperBlock->idRoot, szLostFound, &id, 0);
    
    if (cr) {
       
