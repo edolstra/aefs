@@ -1,7 +1,7 @@
 /* mkaefs.c -- AEFS file system creation program.
-   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2001 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: mkaefs.c,v 1.6 2001/03/04 22:54:19 eelco Exp $
+   $Id: mkaefs.c,v 1.7 2001/03/06 14:22:03 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -264,7 +264,7 @@ int createVolumeInPath(char * pszBasePath, Key * pKey,
    /* Drop the volume, commit all writes. */
    cr = coreDropVolume(pVolume);
    if (cr) {
-      fprintf(stderr, "%s: unable to commit volume: %s\n",
+      fprintf(stderr, "%s: unable to commit file system: %s\n",
          pszProgramName, core2str(cr));
       res = 1;
    }
@@ -287,7 +287,7 @@ static void printUsage(int status)
       
       printf("\
 Usage: %s [OPTION]... PATH\n\
-Create an AEFS volume in directory PATH\n\
+Create an AEFS file system in directory PATH.\n\
 \n\
       --force          force use of specified directory, even if it\n\
                         already exists\n\

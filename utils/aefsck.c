@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
-   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2001 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsck.c,v 1.13 2001/03/04 22:54:19 eelco Exp $
+   $Id: aefsck.c,v 1.14 2001/03/06 14:22:03 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1880,7 +1880,7 @@ static int checkVolume(State * pState)
    if (fInterrupted) return res | AEFSCK_INTERRUPT;
 
    if (pState->pSuperBlock->flFlags & SBF_DIRTY) {
-      printf("superblock: volume is dirty");
+      printf("superblock: file system is dirty");
       if (pState->flags & FSCK_FIX) {
          printf(", clearing dirty flag\n");
          pState->pSuperBlock->flFlags &= ~SBF_DIRTY;
@@ -1990,7 +1990,7 @@ static void printUsage(int status)
    else {
       printf("\
 Usage: %s [OPTION]... AEFS-PATH\n\
-Check and fix the AEFS volume stored in AEFS-PATH.\n\
+Check and fix the AEFS file system stored in AEFS-PATH.\n\
 \n\
   -f, --fix          fix errors (default is check only)\n\
       --force-fix    fix unreadable superblocks\n\

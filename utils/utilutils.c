@@ -1,5 +1,7 @@
 /* utilutils.c -- Helper routines for the utility programs.
-   Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2001 Eelco Dolstra (edolstra@students.cs.uu.nl).
+
+   $Id: utilutils.c,v 1.5 2001/03/06 14:22:03 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -105,7 +107,7 @@ char * core2str(CoreResult cr)
         case CORERC_BAD_TYPE: return "bad file type";
         case CORERC_BAD_EAS: return "corrupt extended attributes";
         case CORERC_CACHE_OVERFLOW: return "cache overflow";
-        case CORERC_READ_ONLY: return "volume is read-only";
+        case CORERC_READ_ONLY: return "file system is read-only";
         case CORERC_ISF_CORRUPT: return "corrupt infosector file";
         case CORERC_ID_EXISTS: return "file ID exists";
         case CORERC_SYS + SYS_ACCESS_DENIED:

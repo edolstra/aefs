@@ -2,7 +2,7 @@
    directories from an AEFS file system.
    Copyright (C) 2001 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsutil.c,v 1.3 2001/03/04 22:54:19 eelco Exp $
+   $Id: aefsutil.c,v 1.4 2001/03/06 14:22:03 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -410,7 +410,7 @@ static void printUsage(int status)
    else {
       printf("\
 Usage: %s [OPTION]... AEFS-PATH COMMAND ...\n\
-List directories on or extract files from the AEFS volume stored\n\
+List directories on or extract files from the AEFS file system stored\n\
 in AEFS-PATH.\n\
 \n\
   -d, --directory    list directory entries instead of contents\n\
