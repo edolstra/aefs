@@ -2,7 +2,7 @@
    system-independent FS code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: sysdep.h,v 1.6 2000/12/29 20:15:09 eelco Exp $
+   $Id: sysdep.h,v 1.7 2000/12/30 21:21:02 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,6 +28,20 @@
 
 typedef struct _File File;
 typedef long FilePos;
+typedef unsigned int SysResult;
+
+
+/* Error codes for sys*(). */
+#define SYS_OK                 0  /* No errors. */
+#define SYS_ACCESS_DENIED      1  /* Access denied. */
+#define SYS_FILE_NOT_FOUND     2  /* File doesn't exist. */
+#define SYS_FILE_EXISTS        3  /* File exists. */
+#define SYS_IO                 4  /* I/O error. */
+#define SYS_LOCKED             5  /* File is locked. */
+#define SYS_ROFS               6  /* Read-only file system. */
+#define SYS_UNKNOWN            7  /* Misc. error. */
+#define SYS_NOT_ENOUGH_MEMORY  8  /* Not enough memory. */
+#define SYS_INVALID_PARAMETER  9  /* Invalid parameter. */
 
 
 /* Flags for sysOpenFile() (equal to the DosOpen() flags). */
@@ -54,19 +68,20 @@ typedef long FilePos;
 #define SOF_CREATE_IF_NEW      0x20000
 
 
-File * sysOpenFile(char * pszName, int flFlags, Cred cred);
-File * sysCreateFile(char * pszName, int flFlags, 
-    FilePos cbInitialSize, Cred cred);
-Bool sysCloseFile(File * pFile);
-Bool sysSetFilePos(File * pFile, FilePos ibNewPos);
-Bool sysReadFromFile(File * pFile, FilePos cbLength,
+SysResult sysOpenFile(char * pszName, int flFlags, Cred cred, 
+    File * * ppFile);
+SysResult sysCreateFile(char * pszName, int flFlags, 
+    FilePos cbInitialSize, Cred cred, File * * ppFile);
+SysResult sysCloseFile(File * pFile);
+SysResult sysSetFilePos(File * pFile, FilePos ibNewPos);
+SysResult sysReadFromFile(File * pFile, FilePos cbLength,
    octet * pabBuffer, FilePos * pcbRead);
-Bool sysWriteToFile(File * pFile, FilePos cbLength,
+SysResult sysWriteToFile(File * pFile, FilePos cbLength,
    octet * pabBuffer, FilePos * pcbWritten);
-Bool sysSetFileSize(File * pFile, FilePos cbSize);
-Bool sysQueryFileSize(File * pFile, FilePos * pcbSize);
-Bool sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred);
-Bool sysFileExists(char * pszName);
+SysResult sysSetFileSize(File * pFile, FilePos cbSize);
+SysResult sysQueryFileSize(File * pFile, FilePos * pcbSize);
+SysResult sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred);
+SysResult sysFileExists(char * pszName, Bool * pfExists);
 
 void * sysAllocSecureMem(int cbSize);
 void sysFreeSecureMem(void * pMem);
@@ -82,6 +97,10 @@ void sysGetRandomBits(int bits, octet * dst);
 #define strnicmp strncasecmp
 #else
 #error Missing stricmp or strcasecmp!
+#endif
+
+#ifndef HAVE_SNPRINTF
+int snprintf(char * str, size_t size, const char * format, ...);
 #endif
 
 #endif /* !_SYSDEP_H */

@@ -129,8 +129,18 @@ static void dirtySector(CryptedVolume * pVolume,
    CryptedSector * pSector);
 
 
+CoreResult sys2core(SysResult sr)
+{
+   switch (sr) {
+      case SYS_OK: return CORERC_OK;
+      case SYS_NOT_ENOUGH_MEMORY: return CORERC_NOT_ENOUGH_MEMORY;
+      case SYS_INVALID_PARAMETER: return CORERC_INVALID_PARAMETER;
+      default: return CORERC_SYS + sr;
+   }
+}
+
      
-static __inline__ int fileHashTableHash(CryptedFileID id)
+static inline int fileHashTableHash(CryptedFileID id)
 {
    double dummy;
    return ((int) (FILE_HASH_TABLE_SIZE *
@@ -139,7 +149,7 @@ static __inline__ int fileHashTableHash(CryptedFileID id)
 }
 
 
-static __inline__ int sectorHashTableHash(CryptedFileID id,
+static inline int sectorHashTableHash(CryptedFileID id,
    SectorNumber nr)
 {
    double dummy;
@@ -410,8 +420,11 @@ static CoreResult storageFileExists(CryptedVolume * pVolume,
    CryptedFileID id)
 {
    char szPathName[MAX_STORAGE_PATH_NAME];
+   SysResult sr;
+   Bool fExists;
    makeStoragePathName(pVolume, id, szPathName);
-   return sysFileExists(szPathName) ? CORERC_FILE_EXISTS : CORERC_OK;
+   if (sr = sysFileExists(szPathName, &fExists)) return sys2core(sr);
+   return fExists ? CORERC_FILE_EXISTS : CORERC_OK;
 }
 
 
@@ -462,7 +475,7 @@ static CoreResult closeStorageFile(CryptedFile * pFile)
    removeFileFromOpenList(pFile);
 
    /* Close the storage file. */
-   return sysCloseFile(pStorageFile) ? CORERC_OK : CORERC_STORAGE;
+   return sys2core(sysCloseFile(pStorageFile));
 }
 
 
@@ -473,6 +486,7 @@ static CoreResult openStorageFile(CryptedFile * pFile, Bool fCreate,
    CryptedFilePos cbInitialSize)
 {
    CoreResult cr;
+   SysResult sr;
    char szPathName[MAX_STORAGE_PATH_NAME];
    
    if (pFile->pStorageFile) {
@@ -497,16 +511,15 @@ static CoreResult openStorageFile(CryptedFile * pFile, Bool fCreate,
    makeStoragePathName(pFile->pVolume, pFile->id, szPathName);
 
    if (fCreate)
-       pFile->pStorageFile = sysCreateFile(szPathName,
+      sr = sysCreateFile(szPathName,
            pFile->pVolume->parms.flOpenFlags, cbInitialSize, 
-           pFile->pVolume->parms.cred);
+           pFile->pVolume->parms.cred, &pFile->pStorageFile);
    else
-       pFile->pStorageFile = sysOpenFile(szPathName,
+      sr = sysOpenFile(szPathName,
            pFile->pVolume->parms.flOpenFlags,
-           pFile->pVolume->parms.cred);
+           pFile->pVolume->parms.cred, &pFile->pStorageFile);
    
-   if (!pFile->pStorageFile)
-      return CORERC_STORAGE;
+   if (sr) return sys2core(sr);
 
    /* Add at the head of the MRU list. */
    addFileToOpenList(pFile);
@@ -643,6 +656,7 @@ CoreResult coreCreateFile(CryptedVolume * pVolume,
 CoreResult coreDestroyFile(CryptedVolume * pVolume, CryptedFileID id)
 {
    CoreResult cr;
+   SysResult sr;
    char szPathName[MAX_STORAGE_PATH_NAME];
    CryptedFile * pFile;
 
@@ -662,10 +676,7 @@ CoreResult coreDestroyFile(CryptedVolume * pVolume, CryptedFileID id)
    if (cr) return cr;
 
    /* Delete the storage file. */
-   if (!sysDeleteFile(szPathName, TRUE, pVolume->parms.cred))
-      return CORERC_STORAGE;
-
-   return CORERC_OK;
+   return sys2core(sysDeleteFile(szPathName, TRUE, pVolume->parms.cred));
 }
 
 
@@ -722,10 +733,7 @@ CoreResult coreSetFileAllocation(CryptedVolume * pVolume,
 
    /* Set the new file size. */
    cbNewSize = SECTOR_SIZE * (CryptedFilePos) csAllocate;
-   if (sysSetFileSize(pFile->pStorageFile, cbNewSize))
-      return CORERC_OK;
-   else
-      return CORERC_STORAGE;
+   return sys2core(sysSetFileSize(pFile->pStorageFile, cbNewSize));
 }
 
 
@@ -938,19 +946,20 @@ static CoreResult readBuffer(CryptedFile * pFile,
    SectorNumber sStart, SectorNumber csExtent, octet * pabBuffer)
 {
    CoreResult cr;
+   SysResult sr;
    FilePos cbRead;
 
    cr = openStorageFile(pFile, FALSE, 0);
    if (cr) return cr;
          
-   if (!sysSetFilePos(pFile->pStorageFile, SECTOR_SIZE *
+   if (sr = sysSetFilePos(pFile->pStorageFile, SECTOR_SIZE *
       (CryptedFilePos) sStart))
-      return CORERC_STORAGE;
+      return sys2core(sr);
    
-   if (!sysReadFromFile(pFile->pStorageFile,
+   if (sr = sysReadFromFile(pFile->pStorageFile,
       SECTOR_SIZE * csExtent, pabBuffer, &cbRead) ||
       (cbRead != SECTOR_SIZE * csExtent))
-      return CORERC_STORAGE;
+      return sys2core(sr);
 
    return CORERC_OK;
 }
@@ -1104,6 +1113,7 @@ static CoreResult writeBuffer(CryptedSector * pStart, int c,
    octet * pabBuffer)
 {
    CoreResult cr;
+   SysResult sr;
    FilePos cbWritten;
    
    assert(!pStart->pFile->pVolume->parms.fReadOnly);
@@ -1111,14 +1121,14 @@ static CoreResult writeBuffer(CryptedSector * pStart, int c,
    cr = openStorageFile(pStart->pFile, FALSE, 0);
    if (cr) return cr;
          
-   if (!sysSetFilePos(pStart->pFile->pStorageFile, SECTOR_SIZE *
+   if (sr = sysSetFilePos(pStart->pFile->pStorageFile, SECTOR_SIZE *
       (CryptedFilePos) pStart->sectorNumber))
-      return CORERC_STORAGE;
+      return sys2core(sr);
 
-   if (!sysWriteToFile(pStart->pFile->pStorageFile,
+   if (sr = sysWriteToFile(pStart->pFile->pStorageFile,
       SECTOR_SIZE * c, pabBuffer, &cbWritten) ||
       (cbWritten != SECTOR_SIZE * c))
-      return CORERC_STORAGE;
+      return sys2core(sr);
 
    return CORERC_OK;
 }

@@ -106,6 +106,7 @@ static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
    char * pszKey, CryptedVolumeParms * pParms, Cipher * * papCipher)
 {
    CoreResult cr;
+   SysResult sr;
    CipherResult cr2;
    char szFileName[MAX_VOLUME_BASE_PATH_NAME + 128];
    File * pFile;
@@ -122,16 +123,16 @@ static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
       pSuperBlock->pszBasePath) >= sizeof(szFileName))
       return CORERC_INVALID_PARAMETER;
 
-   pFile = sysOpenFile(szFileName,
+   sr = sysOpenFile(szFileName,
       SOF_READONLY | SOF_DENYNONE,
-      pParms->cred);
-   if (!pFile) return CORERC_STORAGE;
+      pParms->cred, &pFile);
+   if (sr) return sys2core(sr);
 
-   if (!sysReadFromFile(pFile, sizeof(szFile) - 1, 
+   if (sr = sysReadFromFile(pFile, sizeof(szFile) - 1, 
       (octet *) szFile, &cbRead))
    {
       sysCloseFile(pFile);
-      return CORERC_STORAGE;
+      return sys2core(sr);
    }
    szFile[cbRead] = 0;
 
@@ -190,6 +191,7 @@ static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
 static CoreResult openSuperBlock2(SuperBlock * pSuperBlock,
    CryptedVolumeParms * pParms, Bool fCreate)
 {
+   SysResult sr;
    char szFileName[MAX_VOLUME_BASE_PATH_NAME + 128];
 
    if (pSuperBlock->pSB2File) return CORERC_OK;
@@ -198,13 +200,13 @@ static CoreResult openSuperBlock2(SuperBlock * pSuperBlock,
       pSuperBlock->pszBasePath) >= sizeof(szFileName))
       return CORERC_INVALID_PARAMETER;
 
-   pSuperBlock->pSB2File = sysOpenFile(szFileName,
+   sr = sysOpenFile(szFileName,
       (fCreate ? SOF_CREATE_IF_NEW : 0) | 
       (pParms->fReadOnly 
          ? SOF_READONLY | SOF_DENYWRITE
          : SOF_READWRITE | SOF_DENYALL),
-      pParms->cred);
-   if (!pSuperBlock->pSB2File) return CORERC_STORAGE;
+      pParms->cred, &pSuperBlock->pSB2File);
+   if (sr) return sys2core(sr);
 
    return CORERC_OK;
 }
@@ -215,6 +217,7 @@ static CoreResult readSuperBlock2(SuperBlock * pSuperBlock,
    CryptedVolumeParms * pParms)
 {
    CoreResult cr;
+   SysResult sr;
    FilePos cbRead;
    octet abSector[SECTOR_SIZE];
    CryptedSectorData sector;
@@ -224,12 +227,12 @@ static CoreResult readSuperBlock2(SuperBlock * pSuperBlock,
    cr = openSuperBlock2(pSuperBlock, pParms, FALSE);
    if (cr) return cr;
 
-   if (!sysSetFilePos(pSuperBlock->pSB2File, 0)) 
-       return CORERC_STORAGE;
+   if (sr = sysSetFilePos(pSuperBlock->pSB2File, 0)) 
+       return sys2core(sr);
    
-   if (!sysReadFromFile(pSuperBlock->pSB2File, sizeof(abSector),
+   if (sr = sysReadFromFile(pSuperBlock->pSB2File, sizeof(abSector),
        abSector, &cbRead)) 
-      return CORERC_STORAGE;
+      return sys2core(sr);
    
    cr = coreDecryptSectorData(abSector, &sector,
       pSuperBlock->pKey, pParms->flCryptoFlags);
@@ -319,6 +322,7 @@ CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, int flags)
    FilePos cbWritten;
    CryptedVolumeParms * pParms =
       coreQueryVolumeParms(pSuperBlock->pVolume);
+   SysResult sr;
    CoreResult cr;
 
    if (pParms->fReadOnly) return CORERC_READ_ONLY;
@@ -340,17 +344,17 @@ CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, int flags)
          pSuperBlock->pszBasePath) >= sizeof(szFileName))
          return CORERC_INVALID_PARAMETER;
 
-      pFile = sysOpenFile(szFileName,
+      sr = sysOpenFile(szFileName,
          SOF_CREATE_IF_NEW | SOF_TRUNC_IF_EXISTS |
          SOF_READWRITE | SOF_DENYALL,
-         pParms->cred);
-      if (!pFile) return CORERC_STORAGE;
+         pParms->cred, &pFile);
+      if (sr) return sys2core(sr);
 
-      if (!sysWriteToFile(pFile, strlen(szBuffer), 
+      if (sr = sysWriteToFile(pFile, strlen(szBuffer), 
          (octet *) szBuffer, &cbWritten))
       {
          sysCloseFile(pFile);
-         return CORERC_STORAGE;
+         return sys2core(sr);
       }
       
       sysCloseFile(pFile);
@@ -375,12 +379,12 @@ CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, int flags)
    cr = openSuperBlock2(pSuperBlock, pParms, TRUE);
    if (cr) return cr;
 
-   if (!sysSetFilePos(pSuperBlock->pSB2File, 0)) 
-       return CORERC_STORAGE;
+   if (sr = sysSetFilePos(pSuperBlock->pSB2File, 0)) 
+       return sys2core(sr);
    
-   if (!sysWriteToFile(pSuperBlock->pSB2File, 
-       sizeof(sector), (octet *) &sector, &cbWritten)) 
-       return CORERC_STORAGE;
+   if (sr = sysWriteToFile(pSuperBlock->pSB2File, 
+       sizeof(sector), (octet *) &sector, &cbWritten))
+       return sys2core(sr);
 
    pSuperBlock->version = SBV_CURRENT;
    pSuperBlock->magic = SUPERBLOCK2_MAGIC;

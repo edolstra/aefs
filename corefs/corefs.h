@@ -33,7 +33,7 @@ typedef unsigned long CryptedFilePos;
  * Error codes
  */
 
-typedef int CoreResult;
+typedef unsigned int CoreResult;
 
 #define CORERC_OK                  0
 #define CORERC_FILE_NOT_FOUND      1
@@ -42,7 +42,6 @@ typedef int CoreResult;
 #define CORERC_INVALID_PARAMETER   4
 #define CORERC_INVALID_NAME        5
 #define CORERC_BAD_CHECKSUM        7
-#define CORERC_STORAGE             8
 #define CORERC_BAD_INFOSECTOR      9
 #define CORERC_NOT_DIRECTORY       10
 #define CORERC_BAD_DIRECTORY       11
@@ -52,6 +51,9 @@ typedef int CoreResult;
 #define CORERC_READ_ONLY           15
 #define CORERC_ISF_CORRUPT         16
 #define CORERC_ID_EXISTS           17
+#define CORERC_SYS                 100 /* SYS_* added to this */
+#define IS_CORERC_SYS(x) ((x) >= 100 && (x) <= 200)
+CoreResult sys2core(SysResult sr);
 
 
 /*

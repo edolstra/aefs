@@ -1,7 +1,7 @@
 /* posix.c -- Posix-specific low-level code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: posix.c,v 1.7 2000/12/30 15:18:11 eelco Exp $
+   $Id: posix.c,v 1.8 2000/12/30 21:21:51 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 #include <assert.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #ifdef HAVE_SETFSUID
@@ -48,22 +49,40 @@ struct _File {
 };
 
 
-static Bool lock(int h, int flFlags)
+static SysResult unix2sys()
+{
+   switch (errno) {
+      case EPERM: return SYS_ACCESS_DENIED;
+      case ENOENT: return SYS_FILE_NOT_FOUND;
+      case EIO: return SYS_IO;
+      case ENOMEM: return SYS_NOT_ENOUGH_MEMORY;
+      case EACCES: return SYS_ACCESS_DENIED;
+      case EEXIST: return SYS_FILE_EXISTS;
+      case EINVAL: return SYS_INVALID_PARAMETER;
+      case EROFS: return SYS_ROFS;
+      default: return SYS_UNKNOWN;
+   }
+}
+
+
+static SysResult lock(int h, int flFlags)
 {
    struct flock fl;
    switch (flFlags & SOF_SHMASK) {
       case SOF_DENYALL: fl.l_type = F_WRLCK; break;
       case SOF_DENYWRITE: fl.l_type = F_RDLCK; break;
-      case SOF_DENYNONE: return TRUE;
-      default: return FALSE;
+      case SOF_DENYNONE: return SYS_OK;
+      default: return SYS_INVALID_PARAMETER;
    }
    fl.l_whence = SEEK_SET;
    fl.l_start = 0;
    fl.l_len = 0; /* eof */
    fl.l_pid = 0; /* ??? */
-   if (fcntl(h, F_SETLK, &fl) == -1)
-      return FALSE;
-   return TRUE;
+   if (fcntl(h, F_SETLK, &fl) == -1) {
+      if (errno == EAGAIN) return SYS_LOCKED;
+      return unix2sys();
+   }
+   return SYS_OK;
 }
 
 
@@ -84,7 +103,17 @@ static int makeUnixFlags(int flFlags)
 }
 
 
-File * sysOpenFile(char * pszName, int flFlags, Cred cred)
+#ifndef HAVE_SETFSUID
+static int canAccess(uid_t uid, gid_t gid, Cred cred)
+{
+    if (cred.uid == 0) return 1;
+    return cred.uid == uid; /* !!! weak */
+}
+#endif
+
+
+SysResult sysOpenFile(char * pszName, int flFlags, Cred cred, 
+    File * * ppFile)
 {
    int h;
    int f = makeUnixFlags(flFlags);
@@ -92,8 +121,11 @@ File * sysOpenFile(char * pszName, int flFlags, Cred cred)
    File * pFile;
    struct stat st;
    int euid = 0, egid = 0;
+   SysResult sr;
 
-   if (f == -1) return 0;
+   *ppFile = 0;
+
+   if (f == -1) return SYS_INVALID_PARAMETER;
 
    if (flFlags & SOF_TRUNC_IF_EXISTS) f |= O_TRUNC;
    if (flFlags & SOF_CREATE_IF_NEW) f |= O_CREAT;
@@ -111,7 +143,7 @@ File * sysOpenFile(char * pszName, int flFlags, Cred cred)
       setfsuid(euid); setfsgid(egid);
    }
 #endif
-   if (h == -1) return 0;
+   if (h == -1) return unix2sys();
 
 #ifndef HAVE_SETFSUID
    if (cred.fEnforce) {
@@ -120,48 +152,52 @@ File * sysOpenFile(char * pszName, int flFlags, Cred cred)
          exploiting the time window between stat() and open(). */
       if (fstat(h, &st)) {
          close(h);
-         return 0;
+         return unix2sys();
       }
-      if ((cred.uid != st.st_uid) || (cred.gid != st.st_gid)) {
+      if (!canAccess(st.st_uid, st.st_gid, cred)) {
          close(h);
-         return 0;
+         return SYS_ACCESS_DENIED;
       }
    }
 #endif
 
-   if (!lock(h, flFlags)) {
+   if (sr = lock(h, flFlags)) {
       close(h);
-      return 0;
+      return sr;
    }
 
    pFile = malloc(sizeof(File));
    if (!pFile) {
       close(h);
-      return 0;
+      return SYS_NOT_ENOUGH_MEMORY;
    }
    pFile->h = h;
 
-   return pFile;
+   *ppFile = pFile;
+   return SYS_OK;
 }
 
 
-File * sysCreateFile(char * pszName, int flFlags,
-   FilePos cbInitialSize, Cred cred)
+SysResult sysCreateFile(char * pszName, int flFlags, 
+    FilePos cbInitialSize, Cred cred, File * * ppFile)
 {
    int h;
    int f = makeUnixFlags(flFlags);
    int pmode = S_IREAD | S_IWRITE;
    File * pFile;
    int euid = 0, egid = 0;
+   SysResult sr;
 
-   if (f == -1) return 0;
+   *ppFile = 0;
+
+   if (f == -1) return SYS_INVALID_PARAMETER;
    f |= O_BINARY | O_CREAT | O_EXCL;
 
    switch (flFlags & SOF_RWMASK) {
       case SOF_READONLY:  f |= O_RDONLY; break;
       case SOF_WRITEONLY: f |= O_WRONLY; break;
       case SOF_READWRITE: f |= O_RDWR;   break;
-      default: return 0;
+      default: return SYS_INVALID_PARAMETER;
    }
    
    if (flFlags & SOF_WRITE_THROUGH) f |= O_SYNC;
@@ -181,100 +217,106 @@ File * sysCreateFile(char * pszName, int flFlags,
       setfsuid(euid); setfsgid(egid);
    }
 #endif
-   if (h == -1) return 0;
+   if (h == -1) return unix2sys();
 
    if (cred.fEnforce) {
 #ifndef HAVE_SETFSUID
       if (fchown(h, cred.uid, cred.gid)) {
          close(h);
-         return 0;
+         return unix2sys();
       }
 #endif
       if (fchmod(h, cred.mode)) {
          close(h);
-         return 0;
+         return unix2sys();
       }
    }
 
-   if (!lock(h, flFlags)) {
+   if (sr = lock(h, flFlags)) {
       close(h);
-      return 0;
+      return sr;
    }
 
    pFile = malloc(sizeof(File));
    if (!pFile) {
       close(h);
-      return 0;
+      return SYS_NOT_ENOUGH_MEMORY;
    }
    pFile->h = h;
 
    if (!sysSetFileSize(pFile, cbInitialSize)) {
       sysCloseFile(pFile);
-      return 0;
+      return unix2sys();
    }
 
-   return pFile;
+   *ppFile = pFile;
+   return SYS_OK;
 }
 
 
-Bool sysCloseFile(File * pFile)
+SysResult sysCloseFile(File * pFile)
 {
    int h = pFile->h;
    free(pFile);
-   return !close(h);
+   if (close(h) == -1) return unix2sys();
+   return SYS_OK;
 }
 
 
-Bool sysSetFilePos(File * pFile, FilePos ibNewPos)
+SysResult sysSetFilePos(File * pFile, FilePos ibNewPos)
 {
-   return lseek(pFile->h, ibNewPos, SEEK_SET) == ibNewPos;
+   if (lseek(pFile->h, ibNewPos, SEEK_SET) != ibNewPos)
+      return unix2sys();
+   return SYS_OK;
 }
 
 
-Bool sysReadFromFile(File * pFile, FilePos cbLength,
+SysResult sysReadFromFile(File * pFile, FilePos cbLength,
    octet * pabBuffer, FilePos * pcbRead)
 {
    int r;
    r = read(pFile->h, pabBuffer, cbLength);
-   if (r == -1) return FALSE;
+   if (r == -1) return unix2sys();
    *pcbRead = r;
-   return TRUE;
+   return SYS_OK;
+
 }
 
 
-Bool sysWriteToFile(File * pFile, FilePos cbLength,
+SysResult sysWriteToFile(File * pFile, FilePos cbLength,
    octet * pabBuffer, FilePos * pcbWritten)
 {
    int r;
    r = write(pFile->h, pabBuffer, cbLength);
-   if (r == -1) return FALSE;
+   if (r == -1) return unix2sys();
    *pcbWritten = r;
-   return TRUE;
+   return SYS_OK;
 }
 
 
-Bool sysSetFileSize(File * pFile, FilePos cbSize)
+SysResult sysSetFileSize(File * pFile, FilePos cbSize)
 {
-#if HAVE_CHSIZE   
-   return !chsize(pFile->h, cbSize);
+#if HAVE_CHSIZE
+   if (chsize(pFile->h, cbSize) == -1) return unix2sys();
 #elif HAVE_FTRUNCATE
-   return !ftruncate(pFile->h, cbSize);
+   if (ftruncate(pFile->h, cbSize) == -1) return unix2sys();
 #else
 #error Cannot set file size!
 #endif
+   return SYS_OK;
 }
 
 
-Bool sysQueryFileSize(File * pFile, FilePos * pcbSize)
+SysResult sysQueryFileSize(File * pFile, FilePos * pcbSize)
 {
    struct stat s;
-   if (fstat(pFile->h, &s) == -1) return FALSE;
+   if (fstat(pFile->h, &s) == -1) return unix2sys();
    *pcbSize = s.st_size;
-   return TRUE;
+   return SYS_OK;
 }
 
 
-Bool sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred)
+SysResult sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred)
 {
    Bool res;
    int euid = 0, egid = 0;
@@ -294,15 +336,19 @@ Bool sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred)
    }
 #endif
 
-   return res;
+   return res == -1 ? unix2sys() : SYS_OK;
 }
 
 
-Bool sysFileExists(char * pszName)
+SysResult sysFileExists(char * pszName, Bool * pfExists)
 {
    struct stat s;
-   if (stat(pszName, &s) == -1) return FALSE;
-   return S_ISREG(s.st_mode);
+   if (stat(pszName, &s) == -1) {
+      if (errno != ENOENT) return unix2sys();
+      *pfExists = FALSE;
+   } else 
+      *pfExists = S_ISREG(s.st_mode) != 0;
+   return SYS_OK;
 }
 
 
