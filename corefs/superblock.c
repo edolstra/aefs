@@ -1,7 +1,7 @@
 /* superblock.c -- Superblock code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: superblock.c,v 1.8 2001/03/04 22:54:12 eelco Exp $
+   $Id: superblock.c,v 1.9 2001/03/07 18:17:08 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -308,7 +308,8 @@ CoreResult coreReadSuperBlock(char * pszBasePath, char * pszKey,
    if (crread2) return crread2;
    if (pSuperBlock->magic != SUPERBLOCK2_MAGIC)
       return CORERC_BAD_SUPERBLOCK;
-   if (pSuperBlock->version > SBV_CURRENT)
+   /* Only fail if the major version number has changed. */
+   if (pSuperBlock->version & 0xff0000 > SBV_CURRENT & 0xff0000)
       return CORERC_BAD_VERSION;
    return CORERC_OK;
 }
