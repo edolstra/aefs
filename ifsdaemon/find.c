@@ -1,7 +1,7 @@
 /* find.c -- Read directory contents with file info.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: find.c,v 1.6 2001/09/23 13:30:13 eelco Exp $
+   $Id: find.c,v 1.7 2001/10/11 17:52:57 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -461,6 +461,8 @@ APIRET fsFindFromName(ServerData * pServerData,
       pfindfromname->ulPosition,
       pfindfromname->szName);
 
+   if (!pSearchData) return ERROR_INVALID_HANDLE;
+
 #if 0
    if (pSearchData->iNext != pfindfromname->ulPosition + 1) {
       /* Does the kernel actually give us ulPositions not equal to
@@ -510,17 +512,26 @@ APIRET fsFindClose(ServerData * pServerData,
    struct findclose * pfindclose)
 {
    VolData * pVolData;
-    
+   SearchData * pSearchData = (SearchData *) pfindclose->fsfsd.data[0];
+
    GET_VOLUME(pfindclose);
    
    logMsg(L_DBG, "FS_FINDCLOSE");
+
+   if (!pSearchData) return ERROR_INVALID_HANDLE;
 
    /* It is possible to receive FS_FINDCLOSE _after_ the volume that
       the search applies to has been detached!  So it is important
       that FS_ATTACH[detach] is not over-zealous in cleaning up search
       data. */
 
-   freeSearchData((SearchData *) pfindclose->fsfsd.data[0]);
+   freeSearchData(pSearchData);
+
+   /* Apparently FS_FINDCLOSE is sometimes called more than once for a
+      handle.  I have never seen this myself, but bug reports seem to
+      indicate it.  So clear the pSearchData pointer and return
+      ERROR_INVALID_HANDLE on all subsequent calls. */
+   * (SearchData * *) &pfindclose->fsfsd.data[0] = 0;
 
    pVolData->cSearches--;
 
