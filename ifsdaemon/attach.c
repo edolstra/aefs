@@ -145,7 +145,7 @@ static APIRET attachVolume(ServerData * pServerData,
    char szFileName[MAX_VOLUME_BASE_PATH_NAME + 128];
    struct stat st;
 
-   pattach->pVolData = 0;
+   pattach->vpfsd.data[0] = (ULONG) -1;
    
    if ((pattach->cbParm != sizeof(AEFS_ATTACH)) ||
        VERIFYFIXED(parms->szBasePath) ||
@@ -249,12 +249,8 @@ static APIRET attachVolume(ServerData * pServerData,
    pVolData->pVolume = pVolData->pSuperBlock->pVolume;
    pVolData->idRoot = pVolData->pSuperBlock->idRoot;
 
-   pattach->pVolData = pVolData;
-
-   pVolData->pNext = pServerData->pFirstVolume;
-   pVolData->pPrev = 0;
-   if (pVolData->pNext) pVolData->pNext->pPrev = pVolData;
-   pServerData->pFirstVolume = pVolData;
+   pattach->vpfsd.data[0] = pVolData->chDrive - 'A';
+   pServerData->paVolumes[pVolData->chDrive - 'A'] = pVolData;
 
    return NO_ERROR;
 }
@@ -299,17 +295,16 @@ APIRET commitVolume(VolData * pVolData)
 void dropVolume(ServerData * pServerData, VolData * pVolData)
 {
    CoreResult cr;
+   int i;
    
    /* Close the volume */
    if (cr = coreDropSuperBlock(pVolData->pSuperBlock))
       /* Ignore errors, there's nothing we can do about it. */
       logMsg(L_EVIL, "error closing volume, cr=%d", cr);
 
-   if (pVolData->pNext) pVolData->pNext->pPrev = pVolData->pPrev;
-   if (pVolData->pPrev)
-      pVolData->pPrev->pNext = pVolData->pNext;
-   else
-      pServerData->pFirstVolume = pVolData->pNext;
+   i = pVolData->chDrive - 'A';
+   assert(pServerData->paVolumes[i] == pVolData);
+   pServerData->paVolumes[i] = 0;
 
    free(pVolData);
 }
@@ -319,12 +314,14 @@ static APIRET detachVolume(ServerData * pServerData,
    struct attach * pattach)
 {
    APIRET rc;
-   VolData * pVolData = pattach->pVolData;
+   VolData * pVolData;
    AEFS_DETACH * parms = (AEFS_DETACH *) pServerData->pData;
    static AEFS_DETACH defparms = { 0 };
 
    if (pattach->cbParm != sizeof(AEFS_DETACH)) parms = &defparms;
       
+   GET_VOLUME(pattach);
+
    logMsg(L_DBG, "detaching drive, flFlags=%lx", parms->flFlags);
 
    /* Open files or searches? */
@@ -407,7 +404,7 @@ typedef unsigned long long uint64;
 
  
 static APIRET getSetAllocInfo(ServerData * pServerData,
-   struct fsinfo * pfsinfo)
+   struct fsinfo * pfsinfo, VolData * pVolData)
 {
    PFSALLOCATE pfsalloc;
    FSALLOCATE fsallocReal;
@@ -422,7 +419,7 @@ static APIRET getSetAllocInfo(ServerData * pServerData,
 
       /* Query info about the underlying file system. */
       rc = DosQueryFSInfo(
-         toupper(pfsinfo->pVolData->pSuperBlock->pszBasePath[0]) - 64,
+         toupper(pVolData->pSuperBlock->pszBasePath[0]) - 64,
          FSIL_ALLOC,
          &fsallocReal,
          sizeof(fsallocReal));
@@ -451,11 +448,11 @@ static APIRET getSetAllocInfo(ServerData * pServerData,
 
 
 static APIRET getSetVolSer(ServerData * pServerData,
-   struct fsinfo * pfsinfo)
+   struct fsinfo * pfsinfo, VolData * pVolData)
 {
    PFSINFO pinfo;
    PVOLUMELABEL pvollabel;
-   char * pszLabel = pfsinfo->pVolData->pSuperBlock->szLabel;
+   char * pszLabel = pVolData->pSuperBlock->szLabel;
    
    if (pfsinfo->fsFlag == INFO_RETRIEVE) {
       if (pfsinfo->cbData < sizeof(FSINFO))
@@ -474,12 +471,12 @@ static APIRET getSetVolSer(ServerData * pServerData,
           (pvollabel->cch > 11))
          return ERROR_INVALID_PARAMETER;
       else {
-         if (pfsinfo->pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
+         if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
          strcpy(pszLabel, pvollabel->szVolLabel);
          pszLabel[pvollabel->cch] = 0;
          logMsg(L_DBG, "new volume label: %s", pszLabel);
          return coreResultToOS2(coreWriteSuperBlock(
-            pfsinfo->pVolData->pSuperBlock, CWS_NOWRITE_SUPERBLOCK1));
+            pVolData->pSuperBlock, CWS_NOWRITE_SUPERBLOCK1));
       }
    }
 }
@@ -487,16 +484,20 @@ static APIRET getSetVolSer(ServerData * pServerData,
 
 APIRET fsFsInfo(ServerData * pServerData, struct fsinfo * pfsinfo)
 {
+   VolData * pVolData;
+    
+   GET_VOLUME(pfsinfo);
+
    logMsg(L_DBG, "FS_FSINFO, flag=%hd, usLevel=%hd",
       pfsinfo->fsFlag, pfsinfo->usLevel);
 
    switch (pfsinfo->usLevel) {
 
       case FSIL_ALLOC:
-         return getSetAllocInfo(pServerData, pfsinfo);
+         return getSetAllocInfo(pServerData, pfsinfo, pVolData);
 
       case FSIL_VOLSER:
-         return getSetVolSer(pServerData, pfsinfo);
+         return getSetVolSer(pServerData, pfsinfo, pVolData);
 
       default:
          logMsg(L_EVIL, "unknown FS_INFO flag: %d", pfsinfo->fsFlag);
@@ -509,14 +510,16 @@ APIRET fsFsInfo(ServerData * pServerData, struct fsinfo * pfsinfo)
 APIRET fsFlushBuf(ServerData * pServerData,
    struct flushbuf * pflushbuf)
 {
-   CryptedVolume * pVolume = pflushbuf->pVolData->pVolume;
+   VolData * pVolData;
+   
+   GET_VOLUME(pflushbuf);
    
    logMsg(L_DBG, "FS_FLUSHBUF, flag=%hd");
 
    if (pflushbuf->fsFlag & FLUSH_DISCARD)
       logMsg(L_WARN, "cannot discard data");
 
-   return coreResultToOS2(coreFlushVolume(pVolume));
+   return coreResultToOS2(coreFlushVolume(pVolData->pVolume));
 }
 
 

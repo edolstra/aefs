@@ -62,6 +62,7 @@ static void printDaemonStats(ServerData * pServerData)
 {
    VolData * pVolData;
    CryptedVolumeStats stats;
+   int i;
    
    logMsg(L_INFO, "*** BEGIN INFO ***");
    
@@ -72,11 +73,10 @@ static void printDaemonStats(ServerData * pServerData)
    logMsg(L_INFO, "secure in use  = %9d / %9d",
       cbSecureAlloced - cbSecureFreed,
       cSecureAlloced - cSecureFreed);
-         
-   for (pVolData = pServerData->pFirstVolume;
-        pVolData;
-        pVolData = pVolData->pNext)
-   {
+
+   for (i = 0; i < 26; i++) {
+      pVolData = pServerData->paVolumes[i];
+      if (!pVolData) continue;
       logMsg(L_INFO, "drive %c:", pVolData->chDrive);
       logMsg(L_INFO, "  cOpenFiles        = %d",
          pVolData->cOpenFiles);
@@ -371,16 +371,14 @@ static int destroyGlobalMutex(ServerData * pServerData)
 static void flushAllVolumes(ServerData * pServerData)
 {
    APIRET rc;
-   VolData * pVolData;
-   
-   for (pVolData = pServerData->pFirstVolume;
-        pVolData;
-        pVolData = pVolData->pNext)
-   {
-      rc = commitVolume(pVolData);
-      if (rc) 
-         logMsg(L_ERR, "error lazy writing volume, rc=%d", rc);
-   }
+   int i;
+
+   for (i = 0; i < 26; i++)
+      if (pServerData->paVolumes[i]) {
+         rc = commitVolume(pServerData->paVolumes[i]);
+         if (rc) 
+            logMsg(L_ERR, "error lazy writing volume, rc=%d", rc);
+      }
 }
 
 
@@ -707,16 +705,12 @@ static int runDaemon(ServerData * pServerData)
          APIRET rccopy = pServerData->pRequest->rc;
          USHORT fsFlag =
             pServerData->pRequest->data.attach.fsFlag;
-         VolData * pVolData1 =
-            pServerData->pRequest->data.attach.pVolData;
-         OpenFileData * pOpenFileData =
-            pServerData->pRequest->data.opencreate.pOpenFileData;
-         VolData * pVolData2 =
-            pServerData->pRequest->data.opencreate.pVolData;
-         SearchData * pSearchData =
-            pServerData->pRequest->data.findfirst.pSearchData;
-         VolData * pVolData3 =
-            pServerData->pRequest->data.findfirst.pVolData;
+         ULONG volume1 =
+            pServerData->pRequest->data.attach.vpfsd.data[0];
+         SearchData * pSearchData = (SearchData *)
+            pServerData->pRequest->data.findfirst.fsfsd.data[0];
+         ULONG volume3 =
+            pServerData->pRequest->data.findfirst.vpfsd.data[0];
       
          switch (rc = signalRequestDone(pServerData)) {
 
@@ -730,21 +724,15 @@ static int runDaemon(ServerData * pServerData)
                   case FSRQ_ATTACH:
                      if ((fsFlag == FSA_ATTACH) && !rccopy) {
                         logMsg(L_ERR, "freeing volume data");
-                        dropVolume(pServerData, pVolData1);
-                     }
-                     break;
-                  case FSRQ_OPENCREATE:
-                     if (!rccopy) {
-                        logMsg(L_ERR, "freeing file data");
-                        sysFreeSecureMem(pOpenFileData);
-                        pVolData2->cOpenFiles--;
+                        dropVolume(pServerData,
+                           pServerData->paVolumes[volume1]);
                      }
                      break;
                   case FSRQ_FINDFIRST:
                      if ((!rccopy) || (rccopy == ERROR_EAS_DIDNT_FIT)) {
                         logMsg(L_ERR, "freeing search data");
                         freeSearchData(pSearchData);
-                        pVolData3->cSearches--;
+                        pServerData->paVolumes[volume3]->cSearches--;
                      }
                      break;
                }
@@ -767,11 +755,13 @@ int main(int argc, char * * argv)
 {
    ServerData serverData;
    int res = 0;
+   int i;
 
    pszProgramName = argv[0];
 
    memset(&serverData, 0, sizeof(serverData));
-   serverData.pFirstVolume = 0;
+   for (i = 0; i < 26; i++)
+      serverData.paVolumes[i] = 0;
    serverData.cMaxOpenStorageFiles = 16;
    serverData.csMaxCached = 4096;
    serverData.cMaxCryptedFiles = 4096;

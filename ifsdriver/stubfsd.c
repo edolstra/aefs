@@ -192,13 +192,13 @@ static int signalDaemonAndWait()
 
 /* Return a pointer to the specified volume's FSD-dependent volume
    data. */
-static struct vpfsd far * queryVPFSD(unsigned short hVPB)
+static VPFSD far * queryVPFSD(unsigned short hVPB)
 {
    struct vpfsi far * pvpfsi;
    struct vpfsd far * pvpfsd;
    FSH_GETVOLPARM(hVPB, &pvpfsi, &pvpfsd);
    if (!pvpfsd) PANIC("Invalid VPB handle!");
-   return pvpfsd;
+   return (VPFSD far *) pvpfsd;
 }
 
 
@@ -348,7 +348,7 @@ FS_INIT(
    }
 
 #define COPYPTR(dst, src) \
-   * (void far * far *) (dst) = * (void far * far *) (src)
+   * (ULONG far * far *) (dst) = * (ULONG far * far *) (src)
 
      
 /* Note: FS_FSCTL copies the parameter buffer to the exchange buffer
@@ -486,7 +486,7 @@ int IFSEXPORT
 FS_MOUNT(
    unsigned short flag,
    struct vpfsi far * pvpfsi,
-   struct vpfsd far * pvpfsd,
+   VPFSD far * pvpfsd,
    unsigned short hVPB,
    char far * pBoot
    )
@@ -499,8 +499,8 @@ FS_MOUNT(
 int IFSEXPORT FS_ATTACH(
    unsigned short fsFlag,
    char far * pszDev,
-   struct vpfsd far * pvpfsd,
-   struct cdfsd far * pcdfsd,
+   VPFSD far * pvpfsd,
+   CDFSD far * pcdfsd,
    char far * pParm,
    unsigned short far * pcbParm
    )
@@ -508,11 +508,11 @@ int IFSEXPORT FS_ATTACH(
    int rc;
    struct attach far * p = &pRequest->data.attach;
 
-   /* Hack (nice for debugging): this allows us to unmount a drive
-      after the daemon died (we cannot safely restart the daemon while
-      there are previously mounted drives, because the daemon will
-      receive invalid pointers (VolData etc.) from the kernel and will
-      probably dump core). */
+   /* Hack (nice for debugging): this allows us to detach a drive
+      after the daemon dies (we cannot safely restart the daemon while
+      there are still attached drives, because the daemon will
+      then receive invalid pointers (VolData etc.) from the kernel and
+      will probably dump core). */
    if (fsFlag == FSA_DETACH && !pidDaemon) {
       return NO_ERROR; /* now the kernel can proceed happily */
    }
@@ -527,8 +527,7 @@ int IFSEXPORT FS_ATTACH(
       RELEASE_AND_EXIT(ERROR_INVALID_PARAMETER);
    strcpy(p->szDev, pszDev);
 
-   if (pvpfsd) COPYPTR(&p->pVolData, pvpfsd);
-   
+   if (pvpfsd) p->vpfsd = *pvpfsd;
    if (pcdfsd) p->cdfsd = *pcdfsd;
 
    p->cbParm = *pcbParm;
@@ -550,7 +549,7 @@ int IFSEXPORT FS_ATTACH(
       }
    }
 
-   if (pvpfsd) COPYPTR(pvpfsd, &p->pVolData);
+   if (pvpfsd) *pvpfsd = p->vpfsd;
    if (pcdfsd) *pcdfsd = p->cdfsd;
 
    RELEASE_AND_EXIT(pRequest->rc);
@@ -560,7 +559,7 @@ int IFSEXPORT FS_ATTACH(
 int IFSEXPORT
 FS_IOCTL(
    struct sffsi far * psffsi,
-   struct sffsd far * psffsd,
+   SFFSD far * psffsd,
    unsigned short usCat,
    unsigned short usFunc,
    char far * pParm,
@@ -578,11 +577,9 @@ FS_IOCTL(
 
    pRequest->rq = FSRQ_IOCTL;
 
-   COPYPTR(&p->pVolData, queryVPFSD(psffsi->sfi_hVPB));
-   
+   p->vpfsd = *queryVPFSD(psffsi->sfi_hVPB);
    p->sffsi = *psffsi;
-   COPYPTR(&p->pOpenFileData, psffsd);
-   
+   p->sffsd = *psffsd;
    p->usCat = usCat;
    p->usFunc = usFunc;
    p->cbParm = cbMaxParm ? *pcbParm : 0;
@@ -641,9 +638,7 @@ FS_FSINFO(
    pRequest->rq = FSRQ_FSINFO;
 
    p->fsFlag = fsFlag;
-
-   COPYPTR(&p->pVolData, queryVPFSD(hVPB));
-
+   p->vpfsd = *queryVPFSD(hVPB);
    p->cbData = cbData;
 
    if ((fsFlag == INFO_SET) && cbData) {
@@ -682,8 +677,7 @@ FS_FLUSHBUF(
 
    pRequest->rq = FSRQ_FLUSHBUF;
 
-   COPYPTR(&p->pVolData, queryVPFSD(hVPB));
-
+   p->vpfsd = *queryVPFSD(hVPB);
    p->fsFlag = fsFlag;
    
    if (rc = signalDaemonAndWait()) RELEASE_AND_EXIT(rc);
@@ -832,11 +826,11 @@ static APIRET copyEAOP(PEAOP pEABuf, USHORT usWhat, USHORT oError)
 int IFSEXPORT
 FS_OPENCREATE(
    struct cdfsi far * pcdfsi,
-   struct cdfsd far * pcdfsd,
+   CDFSD far * pcdfsd,
    char far * pszName,
    unsigned short iCurDirEnd,
    struct sffsi far * psffsi,
-   struct sffsd far * psffsd,
+   SFFSD far * psffsd,
    unsigned long flOpenMode,
    unsigned short fsOpenFlag,
    unsigned short far * pusAction,
@@ -852,7 +846,7 @@ FS_OPENCREATE(
 
    pRequest->rq = FSRQ_OPENCREATE;
 
-   COPYPTR(&p->pVolData, queryVPFSD(pcdfsi->cdi_hVPB));
+   p->vpfsd = *queryVPFSD(pcdfsi->cdi_hVPB);
    p->cdfsi = *pcdfsi;
    p->cdfsd = *pcdfsd;
 
@@ -877,7 +871,7 @@ FS_OPENCREATE(
 
    *psffsi = p->sffsi;
    if (psffsi->sfi_type == STYPE_FILE)
-      COPYPTR(psffsd, &p->pOpenFileData);
+      *psffsd = p->sffsd;
 
    *pusAction = p->usAction;
    *pfsGenFlag = p->fsGenFlag;
@@ -896,7 +890,7 @@ FS_CLOSE(
    unsigned short usType,
    unsigned short fsIOFlag,
    struct sffsi far * psffsi,
-   struct sffsd far * psffsd
+   SFFSD far * psffsd
    )
 {
    int rc;
@@ -906,14 +900,11 @@ FS_CLOSE(
 
    pRequest->rq = FSRQ_CLOSE;
 
-   COPYPTR(&p->pVolData, queryVPFSD(psffsi->sfi_hVPB));
-
+   p->vpfsd = *queryVPFSD(psffsi->sfi_hVPB);
    p->usType = usType;
-   
    p->fsIOFlag = fsIOFlag;
-   
    p->sffsi = *psffsi;
-   COPYPTR(&p->pOpenFileData, psffsd);
+   p->sffsd = *psffsd;
 
    if (rc = signalDaemonAndWait()) RELEASE_AND_EXIT(rc);
 
@@ -926,7 +917,7 @@ FS_CLOSE(
 int IFSEXPORT
 FS_READ(
    struct sffsi far * psffsi,
-   struct sffsd far * psffsd,
+   SFFSD far * psffsd,
    char far * pData,
    unsigned short far * pcbLen,
    unsigned short fsIOFlag
@@ -939,12 +930,9 @@ FS_READ(
 
    pRequest->rq = FSRQ_READ;
 
-   COPYPTR(&p->pVolData,
-      queryVPFSD(psffsi->sfi_hVPB));
-
+   p->vpfsd = *queryVPFSD(psffsi->sfi_hVPB);
    p->sffsi = *psffsi;
-   COPYPTR(&p->pOpenFileData, psffsd);
-
+   p->sffsd = *psffsd;
    p->cbLen = *pcbLen;
    p->fsIOFlag = fsIOFlag;
 
@@ -966,7 +954,7 @@ FS_READ(
 int IFSEXPORT
 FS_WRITE(
    struct sffsi far * psffsi,
-   struct sffsd far * psffsd,
+   SFFSD far * psffsd,
    char far * pData,
    unsigned short far * pcbLen,
    unsigned short fsIOFlag
@@ -979,11 +967,9 @@ FS_WRITE(
 
    pRequest->rq = FSRQ_WRITE;
 
-   COPYPTR(&p->pVolData, queryVPFSD(psffsi->sfi_hVPB));
-
+   p->vpfsd = *queryVPFSD(psffsi->sfi_hVPB);
    p->sffsi = *psffsi;
-   COPYPTR(&p->pOpenFileData, psffsd);
-
+   p->sffsd = *psffsd;
    p->cbLen = *pcbLen;
    p->fsIOFlag = fsIOFlag;
 
@@ -1006,7 +992,7 @@ FS_WRITE(
 int IFSEXPORT
 FS_FILEIO(
    struct sffsi far * psffsi,
-   struct sffsd far * psffsd,
+   SFFSD far * psffsd,
    char far * cbCmdList,
    unsigned short pCmdLen,
    unsigned short far * poError,
@@ -1020,7 +1006,7 @@ FS_FILEIO(
 int IFSEXPORT
 FS_CHGFILEPTR(
    struct sffsi far * psffsi,
-   struct sffsd far * psffsd,
+   SFFSD far * psffsd,
    long ibOffset,
    unsigned short usType,
    unsigned short fsIOFlag
@@ -1033,11 +1019,9 @@ FS_CHGFILEPTR(
 
    pRequest->rq = FSRQ_CHGFILEPTR;
 
-   COPYPTR(&p->pVolData, queryVPFSD(psffsi->sfi_hVPB));
-
+   p->vpfsd = *queryVPFSD(psffsi->sfi_hVPB);
    p->sffsi = *psffsi;
-   COPYPTR(&p->pOpenFileData, psffsd);
-
+   p->sffsd = *psffsd;
    p->ibOffset = ibOffset;
    p->usType = usType;
    p->fsIOFlag = fsIOFlag;
@@ -1053,7 +1037,7 @@ FS_CHGFILEPTR(
 int IFSEXPORT
 FS_NEWSIZE(
    struct sffsi far * psffsi,
-   struct sffsd far * psffsd,
+   SFFSD far * psffsd,
    unsigned long cbLen,
    unsigned short fsIOFlag
    )
@@ -1065,11 +1049,9 @@ FS_NEWSIZE(
 
    pRequest->rq = FSRQ_NEWSIZE;
 
-   COPYPTR(&p->pVolData, queryVPFSD(psffsi->sfi_hVPB));
-
+   p->vpfsd = *queryVPFSD(psffsi->sfi_hVPB);
    p->sffsi = *psffsi;
-   COPYPTR(&p->pOpenFileData, psffsd);
-
+   p->sffsd = *psffsd;
    p->cbLen = cbLen;
    p->fsIOFlag = fsIOFlag;
    
@@ -1085,7 +1067,7 @@ int IFSEXPORT
 FS_FILEATTRIBUTE(
    unsigned short fsFlag,
    struct cdfsi far * pcdfsi,
-   struct cdfsd far * pcdfsd,
+   CDFSD far * pcdfsd,
    char far * pszName,
    unsigned short iCurDirEnd,
    unsigned short far * pfsAttr
@@ -1098,7 +1080,7 @@ FS_FILEATTRIBUTE(
 
    pRequest->rq = FSRQ_FILEATTRIBUTE;
 
-   COPYPTR(&p->pVolData, queryVPFSD(pcdfsi->cdi_hVPB));
+   p->vpfsd = *queryVPFSD(pcdfsi->cdi_hVPB);
    p->cdfsi = *pcdfsi;
    p->cdfsd = *pcdfsd;
    
@@ -1202,7 +1184,7 @@ int IFSEXPORT
 FS_FILEINFO(
    unsigned short fsFlag,
    struct sffsi far * psffsi,
-   struct sffsd far * psffsd,
+   SFFSD far * psffsd,
    unsigned short usLevel,
    char far * pData,
    unsigned short cbData,
@@ -1216,11 +1198,9 @@ FS_FILEINFO(
 
    pRequest->rq = FSRQ_FILEINFO;
 
-   COPYPTR(&p->pVolData, queryVPFSD(psffsi->sfi_hVPB));
-
+   p->vpfsd = *queryVPFSD(psffsi->sfi_hVPB);
    p->sffsi = *psffsi;
-   COPYPTR(&p->pOpenFileData, psffsd);
-   
+   p->sffsd = *psffsd;
    p->fsFlag = fsFlag;
    p->usLevel = usLevel;
    p->cbData = cbData;
@@ -1244,7 +1224,7 @@ FS_COMMIT(
    unsigned short usType,
    unsigned short fsIOFlag,
    struct sffsi far * psffsi,
-   struct sffsd far * psffsd
+   SFFSD far * psffsd
    )
 {
    int rc;
@@ -1254,11 +1234,9 @@ FS_COMMIT(
 
    pRequest->rq = FSRQ_COMMIT;
 
-   COPYPTR(&p->pVolData, queryVPFSD(psffsi->sfi_hVPB));
-
+   p->vpfsd = *queryVPFSD(psffsi->sfi_hVPB);
    p->sffsi = *psffsi;
-   COPYPTR(&p->pOpenFileData, psffsd);
-   
+   p->sffsd = *psffsd;
    p->usType = usType;
    p->fsIOFlag = fsIOFlag;
 
@@ -1274,7 +1252,7 @@ int IFSEXPORT
 FS_PATHINFO(
    unsigned short fsFlag,
    struct cdfsi far * pcdfsi,
-   struct cdfsd far * pcdfsd,
+   CDFSD far * pcdfsd,
    char far * pszName,
    unsigned short iCurDirEnd,
    unsigned short usLevel,
@@ -1289,7 +1267,7 @@ FS_PATHINFO(
 
    pRequest->rq = FSRQ_PATHINFO;
 
-   COPYPTR(&p->pVolData, queryVPFSD(pcdfsi->cdi_hVPB));
+   p->vpfsd = *queryVPFSD(pcdfsi->cdi_hVPB);
    p->cdfsi = *pcdfsi;
    p->cdfsd = *pcdfsd;
    
@@ -1315,7 +1293,7 @@ FS_PATHINFO(
 int IFSEXPORT
 FS_DELETE(
    struct cdfsi far * pcdfsi,
-   struct cdfsd far * pcdfsd,
+   CDFSD far * pcdfsd,
    char far * pszName,
    unsigned short iCurDirEnd
    )
@@ -1327,7 +1305,7 @@ FS_DELETE(
 
    pRequest->rq = FSRQ_DELETE;
 
-   COPYPTR(&p->pVolData, queryVPFSD(pcdfsi->cdi_hVPB));
+   p->vpfsd = *queryVPFSD(pcdfsi->cdi_hVPB);
    p->cdfsi = *pcdfsi;
    p->cdfsd = *pcdfsd;
 
@@ -1346,7 +1324,7 @@ int IFSEXPORT
 FS_COPY(
    unsigned short flag,
    struct cdfsi far * pcdfsi,
-   struct cdfsd far * pcdfsd,
+   CDFSD far * pcdfsd,
    char far * pSrc,
    unsigned short iSrcCurrDirEnd,
    char far * pDst,
@@ -1369,7 +1347,7 @@ FS_COPY(
 int IFSEXPORT
 FS_MOVE(
    struct cdfsi far * pcdfsi,
-   struct cdfsd far * pcdfsd,
+   CDFSD far * pcdfsd,
    char far * pszSrc,
    unsigned short iSrcCurDirEnd,
    char far * pszDst,
@@ -1384,7 +1362,7 @@ FS_MOVE(
 
    pRequest->rq = FSRQ_MOVE;
 
-   COPYPTR(&p->pVolData, queryVPFSD(pcdfsi->cdi_hVPB));
+   p->vpfsd = *queryVPFSD(pcdfsi->cdi_hVPB);
    p->cdfsi = *pcdfsi;
    p->cdfsd = *pcdfsd;
 
@@ -1408,7 +1386,7 @@ int IFSEXPORT
 FS_CHDIR(
    unsigned short fsFlag,
    struct cdfsi far * pcdfsi,
-   struct cdfsd far * pcdfsd,
+   CDFSD far * pcdfsd,
    char far * pszDir,
    unsigned short iCurDirEnd
    )
@@ -1423,7 +1401,7 @@ FS_CHDIR(
    p->fsFlag = fsFlag;
 
    if (fsFlag == CD_EXPLICIT || fsFlag == CD_VERIFY) {
-      COPYPTR(&p->pVolData, queryVPFSD(pcdfsi->cdi_hVPB));
+      p->vpfsd = *queryVPFSD(pcdfsi->cdi_hVPB);
       p->cdfsi = *pcdfsi;
       if (fsFlag == CD_EXPLICIT) {
          if (strlen(pszDir) >= CCHMAXPATH)
@@ -1447,7 +1425,7 @@ FS_CHDIR(
 int IFSEXPORT
 FS_MKDIR(
    struct cdfsi far * pcdfsi,
-   struct cdfsd far * pcdfsd,
+   CDFSD far * pcdfsd,
    char far * pszName,
    unsigned short iCurDirEnd,
    PEAOP pEABuf,
@@ -1461,7 +1439,7 @@ FS_MKDIR(
 
    pRequest->rq = FSRQ_MKDIR;
 
-   COPYPTR(&p->pVolData, queryVPFSD(pcdfsi->cdi_hVPB));
+   p->vpfsd = *queryVPFSD(pcdfsi->cdi_hVPB);
    p->cdfsi = *pcdfsi;
    p->cdfsd = *pcdfsd;
 
@@ -1492,7 +1470,7 @@ FS_MKDIR(
 int IFSEXPORT
 FS_RMDIR(
    struct cdfsi far * pcdfsi,
-   struct cdfsd far * pcdfsd,
+   CDFSD far * pcdfsd,
    char far * pszName,
    unsigned short iCurDirEnd
    )
@@ -1504,7 +1482,7 @@ FS_RMDIR(
 
    pRequest->rq = FSRQ_RMDIR;
 
-   COPYPTR(&p->pVolData, queryVPFSD(pcdfsi->cdi_hVPB));
+   p->vpfsd = *queryVPFSD(pcdfsi->cdi_hVPB);
    p->cdfsi = *pcdfsi;
    p->cdfsd = *pcdfsd;
 
@@ -1525,10 +1503,11 @@ FS_RMDIR(
    we send a FINDCLOSE. */
 APIRET undoFindFirst(struct cdfsi far * pcdfsi)
 {
+   FSFSD fsfsd = pRequest->data.findfirst.fsfsd;
    struct findclose far * p = &pRequest->data.findclose;
    pRequest->rq = FSRQ_FINDCLOSE;
-   p->pSearchData = pRequest->data.findfirst.pSearchData;
-   COPYPTR(&p->pVolData, queryVPFSD(pcdfsi->cdi_hVPB));
+   p->fsfsd = fsfsd;
+   p->vpfsd = *queryVPFSD(pcdfsi->cdi_hVPB);
    return signalDaemonAndWait();
 }
 
@@ -1536,12 +1515,12 @@ APIRET undoFindFirst(struct cdfsi far * pcdfsi)
 int IFSEXPORT
 FS_FINDFIRST(
    struct cdfsi far * pcdfsi,
-   struct cdfsd far * pcdfsd,
+   CDFSD far * pcdfsd,
    char far * pszName,
    unsigned short iCurDirEnd,
    unsigned short fsAttr,
    struct fsfsi far * pfsfsi,
-   struct fsfsd far * pfsfsd,
+   FSFSD far * pfsfsd,
    char far * pData,
    unsigned short cbData,
    unsigned short far * pcMatch,
@@ -1556,7 +1535,7 @@ FS_FINDFIRST(
 
    pRequest->rq = FSRQ_FINDFIRST;
 
-   COPYPTR(&p->pVolData, queryVPFSD(pcdfsi->cdi_hVPB));
+   p->vpfsd = *queryVPFSD(pcdfsi->cdi_hVPB);
    p->cdfsi = *pcdfsi;
    p->cdfsd = *pcdfsd;
 
@@ -1599,8 +1578,7 @@ FS_FINDFIRST(
       memcpy(pData, pFSData, cbData);
    }
 
-   COPYPTR(pfsfsd, &p->pSearchData);
-
+   *pfsfsd = p->fsfsd;
    *pcMatch = p->cMatch;
       
    RELEASE_AND_EXIT(pRequest->rc);
@@ -1610,7 +1588,7 @@ FS_FINDFIRST(
 int IFSEXPORT
 FS_FINDNEXT(
    struct fsfsi far * pfsfsi,
-   struct fsfsd far * pfsfsd,
+   FSFSD far * pfsfsd,
    char far * pData,
    unsigned short cbData,
    unsigned short far * pcMatch,
@@ -1625,9 +1603,8 @@ FS_FINDNEXT(
 
    pRequest->rq = FSRQ_FINDNEXT;
 
-   COPYPTR(&p->pVolData, queryVPFSD(pfsfsi->fsi_hVPB));
-   COPYPTR(&p->pSearchData, pfsfsd);
-
+   p->vpfsd = *queryVPFSD(pfsfsi->fsi_hVPB);
+   p->fsfsd = *pfsfsd;
    p->cbData = cbData;
    p->cMatch = *pcMatch;
    p->usLevel = usLevel;
@@ -1662,7 +1639,7 @@ FS_FINDNEXT(
 int IFSEXPORT
 FS_FINDFROMNAME(
    struct fsfsi far * pfsfsi,
-   struct fsfsd far * pfsfsd,
+   FSFSD far * pfsfsd,
    char far * pData,
    unsigned short cbData,
    unsigned short far * pcMatch,
@@ -1679,9 +1656,8 @@ FS_FINDFROMNAME(
 
    pRequest->rq = FSRQ_FINDFROMNAME;
 
-   COPYPTR(&p->pVolData, queryVPFSD(pfsfsi->fsi_hVPB));
-   COPYPTR(&p->pSearchData, pfsfsd);
-
+   p->vpfsd = *queryVPFSD(pfsfsi->fsi_hVPB);
+   p->fsfsd = *pfsfsd;
    p->cbData = cbData;
    p->cMatch = *pcMatch;
    p->usLevel = usLevel;
@@ -1721,7 +1697,7 @@ FS_FINDFROMNAME(
 int IFSEXPORT
 FS_FINDCLOSE(
    struct fsfsi far * pfsfsi,
-   struct fsfsd far * pfsfsd
+   FSFSD far * pfsfsd
    )
 {
    int rc;
@@ -1731,9 +1707,8 @@ FS_FINDCLOSE(
 
    pRequest->rq = FSRQ_FINDCLOSE;
 
-   COPYPTR(&p->pVolData,
-      queryVPFSD(pfsfsi->fsi_hVPB));
-   COPYPTR(&p->pSearchData, pfsfsd);
+   p->vpfsd = *queryVPFSD(pfsfsi->fsi_hVPB);
+   p->fsfsd = *pfsfsd;
 
    if (rc = signalDaemonAndWait()) RELEASE_AND_EXIT(rc);
 
@@ -1744,7 +1719,7 @@ FS_FINDCLOSE(
 int IFSEXPORT
 FS_FINDNOTIFYFIRST(
    struct cdfsi far * pcdfsi,
-   struct cdfsd far * pcdfsd,
+   CDFSD far * pcdfsd,
    char far * pName,
    unsigned short iCurDirEnd,
    unsigned short attr,
@@ -1812,6 +1787,7 @@ FS_PROCESSNAME(
    char far * pszName
    )
 {
+#if 0
    int rc;
    struct processname far * p = &pRequest->data.processname;
 
@@ -1828,13 +1804,15 @@ FS_PROCESSNAME(
    strcpy(pszName, p->szName);
 
    RELEASE_AND_EXIT(pRequest->rc);
+#endif
+   return NO_ERROR;
 }
 
 
 int IFSEXPORT
 FS_NMPIPE(
    struct sffsi far * psffsi,
-   struct sffsd far * psffsd,
+   SFFSD far * psffsd,
    unsigned short OpType,
    union npoper far * pOpRec,
    char far * pData,
@@ -1849,7 +1827,7 @@ FS_NMPIPE(
 int IFSEXPORT
 FS_SETSWAP(
    struct sffsi far * psffsi,
-   struct sffsd far * psffsd
+   SFFSD far * psffsd
    )
 {
    /* We don't support the swap file. */

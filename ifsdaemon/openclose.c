@@ -24,23 +24,17 @@
 /* Finish opening the file by creating an OpenFileData structure and
    filling in the sffsi structure and the opencreate result fields. */
 static APIRET finalizeOpen(struct opencreate * popencreate,
-   CryptedFileID idFile, CryptedFileID idDir, char * pszName,
-   CryptedFileInfo * pInfo, Bool fHidden, USHORT usAction)
+   VolData * pVolData, CryptedFileID idFile, CryptedFileID idDir,
+   char * pszName, CryptedFileInfo * pInfo, Bool fHidden,
+   USHORT usAction)
 {
-   OpenFileData * pOpenFileData;
+   OpenFileData * pOpenFileData = (OpenFileData *) &popencreate->sffsd;
       
-   /* Allocate and fill in the OpenFileData structure. */
-   pOpenFileData = sysAllocSecureMem(sizeof(OpenFileData));
-   if (!pOpenFileData)
-      return ERROR_NOT_ENOUGH_MEMORY;
-
    pOpenFileData->idFile = idFile;
    pOpenFileData->idDir = idDir;
-   strcpy(pOpenFileData->szName, pszName);
    
-   popencreate->pOpenFileData = pOpenFileData;
    popencreate->usAction = usAction;
-   popencreate->pVolData->cOpenFiles++;
+   pVolData->cOpenFiles++;
 
    /* Fill in the sffsi structure. */
    coreToSffsi(fHidden, pInfo, &popencreate->sffsi);
@@ -56,17 +50,17 @@ static APIRET finalizeOpen(struct opencreate * popencreate,
    the creation either succeeds completely or no file is created at
    all. */
 static APIRET createFile(struct opencreate * popencreate,
-   CryptedFileID idDir, char * pszName, PFEALIST pfeas, USHORT
-   usAction)
+   VolData * pVolData, CryptedFileID idDir, char * pszName,
+   PFEALIST pfeas, USHORT usAction)
 {
    CoreResult cr;
    APIRET rc;
-   CryptedVolume * pVolume = popencreate->pVolData->pVolume;
+   CryptedVolume * pVolume = pVolData->pVolume;
    CryptedFileID idFile;
    CryptedFileInfo info;
 
    /* Create a new regular file with the requested initial size. */
-   if (popencreate->pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
+   if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
    memset(&info, 0, sizeof(info));
    info.flFlags = CFF_IFREG | 0600; /* rw for user */
    info.cRefs = 1;
@@ -93,8 +87,8 @@ static APIRET createFile(struct opencreate * popencreate,
       return coreResultToOS2(cr);
    }
 
-   return finalizeOpen(popencreate, idFile, idDir, pszName, &info,
-      popencreate->fsAttr & FILE_HIDDEN, usAction);
+   return finalizeOpen(popencreate, pVolData, idFile, idDir, pszName,
+      &info, popencreate->fsAttr & FILE_HIDDEN, usAction);
 }
 
 
@@ -103,17 +97,20 @@ APIRET fsOpenCreate(ServerData * pServerData,
 {
    CoreResult cr;
    APIRET rc;
-   CryptedVolume * pVolume = popencreate->pVolData->pVolume;
-   CHAR szDir[CCHMAXPATH], szName[CCHMAXPATH], szRealName[CCHMAXPATH];
+   VolData * pVolData;
+   CryptedVolume * pVolume;
+   CHAR szName[CCHMAXPATH];
    CryptedFileID idDir;
    CryptedFileID idFile;
    CryptedFileInfo info;
    CryptedDirEntry * pDirEntry;
    Bool fHidden;
    
-   popencreate->pOpenFileData = 0;
    popencreate->fsGenFlag = 0;
    popencreate->oError = 0;
+   
+   GET_VOLUME(popencreate);
+   pVolume = pVolData->pVolume;
    
    if (VERIFYFIXED(popencreate->szName) ||
        verifyPathName(popencreate->szName))
@@ -133,19 +130,10 @@ APIRET fsOpenCreate(ServerData * pServerData,
       return ERROR_NOT_SUPPORTED;
    }
 
-   /* Split the file name. */
-   splitPath(popencreate->szName + 2, szDir, szName);
-
-   /* Find the directory. */
-   cr = coreQueryIDFromPath(
-      pVolume, popencreate->pVolData->idRoot,
-      szDir, &idDir, 0);
-   if (cr) return coreResultToOS2(cr);
-
-   /* Does the file appear in the directory? */
-   cr = coreQueryIDFromPath(
-      pVolume, idDir,
-      szName, &idFile, &pDirEntry);
+   cr = findFromCurDir(pVolData, popencreate->szName, &popencreate->cdfsi,
+       &popencreate->cdfsd, popencreate->iCurDirEnd, &idDir, &idFile,
+       &pDirEntry, szName);
+   if (!idDir) return coreResultToOS2(cr);
 
    switch (cr) {
 
@@ -157,7 +145,6 @@ APIRET fsOpenCreate(ServerData * pServerData,
             return ERROR_ACCESS_DENIED;
          }
 
-         strcpy(szRealName, (char *) pDirEntry->pabName);
          fHidden = pDirEntry->flFlags & CDF_HIDDEN;
          coreFreeDirEntries(pDirEntry);
 
@@ -183,18 +170,17 @@ APIRET fsOpenCreate(ServerData * pServerData,
                   !(info.flFlags & CFF_IWUSR))
                   return ERROR_ACCESS_DENIED;
 
-               return finalizeOpen(popencreate, idFile, idDir,
-                  szRealName, &info, fHidden, FILE_EXISTED);
+               return finalizeOpen(popencreate, pVolData, idFile,
+                  idDir, szName, &info, fHidden, FILE_EXISTED);
 
             case OPEN_ACTION_REPLACE_IF_EXISTS:
 
                /* Delete the existing file. */
-               rc = deleteFile(popencreate->pVolData,
-                  popencreate->szName);
+               rc = deleteFile(pVolData, popencreate->szName);
                if (rc) return rc;
 
                /* Create a new one. */
-               return createFile(popencreate, idDir, szName,
+               return createFile(popencreate, pVolData, idDir, szName,
                   (PFEALIST) pServerData->pData, FILE_TRUNCATED);
 
             default:
@@ -208,7 +194,7 @@ APIRET fsOpenCreate(ServerData * pServerData,
             return ERROR_OPEN_FAILED;
 
          /* Yes.  Create it with the requested initial size. */
-         return createFile(popencreate, idDir, szName,
+         return createFile(popencreate, pVolData, idDir, szName,
             (PFEALIST) pServerData->pData, FILE_CREATED);
          
       default: /* error reading directory */
@@ -223,22 +209,23 @@ APIRET fsOpenCreate(ServerData * pServerData,
    Should we flush the entire file? */
 APIRET fsClose(ServerData * pServerData, struct close * pclose)
 {
+   OpenFileData * pOpenFileData = (OpenFileData *) &pclose->sffsd;
+   VolData * pVolData;
    APIRET rc;
+   
+   GET_VOLUME(pclose);
    
    logMsg(L_DBG,
       "FS_CLOSE, usType=%hu, fsIOFlag=%04hx",
       pclose->usType, pclose->fsIOFlag);
    logsffsi(&pclose->sffsi);
 
-   rc = stampFileAndFlush(pclose->pVolData,
-      pclose->pOpenFileData->idFile, &pclose->sffsi, SFAF_FLUSHINFO);
+   rc = stampFileAndFlush(pVolData, pOpenFileData->idFile,
+      &pclose->sffsi, SFAF_FLUSHINFO);
    if (rc) return rc;
    
-   /* Free the OpenFileData structure if this is the final close for
-      this open file reference in the system. */
    if (pclose->usType == FS_CL_FORSYS) {
-      sysFreeSecureMem(pclose->pOpenFileData);
-      pclose->pVolData->cOpenFiles--;
+      pVolData->cOpenFiles--;
       logMsg(L_DBG, "file closed");
    }
    else

@@ -69,13 +69,17 @@ APIRET deleteFile(VolData * pVolData, char * pszFullName)
 
 APIRET fsDelete(ServerData * pServerData, struct delete * pdelete)
 {
+   VolData * pVolData;
+   
+   GET_VOLUME(pdelete);
+   
    if (VERIFYFIXED(pdelete->szName) ||
        verifyPathName(pdelete->szName))
       return ERROR_INVALID_PARAMETER;
    
    logMsg(L_DBG, "FS_DELETE, szName=%s", pdelete->szName);
 
-   return deleteFile(pdelete->pVolData, pdelete->szName);
+   return deleteFile(pVolData, pdelete->szName);
 }
 
 
@@ -101,7 +105,8 @@ static APIRET setParent(CryptedVolume * pVolume,
 APIRET fsMove(ServerData * pServerData, struct move * pmove)
 {
    CoreResult cr;
-   CryptedVolume * pVolume = pmove->pVolData->pVolume;
+   VolData * pVolData;
+   CryptedVolume * pVolume;
    APIRET rc;
    CHAR szSrcDir[CCHMAXPATH], szSrcName[CCHMAXPATH];
    CryptedFileID idSrcDir;
@@ -115,27 +120,28 @@ APIRET fsMove(ServerData * pServerData, struct move * pmove)
        verifyPathName(pmove->szDst))
       return ERROR_INVALID_PARAMETER;
    
+   GET_VOLUME(pmove);
+   pVolume = pVolData->pVolume;
+   
    logMsg(L_DBG, "FS_MOVE, szSrc=%s, szDst=%s",
       pmove->szSrc, pmove->szDst);
 
    /* Split the source and target file names. */
-   splitPath(pmove->szSrc + 2, szSrcDir, szSrcName);
-   splitPath(pmove->szDst + 2, szDstDir, szDstName);
+   splitPath(pmove->szSrc, szSrcDir, szSrcName);
+   splitPath(pmove->szDst, szDstDir, szDstName);
 
    /* Find the source directory. */
-   cr = coreQueryIDFromPath(
-      pVolume, pmove->pVolData->idRoot,
-      szSrcDir, &idSrcDir, 0);
+   cr = findFromCurDir2(pVolData, szSrcDir, &pmove->cdfsi,
+       &pmove->cdfsd, pmove->iSrcCurDirEnd, &idSrcDir, 0);
    if (cr) return coreResultToOS2(cr);
 
    /* Find the target directory. */
-   cr = coreQueryIDFromPath(
-      pVolume, pmove->pVolData->idRoot,
-      szDstDir, &idDstDir, 0);
+   cr = findFromCurDir2(pVolData, szDstDir, &pmove->cdfsi,
+       &pmove->cdfsd, pmove->iDstCurDirEnd, &idDstDir, 0);
    if (cr) return coreResultToOS2(cr);
-
+   
    /* Perform the move operation. */
-   if (pmove->pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
+   if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
    cr = coreMoveDirEntry(pVolume, szSrcName,
       idSrcDir, szDstName, idDstDir, &pEntry);
    if (cr) return coreResultToOS2(cr);

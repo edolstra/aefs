@@ -17,6 +17,7 @@
 
 #include <string.h>
 #include <time.h>
+#include <assert.h>
 
 #include "aefsdmn.h"
 #include "sysdep.h"
@@ -101,6 +102,7 @@ APIRET coreResultToOS2(CoreResult cr)
    "/foo/bar" -> ("/foo", "bar")
    "/foo/bar/" -> ("/foo/bar", "")
    "/foo" -> ("", "foo")
+   "foo" -> ("", "foo") (special case)
    (All paths must begin with a (back)slash).
    The buffers pointed to by pszPrefix and pszLast must be at least
    CCHMAXPATH bytes large, and pszFull must be no more than CCHMAXPATH
@@ -115,6 +117,12 @@ void splitPath(char * pszFull, char * pszPrefix, char * pszLast)
    while (*p) {
       if (IS_PATH_SEPARATOR(*p)) p2 = p;
       p++;
+   }
+
+   if (!p2) {
+      *pszPrefix = 0;
+      strcpy(pszLast, pszFull);
+      return;
    }
 
    strcpy(pszLast, p2 + 1);
@@ -242,4 +250,81 @@ int os2TimeToCore(FDATE fdate, FTIME ftime, CoreTime * ptime)
    if (t == (time_t) -1) return 1;
    *ptime = (CoreTime) t;
    return 0;
+}
+
+
+CoreResult findFromCurDir(VolData * pVolData, char * szPath,
+   struct cdfsi * pcdfsi, CDFSD * pcdfsd, USHORT iCurDirEnd,
+   CryptedFileID * pidDir, CryptedFileID * pidFile,
+   CryptedDirEntry * * ppDirEntry, char * szName)
+{
+   CoreResult cr;
+   CHAR szDir[CCHMAXPATH];
+   CryptedFileID idStart;
+
+   logMsg(L_DBG, "looking up: %s, curdir=%s, id=%08x, iCurDirEnd=%hd",
+      szPath, pcdfsi->cdi_curdir, (CryptedFileID) pcdfsd->data[0],
+      iCurDirEnd);
+
+   *pidDir = 0;
+   *pidFile = 0;
+   
+   /* Split the file name. */
+   if (((pcdfsi->cdi_flags & (CDI_ISVALID | CDI_ISROOT |
+      CDI_ISCURRENT)) != CDI_ISVALID) || (iCurDirEnd == (USHORT) -1))
+   {
+      splitPath(szPath + 2, szDir, szName);
+      idStart = pVolData->idRoot;
+   } else {
+      if (iCurDirEnd > strlen(szPath))
+         iCurDirEnd = strlen(szPath);
+      logMsg(L_DBG, "starting lookup for %s at curdir",
+         szPath + iCurDirEnd);
+      splitPath(szPath + iCurDirEnd, szDir, szName);
+      idStart = (CryptedFileID) pcdfsd->data[0];
+   }
+
+   /* Find the directory. */
+   cr = coreQueryIDFromPath(
+      pVolData->pVolume, idStart,
+      szDir, pidDir, 0);
+   if (cr) return coreResultToOS2(cr);
+
+   /* Does the file appear in the directory? */
+   return coreQueryIDFromPath(
+      pVolData->pVolume, *pidDir,
+      szName, pidFile, ppDirEntry);
+}
+
+
+CoreResult findFromCurDir2(VolData * pVolData, char * szPath,
+   struct cdfsi * pcdfsi, CDFSD * pcdfsd, USHORT iCurDirEnd,
+   CryptedFileID * pidFile, CryptedDirEntry * * ppDirEntry)
+{
+   CryptedFileID idStart;
+
+   logMsg(L_DBG, "looking up: %s, curdir=%s, id=%08x, iCurDirEnd=%hd",
+      szPath, pcdfsi->cdi_curdir, (CryptedFileID) pcdfsd->data[0],
+      iCurDirEnd);
+
+   *pidFile = 0;
+   
+   if (((pcdfsi->cdi_flags & (CDI_ISVALID | CDI_ISROOT |
+      CDI_ISCURRENT)) != CDI_ISVALID) || (iCurDirEnd == (USHORT) -1))
+   {
+      szPath += 2;
+      idStart = pVolData->idRoot;
+   } else {
+      if (iCurDirEnd > strlen(szPath))
+         iCurDirEnd = strlen(szPath);
+      logMsg(L_DBG, "starting lookup for %s at curdir",
+         szPath + iCurDirEnd);
+      szPath += iCurDirEnd;
+      idStart = (CryptedFileID) pcdfsd->data[0];
+   }
+
+   /* Find the file. */
+   return coreQueryIDFromPath(
+      pVolData->pVolume, idStart,
+      szPath, pidFile, ppDirEntry);
 }

@@ -92,9 +92,16 @@
 #define FSRQ_PROCESSNAME          32
 
 
-typedef struct _VolData VolData;
-typedef struct _SearchData SearchData;
-typedef struct _OpenFileData OpenFileData;
+/* Make sure that:
+     sizeof(VPFSD) <= 36
+     sizeof(CDFSD) <= 8
+     sizeof(SFFSD) <= 30
+     sizeof(FSFSD) <= 24
+*/
+typedef struct { ULONG data[1]; } VPFSD;
+typedef struct { ULONG data[2]; } CDFSD;
+typedef struct { ULONG data[2]; } SFFSD;
+typedef struct { ULONG data[1]; } FSFSD;
 
 
 #ifndef RING0
@@ -119,17 +126,17 @@ typedef struct _FSREQUEST {
             } fsctl;
             
             struct attach {
-                  VolData far * pVolData;
                   USHORT fsFlag;
                   CHAR szDev[FSXCHG_ATTACH_DEVMAX];
-                  struct cdfsd cdfsd;
+                  CDFSD cdfsd;
                   USHORT cbParm;
+                  VPFSD vpfsd; /* result */
             } attach;
 
             struct ioctl {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   struct sffsi sffsi;
-                  OpenFileData far * pOpenFileData;
+                  SFFSD sffsd;
                   USHORT usCat;
                   USHORT usFunc;
                   USHORT cbParm;
@@ -138,14 +145,14 @@ typedef struct _FSREQUEST {
             } ioctl;
             
             struct fsinfo {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   USHORT fsFlag;
                   USHORT cbData;
                   USHORT usLevel;
             } fsinfo;
 
             struct flushbuf {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   USHORT fsFlag;
             } flushbuf;
 
@@ -154,13 +161,13 @@ typedef struct _FSREQUEST {
             } shutdown;
 
             struct opencreate {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   struct cdfsi cdfsi;
-                  struct cdfsd cdfsd;
+                  CDFSD cdfsd;
                   CHAR szName[CCHMAXPATH];
                   USHORT iCurDirEnd;
                   struct sffsi sffsi;
-                  OpenFileData far * pOpenFileData;
+                  SFFSD sffsd;
                   ULONG flOpenMode;
                   USHORT fsOpenFlag;
                   USHORT usAction; /* result */
@@ -171,60 +178,60 @@ typedef struct _FSREQUEST {
             } opencreate;
 
             struct close {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   USHORT usType;
                   USHORT fsIOFlag;
                   struct sffsi sffsi;
-                  OpenFileData far * pOpenFileData;
+                  SFFSD sffsd;
             } close;
 
             struct read {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   struct sffsi sffsi;
-                  OpenFileData far * pOpenFileData;
+                  SFFSD sffsd;
                   USHORT cbLen;
                   USHORT fsIOFlag;
             } read;
 
             struct write {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   struct sffsi sffsi;
-                  OpenFileData far * pOpenFileData;
+                  SFFSD sffsd;
                   USHORT cbLen;
                   USHORT fsIOFlag;
             } write;
 
             struct chgfileptr {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   struct sffsi sffsi;
-                  OpenFileData far * pOpenFileData;
+                  SFFSD sffsd;
                   LONG ibOffset;
                   USHORT usType;
                   USHORT fsIOFlag;
             } chgfileptr;
 
             struct newsize {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   struct sffsi sffsi;
-                  OpenFileData far * pOpenFileData;
+                  SFFSD sffsd;
                   ULONG cbLen;
                   USHORT fsIOFlag;
             } newsize;
 
             struct fileattribute {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   USHORT fsFlag;
                   struct cdfsi cdfsi;
-                  struct cdfsd cdfsd;
+                  CDFSD cdfsd;
                   CHAR szName[CCHMAXPATH];
                   USHORT iCurDirEnd;
                   USHORT fsAttr;
             } fileattribute;
 
             struct fileinfo {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   struct sffsi sffsi;
-                  OpenFileData far * pOpenFileData;
+                  SFFSD sffsd;
                   USHORT usLevel;
                   USHORT cbData;
                   USHORT fsFlag;
@@ -233,18 +240,18 @@ typedef struct _FSREQUEST {
             } fileinfo;
 
             struct commit {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   struct sffsi sffsi;
-                  OpenFileData far * pOpenFileData;
+                  SFFSD sffsd;
                   USHORT usType;
                   USHORT fsIOFlag;
             } commit;
 
             struct pathinfo {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   USHORT fsFlag;
                   struct cdfsi cdfsi;
-                  struct cdfsd cdfsd;
+                  CDFSD cdfsd;
                   CHAR szName[CCHMAXPATH];
                   USHORT iCurDirEnd;
                   USHORT usLevel;
@@ -253,17 +260,17 @@ typedef struct _FSREQUEST {
             } pathinfo;
 
             struct delete {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   struct cdfsi cdfsi;
-                  struct cdfsd cdfsd;
+                  CDFSD cdfsd;
                   CHAR szName[CCHMAXPATH];
                   USHORT iCurDirEnd;
             } delete;
 
             struct move {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   struct cdfsi cdfsi;
-                  struct cdfsd cdfsd;
+                  CDFSD cdfsd;
                   CHAR szSrc[CCHMAXPATH];
                   USHORT iSrcCurDirEnd;
                   CHAR szDst[CCHMAXPATH];
@@ -271,18 +278,18 @@ typedef struct _FSREQUEST {
             } move;
 
             struct chdir {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   USHORT fsFlag;
                   struct cdfsi cdfsi;
-                  struct cdfsd cdfsd;
+                  CDFSD cdfsd;
                   CHAR szDir[CCHMAXPATH];
                   USHORT iCurDirEnd;
             } chdir;
 
             struct mkdir {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   struct cdfsi cdfsi;
-                  struct cdfsd cdfsd;
+                  CDFSD cdfsd;
                   CHAR szName[CCHMAXPATH];
                   USHORT iCurDirEnd;
                   USHORT fsFlags;
@@ -291,21 +298,21 @@ typedef struct _FSREQUEST {
             } mkdir;
 
             struct rmdir {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   struct cdfsi cdfsi;
-                  struct cdfsd cdfsd;
+                  CDFSD cdfsd;
                   CHAR szName[CCHMAXPATH];
                   USHORT iCurDirEnd;
             } rmdir;
 
             struct findfirst {
-                  VolData far * pVolData;
+                  VPFSD vpfsd;
                   struct cdfsi cdfsi;
-                  struct cdfsd cdfsd;
+                  CDFSD cdfsd;
                   CHAR szName[CCHMAXPATH];
                   USHORT iCurDirEnd;
                   USHORT fsAttr;
-                  SearchData far * pSearchData;
+                  FSFSD fsfsd;
                   USHORT cbData;
                   USHORT cMatch;
                   USHORT usLevel;
@@ -314,8 +321,8 @@ typedef struct _FSREQUEST {
             } findfirst;
             
             struct findnext {
-                  VolData far * pVolData;
-                  SearchData far * pSearchData;
+                  VPFSD vpfsd;
+                  FSFSD fsfsd;
                   USHORT cbData;
                   USHORT cMatch;
                   USHORT usLevel;
@@ -324,8 +331,8 @@ typedef struct _FSREQUEST {
             } findnext;
             
             struct findfromname {
-                  VolData far * pVolData;
-                  SearchData far * pSearchData;
+                  VPFSD vpfsd;
+                  FSFSD fsfsd;
                   USHORT cbData;
                   USHORT cMatch;
                   USHORT usLevel;
@@ -336,8 +343,8 @@ typedef struct _FSREQUEST {
             } findfromname;
             
             struct findclose {
-                  VolData far * pVolData;
-                  SearchData far * pSearchData;
+                  VPFSD vpfsd;
+                  FSFSD fsfsd;
             } findclose;
             
             struct processname {

@@ -390,6 +390,11 @@ APIRET doFileInfo(struct sffsi * psffsi,
 APIRET fsFileInfo(ServerData * pServerData,
    struct fileinfo * pfileinfo)
 {
+   VolData * pVolData;
+   OpenFileData * pOpenFileData = (OpenFileData *) &pfileinfo->sffsd;
+
+   GET_VOLUME(pfileinfo);
+   
    logMsg(L_DBG,
       "FS_FILEINFO, usLevel=%hd, cbData=%hd, "
       "fsFlag=%04hx, fsIOFlag=%04hx",
@@ -401,9 +406,9 @@ APIRET fsFileInfo(ServerData * pServerData,
       &pfileinfo->sffsi,
       pfileinfo->fsFlag,
       pfileinfo->usLevel,
-      pfileinfo->pVolData,
-      pfileinfo->pOpenFileData->idFile,
-      pfileinfo->pOpenFileData->idDir,
+      pVolData,
+      pOpenFileData->idFile,
+      pOpenFileData->idDir,
       pfileinfo->sffsi.sfi_DOSattr & FILE_HIDDEN,
       pfileinfo->cbData,
       (char *) pServerData->pData);
@@ -414,8 +419,9 @@ APIRET fsPathInfo(ServerData * pServerData,
    struct pathinfo * ppathinfo)
 {
    CoreResult cr;
-   CryptedVolume * pVolume = ppathinfo->pVolData->pVolume;
-   CHAR szDir[CCHMAXPATH], szName[CCHMAXPATH];
+   VolData * pVolData;
+   CryptedVolume * pVolume;
+   CHAR szName[CCHMAXPATH];
    CryptedFileID idDir;
    CryptedFileID idFile;
    CryptedDirEntry * pDirEntry;
@@ -425,25 +431,18 @@ APIRET fsPathInfo(ServerData * pServerData,
        verifyPathName(ppathinfo->szName))
       return ERROR_INVALID_PARAMETER;
    
+   GET_VOLUME(ppathinfo);
+   pVolume = pVolData->pVolume;
+   
    logMsg(L_DBG,
       "FS_PATHINFO, szName=%s, usLevel=%hd, "
       "cbData=%hd, fsFlag=%04hx",
       ppathinfo->szName, ppathinfo->usLevel,
       ppathinfo->cbData, ppathinfo->fsFlag);
    
-   /* Split the file name. */
-   splitPath(ppathinfo->szName + 2, szDir, szName);
-
-   /* Find the directory. */
-   cr = coreQueryIDFromPath(
-      pVolume, ppathinfo->pVolData->idRoot,
-      szDir, &idDir, 0);
-   if (cr) return coreResultToOS2(cr);
-
-   /* Does the file appear in the directory? */
-   cr = coreQueryIDFromPath(
-      pVolume, idDir,
-      szName, &idFile, &pDirEntry);
+   cr = findFromCurDir(pVolData, ppathinfo->szName, &ppathinfo->cdfsi,
+       &ppathinfo->cdfsd, ppathinfo->iCurDirEnd, &idDir, &idFile,
+       &pDirEntry, szName);
    if (cr) return coreResultToOS2(cr);
 
    fHidden = pDirEntry->flFlags & CDF_HIDDEN;
@@ -453,7 +452,7 @@ APIRET fsPathInfo(ServerData * pServerData,
       0,
       ppathinfo->fsFlag,
       ppathinfo->usLevel,
-      ppathinfo->pVolData,
+      pVolData,
       idFile,
       idDir,
       fHidden,
@@ -466,8 +465,9 @@ APIRET fsFileAttribute(ServerData * pServerData,
    struct fileattribute * pfileattribute)
 {
    CoreResult cr;
-   CryptedVolume * pVolume = pfileattribute->pVolData->pVolume;
-   CHAR szDir[CCHMAXPATH], szName[CCHMAXPATH];
+   VolData * pVolData;
+   CryptedVolume * pVolume;
+   CHAR szName[CCHMAXPATH];
    CryptedFileID idDir;
    CryptedFileID idFile;
    CryptedFileInfo info, info2;
@@ -478,24 +478,18 @@ APIRET fsFileAttribute(ServerData * pServerData,
        verifyPathName(pfileattribute->szName))
       return ERROR_INVALID_PARAMETER;
    
+   GET_VOLUME(pfileattribute);
+   pVolume = pVolData->pVolume;
+   
    logMsg(L_DBG,
       "FS_FILEATTRIBUTE, szName=%s, fsFlag=%hd, fsAttr=%hd",
       pfileattribute->szName, pfileattribute->fsFlag,
       pfileattribute->fsAttr);
    
-   /* Split the file name. */
-   splitPath(pfileattribute->szName + 2, szDir, szName);
-
-   /* Find the directory. */
-   cr = coreQueryIDFromPath(
-      pVolume, pfileattribute->pVolData->idRoot,
-      szDir, &idDir, 0);
-   if (cr) return coreResultToOS2(cr);
-
-   /* Does the file appear in the directory? */
-   cr = coreQueryIDFromPath(
-      pVolume, idDir,
-      szName, &idFile, &pDirEntry);
+   cr = findFromCurDir(pVolData, pfileattribute->szName,
+       &pfileattribute->cdfsi, &pfileattribute->cdfsd,
+       pfileattribute->iCurDirEnd, &idDir, &idFile, &pDirEntry,
+       szName);
    if (cr) return coreResultToOS2(cr);
 
    fHidden = pDirEntry->flFlags & CDF_HIDDEN;
@@ -509,7 +503,7 @@ APIRET fsFileAttribute(ServerData * pServerData,
       
       /* Set the file attributes. */
       
-      if (pfileattribute->pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
+      if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
       
       /* Update the hidden flag in the directory, if necessary. */
       if (!beq(fHidden, pfileattribute->fsAttr & FILE_HIDDEN)) {

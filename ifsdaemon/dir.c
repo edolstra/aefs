@@ -22,7 +22,8 @@ static APIRET changeDir(ServerData * pServerData,
    struct chdir * pchdir)
 {
    CoreResult cr;
-   CryptedVolume * pVolume = pchdir->pVolData->pVolume;
+   VolData * pVolData;
+   CryptedVolume * pVolume;
    CryptedFileID idDir;
    CryptedFileInfo info;
    
@@ -30,14 +31,13 @@ static APIRET changeDir(ServerData * pServerData,
        verifyPathName(pchdir->szDir))
       return ERROR_INVALID_PARAMETER;
    
+   GET_VOLUME(pchdir);
+   pVolume = pVolData->pVolume;
+   
    logMsg(L_DBG, "CD_EXPLICIT, newdir=%s", pchdir->szDir);
 
-   /* Walk the directory tree to find the name in szDir. */
-   cr = coreQueryIDFromPath(
-      pVolume,
-      pchdir->pVolData->idRoot,
-      pchdir->szDir + 2,
-      &idDir, 0);
+   cr = findFromCurDir2(pVolData, pchdir->szDir, &pchdir->cdfsi,
+       &pchdir->cdfsd, pchdir->iCurDirEnd, &idDir, 0);
    if (cr) return coreResultToOS2(cr);
 
    /* Get info */
@@ -50,6 +50,8 @@ static APIRET changeDir(ServerData * pServerData,
          wants to see. */
       return ERROR_PATH_NOT_FOUND;
 
+   pchdir->cdfsd.data[0] = idDir;
+   
    return NO_ERROR;
 }
 
@@ -100,8 +102,9 @@ APIRET fsMkDir(ServerData * pServerData, struct mkdir * pmkdir)
 {
    CoreResult cr;
    APIRET rc;
-   CryptedVolume * pVolume = pmkdir->pVolData->pVolume;
-   CHAR szDir[CCHMAXPATH], szName[CCHMAXPATH];
+   VolData * pVolData;
+   CryptedVolume * pVolume;
+   CHAR szName[CCHMAXPATH];
    CryptedFileID idDir, idFile, idNewDir;
    CryptedFileInfo info;
    
@@ -111,28 +114,22 @@ APIRET fsMkDir(ServerData * pServerData, struct mkdir * pmkdir)
        verifyPathName(pmkdir->szName))
       return ERROR_INVALID_PARAMETER;
    
-   logMsg(L_DBG, "FS_CHDIR, szName=%s, fsFlags=%d",
+   GET_VOLUME(pmkdir);
+   pVolume = pVolData->pVolume;
+   
+   logMsg(L_DBG, "FS_MKDIR, szName=%s, fsFlags=%d",
       pmkdir->szName, pmkdir->fsFlags);
 
-   /* Split the file name. */
-   splitPath(pmkdir->szName + 2, szDir, szName);
+   cr = findFromCurDir(pVolData, pmkdir->szName, &pmkdir->cdfsi,
+       &pmkdir->cdfsd, pmkdir->iCurDirEnd, &idDir, &idFile, 0,
+       szName);
+   if (!idDir) return coreResultToOS2(cr);
 
-   /* Find the parent directory. */
-   cr = coreQueryIDFromPath(
-      pVolume, pmkdir->pVolData->idRoot,
-      szDir, &idDir, 0);
-   if (cr) return coreResultToOS2(cr);
-
-   /* Does a file with the specified name appear in the parent
-      directory? */
-   cr = coreQueryIDFromPath(
-      pVolume, idDir,
-      szName, &idFile, 0);
    if (cr == CORERC_OK) return ERROR_ACCESS_DENIED;
    if (cr != CORERC_FILE_NOT_FOUND) return coreResultToOS2(cr);
 
    /* No.  Create a new directory. */
-   if (pmkdir->pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
+   if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
    memset(&info, 0, sizeof(info));
    info.flFlags = CFF_IFDIR | 0700; /* rwx for user */
    info.cRefs = 1;
@@ -165,8 +162,9 @@ APIRET fsMkDir(ServerData * pServerData, struct mkdir * pmkdir)
 APIRET fsRmDir(ServerData * pServerData, struct rmdir * prmdir)
 {
    CoreResult cr;
-   CryptedVolume * pVolume = prmdir->pVolData->pVolume;
-   CHAR szDir[CCHMAXPATH], szName[CCHMAXPATH];
+   VolData * pVolData;
+   CryptedVolume * pVolume;
+   CHAR szName[CCHMAXPATH];
    CryptedFileID idDir;
    CryptedFileID idFile;
    CryptedDirEntry * pFirstEntry;
@@ -175,22 +173,14 @@ APIRET fsRmDir(ServerData * pServerData, struct rmdir * prmdir)
        verifyPathName(prmdir->szName))
       return ERROR_INVALID_PARAMETER;
    
+   GET_VOLUME(prmdir);
+   pVolume = pVolData->pVolume;
+   
    logMsg(L_DBG, "FS_RMDIR, szName=%s", prmdir->szName);
 
-   /* Split the file name. */
-   splitPath(prmdir->szName + 2, szDir, szName);
-
-   /* Find the parent directory. */
-   cr = coreQueryIDFromPath(
-      pVolume, prmdir->pVolData->idRoot,
-      szDir, &idDir, 0);
-   if (cr) return coreResultToOS2(cr);
-
-   /* Does a file with the specified name appear in the parent
-      directory? */
-   cr = coreQueryIDFromPath(
-      pVolume, idDir,
-      szName, &idFile, 0);
+   cr = findFromCurDir(pVolData, prmdir->szName, &prmdir->cdfsi,
+       &prmdir->cdfsd, prmdir->iCurDirEnd, &idDir, &idFile, 0,
+       szName);
    if (cr) return coreResultToOS2(cr);
 
    /* Yes.  Read the directory contents.  (This implicitly makes sure
@@ -204,7 +194,7 @@ APIRET fsRmDir(ServerData * pServerData, struct rmdir * prmdir)
    /* The directory is empty, so we can proceed with the deletion. */
 
    /* Remove the directory from its parent directory. */
-   if (prmdir->pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
+   if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
    cr = coreMoveDirEntry(pVolume, szName, idDir, 0, 0, 0);
    if (cr) return coreResultToOS2(cr);
 

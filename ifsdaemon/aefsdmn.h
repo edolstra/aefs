@@ -33,6 +33,7 @@
 
 
 typedef struct _ServerData ServerData;
+typedef struct _VolData VolData;
 
 struct _ServerData{
       Bool fQuit;
@@ -44,9 +45,9 @@ struct _ServerData{
       PFSREQUEST pRequest;
       PFSDATA pData;
 
-      /* Head of linked list of volumes. */
-      VolData * pFirstVolume;
-
+      /* List of attached volumes (index 0 = drive A, etc.). */
+      VolData * paVolumes[26];
+      
       /* Lazy writer thread ID and termination event semaphores. */
       TID tidLazyWriter;
       HEV hevLazyWriterDie;
@@ -68,7 +69,7 @@ struct _ServerData{
       Bool fLazyWrite;
 };
 
-struct _SearchData {
+typedef struct {
       CHAR szName[CCHMAXPATH];
       ULONG flAttr;
       CryptedDirEntry * pFirstInDir;
@@ -76,15 +77,13 @@ struct _SearchData {
       CryptedDirEntry * pFirst;
       CryptedDirEntry * pNext;
       int iNext;
-};
+} SearchData;
 
-struct _OpenFileData {
+typedef struct {
       CryptedFileID idFile;
-
-      /* Path name through which the file was opened. */
-      CHAR szName[CCHMAXPATH];
+      /* Directory through which idFile was opened. */
       CryptedFileID idDir;
-};
+} OpenFileData;
 
 struct _VolData {
       ServerData * pServerData;
@@ -101,10 +100,6 @@ struct _VolData {
       /* Statistics. */
       int cOpenFiles;
       int cSearches;
-
-      /* Next and previous elements in linked list of volumes. */
-      VolData * pNext;
-      VolData * pPrev;
 };
 
 
@@ -193,6 +188,19 @@ APIRET commitVolume(VolData * pVolData);
 void dropVolume(ServerData * pServerData, VolData * pVolData);
      
 void freeSearchData(SearchData * pSearchData);
+
+CoreResult findFromCurDir(VolData * pVolData, char * szPath,
+   struct cdfsi * pcdfsi, CDFSD * pcdfsd, USHORT iCurDirEnd,
+   CryptedFileID * pidDir, CryptedFileID * pidFile,
+   CryptedDirEntry * * ppDirEntry, char * szName);
+
+CoreResult findFromCurDir2(VolData * pVolData, char * szPath,
+   struct cdfsi * pcdfsi, CDFSD * pcdfsd, USHORT iCurDirEnd,
+   CryptedFileID * pidFile, CryptedDirEntry * * ppDirEntry);
+     
+#define GET_VOLUME(p) \
+   pVolData = pServerData->paVolumes[p->vpfsd.data[0]]; \
+   if (!pVolData) return ERROR_INVALID_DRIVE; /* !!! log */
 
 
 /* FSD functions. */

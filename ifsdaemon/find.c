@@ -259,18 +259,22 @@ APIRET fsFindFirst(ServerData * pServerData, struct
 {
    APIRET rc;
    CoreResult cr;
-   CryptedVolume * pVolume = pfindfirst->pVolData->pVolume;
+   VolData * pVolData;
+   CryptedVolume * pVolume;
    CryptedFileID idDir;
    CHAR szDir[CCHMAXPATH];
    SearchData * pSearchData;
    CryptedFileInfo info;
    PGEALIST pgeas = 0;
 
-   pfindfirst->pSearchData = 0;
+   pfindfirst->fsfsd.data[0] = 0;
    
    if (VERIFYFIXED(pfindfirst->szName) ||
        verifyPathName(pfindfirst->szName))
       return ERROR_INVALID_PARAMETER;
+   
+   GET_VOLUME(pfindfirst);
+   pVolume = pVolData->pVolume;
    
    logMsg(L_DBG, "FS_FINDFIRST, curdir=%s, name=%s, "
       "iCurDirEnd=%d, fsAttr=%04hx, cMatch=%d, "
@@ -300,7 +304,7 @@ APIRET fsFindFirst(ServerData * pServerData, struct
    pSearchData->flAttr = pfindfirst->fsAttr;
 
    /* Split the search specification. */
-   splitPath(pfindfirst->szName + 2, szDir, pSearchData->szName);
+   splitPath(pfindfirst->szName, szDir, pSearchData->szName);
 
    logMsg(L_DBG, "dir=%s, spec=%s", szDir, pSearchData->szName);
 
@@ -309,12 +313,8 @@ APIRET fsFindFirst(ServerData * pServerData, struct
       return ERROR_INVALID_PARAMETER;
    }
 
-   /* Find the ID of the directory. */
-   cr = coreQueryIDFromPath(
-      pVolume,
-      pfindfirst->pVolData->idRoot,
-      szDir,
-      &idDir, 0);
+   cr = findFromCurDir2(pVolData, szDir, &pfindfirst->cdfsi,
+       &pfindfirst->cdfsd, pfindfirst->iCurDirEnd, &idDir, 0);
    if (cr) {
       freeSearchData(pSearchData);
       return coreResultToOS2(cr);
@@ -338,7 +338,7 @@ APIRET fsFindFirst(ServerData * pServerData, struct
    pSearchData->dot.idFile = idDir;
    pSearchData->dot.flFlags = 0; /* ??? */
 
-   if (idDir == pfindfirst->pVolData->idRoot)
+   if (idDir == pVolData->idRoot)
       /* There is no parent directory. */
       pSearchData->dot.pNext = pSearchData->pFirstInDir;
    else {
@@ -379,9 +379,9 @@ APIRET fsFindFirst(ServerData * pServerData, struct
 
    logMsg(L_DBG, "%d entries returned", pfindfirst->cMatch);
 
-   pfindfirst->pSearchData = pSearchData;
+   pfindfirst->fsfsd.data[0] = (ULONG) pSearchData;
 
-   pfindfirst->pVolData->cSearches++;
+   pVolData->cSearches++;
 
    return rc;
 }
@@ -392,9 +392,13 @@ APIRET fsFindNext(ServerData * pServerData,
    struct findnext * pfindnext)
 {
    APIRET rc;
-   CryptedVolume * pVolume = pfindnext->pVolData->pVolume;
-   SearchData * pSearchData = pfindnext->pSearchData;
+   VolData * pVolData;
+   CryptedVolume * pVolume;
+   SearchData * pSearchData = (SearchData *) pfindnext->fsfsd.data[0];
    PGEALIST pgeas = 0;
+   
+   GET_VOLUME(pfindnext);
+   pVolume = pVolData->pVolume;
    
    logMsg(L_DBG, "FS_FINDNEXT, cMatch=%d, "
       "usLevel=%d, fsFlags=%d, cbData=%d",
@@ -434,12 +438,16 @@ APIRET fsFindFromName(ServerData * pServerData,
    struct findfromname * pfindfromname)
 {
    APIRET rc;
-   CryptedVolume * pVolume = pfindfromname->pVolData->pVolume;
-   SearchData * pSearchData = pfindfromname->pSearchData;
+   VolData * pVolData;
+   CryptedVolume * pVolume;
+   SearchData * pSearchData = (SearchData *) pfindfromname->fsfsd.data[0];
    PGEALIST pgeas = 0;
 
    if (VERIFYFIXED(pfindfromname->szName))
       return ERROR_INVALID_PARAMETER;
+   
+   GET_VOLUME(pfindfromname);
+   pVolume = pVolData->pVolume;
    
    logMsg(L_DBG, "FS_FINDFROMNAME, cMatch=%d, "
       "usLevel=%d, fsFlags=%d, cbData=%d, "
@@ -499,6 +507,10 @@ APIRET fsFindFromName(ServerData * pServerData,
 APIRET fsFindClose(ServerData * pServerData,
    struct findclose * pfindclose)
 {
+   VolData * pVolData;
+    
+   GET_VOLUME(pfindclose);
+   
    logMsg(L_DBG, "FS_FINDCLOSE");
 
    /* It is possible to receive FS_FINDCLOSE _after_ the volume that
@@ -506,9 +518,9 @@ APIRET fsFindClose(ServerData * pServerData,
       that FS_ATTACH[detach] is not over-zealous in cleaning up search
       data. */
 
-   freeSearchData(pfindclose->pSearchData);
+   freeSearchData((SearchData *) pfindclose->fsfsd.data[0]);
 
-   pfindclose->pVolData->cSearches--;
+   pVolData->cSearches--;
 
    return NO_ERROR;
 }

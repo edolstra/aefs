@@ -23,18 +23,23 @@
 APIRET fsRead(ServerData * pServerData, struct read * pread)
 {
    CoreResult cr;
-   CryptedVolume * pVolume = pread->pVolData->pVolume;
+   VolData * pVolData;
+   CryptedVolume * pVolume;
    CryptedFilePos cbRead;
    ULONG cbLen = pread->cbLen;
+   OpenFileData * pOpenFileData = (OpenFileData *) &pread->sffsd;
 
    pread->cbLen = 0; /* on output, # of bytes read */ 
 
+   GET_VOLUME(pread);
+   pVolume = pVolData->pVolume;
+   
    logMsg(L_DBG,
       "FS_READ, cbLen=%hu, fsIOFlag=%04hx",
       cbLen, pread->fsIOFlag);
    logsffsi(&pread->sffsi);
 
-   cr = coreReadFromFile(pVolume, pread->pOpenFileData->idFile,
+   cr = coreReadFromFile(pVolume, pOpenFileData->idFile,
       pread->sffsi.sfi_position, cbLen,
       (octet *) pServerData->pData, &cbRead);
    if (cr) return coreResultToOS2(cr);
@@ -54,20 +59,25 @@ APIRET fsRead(ServerData * pServerData, struct read * pread)
 APIRET fsWrite(ServerData * pServerData, struct write * pwrite)
 {
    CoreResult cr;
-   CryptedVolume * pVolume = pwrite->pVolData->pVolume;
+   VolData * pVolData;
+   CryptedVolume * pVolume;
    CryptedFilePos cbWritten;
    ULONG cbLen = pwrite->cbLen;
+   OpenFileData * pOpenFileData = (OpenFileData *) &pwrite->sffsd;
 
    pwrite->cbLen = 0; /* on output, # of bytes written */ 
 
+   GET_VOLUME(pwrite);
+   pVolume = pVolData->pVolume;
+   
    logMsg(L_DBG,
       "FS_WRITE, cbLen=%hu, fsIOFlag=%04hx",
       cbLen, pwrite->fsIOFlag);
    logsffsi(&pwrite->sffsi);
 
-   if (pwrite->pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
+   if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
 
-   cr = coreWriteToFile(pVolume, pwrite->pOpenFileData->idFile,
+   cr = coreWriteToFile(pVolume, pOpenFileData->idFile,
       pwrite->sffsi.sfi_position, cbLen,
       (octet *) pServerData->pData, &cbWritten);
    if (cr) return coreResultToOS2(cr);
@@ -127,15 +137,20 @@ APIRET fsChgFilePtr(ServerData * pServerData,
 APIRET fsNewSize(ServerData * pServerData, struct newsize * pnewsize)
 {
    CoreResult cr;
-   CryptedVolume * pVolume = pnewsize->pVolData->pVolume;
+   VolData * pVolData;
+   CryptedVolume * pVolume;
+   OpenFileData * pOpenFileData = (OpenFileData *) &pnewsize->sffsd;
+   
+   GET_VOLUME(pnewsize);
+   pVolume = pVolData->pVolume;
    
    logMsg(L_DBG,
       "FS_NEWSIZE, cbLen=%ld, fsIOFlag=%04hx",
       pnewsize->cbLen, pnewsize->fsIOFlag);
    logsffsi(&pnewsize->sffsi);
 
-   if (pnewsize->pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
-   cr = coreSetFileSize(pVolume, pnewsize->pOpenFileData->idFile,
+   if (pVolData->fReadOnly) return ERROR_WRITE_PROTECT;
+   cr = coreSetFileSize(pVolume, pOpenFileData->idFile,
       pnewsize->cbLen);
    if (cr) return coreResultToOS2(cr);
 
@@ -147,12 +162,17 @@ APIRET fsNewSize(ServerData * pServerData, struct newsize * pnewsize)
 
 APIRET fsCommit(ServerData * pServerData, struct commit * pcommit)
 {
+   VolData * pVolData;
+   OpenFileData * pOpenFileData = (OpenFileData *) &pcommit->sffsd;
+
+   GET_VOLUME(pcommit);
+   
    logMsg(L_DBG, "FS_COMMIT, usType=%hd, fsIOFlag=%hx",
       pcommit->usType, pcommit->fsIOFlag);
    logsffsi(&pcommit->sffsi);
    
-   return stampFileAndFlush(pcommit->pVolData,
-      pcommit->pOpenFileData->idFile, &pcommit->sffsi, SFAF_FLUSHALL);
+   return stampFileAndFlush(pVolData, pOpenFileData->idFile,
+      &pcommit->sffsi, SFAF_FLUSHALL);
 }
 
 
