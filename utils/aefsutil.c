@@ -2,7 +2,7 @@
    directories from an AEFS file system.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsutil.c,v 1.12 2001/12/28 19:21:03 eelco Exp $
+   $Id: aefsutil.c,v 1.13 2002/01/14 21:33:14 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -224,7 +224,7 @@ static bool isDir(CryptedVolume * pVolume, CryptedFileID id)
 static int listDir(SuperBlock * pSuperBlock, CryptedFileID idFrom, 
    char * pszPrefix, char * pszPath, unsigned int flFlags, bool fTop)
 {
-   char szFull[PATH_MAX]; /* !!! stack usage! */
+   char szFull[_POSIX_PATH_MAX]; /* !!! stack usage! */
    CryptedVolume * pVolume = pSuperBlock->pVolume;
    CryptedDirEntry * pDir, * pFirst, * pCur;
    CryptedFileID idDir;
@@ -318,7 +318,7 @@ static int copy(CryptedVolume * pVolume, CryptedFileID idFile,
 static int dump(CryptedVolume * pVolume, CryptedFileID idFrom, 
    char * pszFrom, char * pszTo, unsigned int flFlags, bool fTop)
 {
-   char szFull[PATH_MAX]; /* !!! stack usage! */
+   char szFull[_POSIX_PATH_MAX]; /* !!! stack usage! */
    CryptedDirEntry * pEntry, * pFirst, * pCur;
    CryptedFileID idFile;
    CryptedFileInfo info;
