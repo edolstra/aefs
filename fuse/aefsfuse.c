@@ -90,6 +90,56 @@ int do_lookup(struct fuse_in_header * in, char * name, struct fuse_lookup_out * 
 }
 
 
+int do_setattr(struct fuse_in_header * in, struct fuse_setattr_in * arg, 
+    struct fuse_setattr_out * out)
+{
+    CoreResult cr;
+    CryptedFileID idFile = in->ino;
+    CryptedFileInfo info;
+
+/*     fprintf(stderr, "setattr %ld\n", idFile); */
+
+    cr = coreQueryFileInfo(pVolume, idFile, &info);
+    if (cr) return core2sys(cr);
+
+    if (arg->valid & FATTR_MODE) {
+/* 	fprintf(stderr, "set mode %od\n", arg->attr.mode); */
+	info.flFlags = 
+	    (info.flFlags & ~07777) | (arg->attr.mode & 07777);
+    }
+
+    if (arg->valid & FATTR_UID) {
+/* 	fprintf(stderr, "set uid %d\n", arg->attr.uid); */
+	info.uid = arg->attr.uid;
+    }
+
+    if (arg->valid & FATTR_GID) {
+/* 	fprintf(stderr, "set gid %d\n", arg->attr.gid); */
+	info.gid = arg->attr.gid;
+    }
+
+    if (arg->valid & FATTR_UTIME) {
+/* 	fprintf(stderr, "set utime %ld\n", arg->attr.mtime); */
+	info.timeWrite = arg->attr.mtime;
+    }
+
+    cr = coreSetFileInfo(pVolume, idFile, &info);
+    if (cr) return core2sys(cr);
+
+    if (arg->valid & FATTR_SIZE) {
+/* 	fprintf(stderr, "set size %Ld\n", arg->attr.size); */
+	cr = coreSetFileSize(pVolume, idFile, arg->attr.size);
+	if (cr) return core2sys(cr);
+	cr = coreQueryFileInfo(pVolume, idFile, &info);
+	if (cr) return core2sys(cr);
+    }
+
+    storeAttr(&info, &out->attr);
+
+    return 0;
+}
+
+
 int do_getattr(struct fuse_in_header * in, struct fuse_getattr_out * out)
 {
     CoreResult cr;
@@ -105,14 +155,6 @@ int do_getattr(struct fuse_in_header * in, struct fuse_getattr_out * out)
 
     return 0;
 }
-
-
-#if 0
-int aefs_readlink(const char * path, char * buf, size_t size)
-{
-    return -ENOTSUP;
-}
-#endif
 
 
 static int filler(int fd, CryptedFileID id, char * name)
@@ -133,6 +175,7 @@ static int filler(int fd, CryptedFileID id, char * name)
     }
     return 0;
 }
+
 
 int do_getdir(struct fuse_in_header * in, struct fuse_getdir_out * out)
 {
@@ -166,72 +209,104 @@ int do_getdir(struct fuse_in_header * in, struct fuse_getdir_out * out)
 }
 
 
+int createFile(CryptedFileID idDir, char * pszName,
+    unsigned int mode, unsigned int rdev,
+    unsigned long * ino, struct fuse_attr * attr)
+{
+    CoreResult cr;
+    CryptedFileID idFile;
+    CryptedFileInfo info;
+
+/*     fprintf(stderr, "create %ld %s %ho %hx\n",  */
+/* 	idDir, pszName, mode, rdev); */
+
+    mode = mode & (CFF_IFMT | 07777);
+    switch (mode & CFF_IFMT) {
+        case CFF_IFREG: /* regular file */
+        case CFF_IFLNK: /* symlink */
+        case CFF_IFDIR: /* directory */
+            break;
+        default: /* device nodes are not supported */
+            return -EACCES;
+    }
+
+    /* Create the file. */
+    memset(&info, 0, sizeof(info));
+    info.flFlags = mode;
+    info.cRefs = 1;
+    info.cbFileSize = 0;
+    info.timeCreation = info.timeAccess = info.timeWrite = time(0);
+    info.idParent = CFF_ISDIR(info.flFlags) ? idDir : 0;
+    info.uid = getuid();
+    info.gid = getgid();
+    cr = coreCreateBaseFile(pVolume, &info, &idFile);
+    if (cr) return core2sys(cr);
+
+    /* Add an entry for the newly created file to the directory. */
+    cr = coreAddEntryToDir(pVolume, idDir, pszName, idFile, 0);
+    if (cr) {
+	coreDeleteFile(pVolume, idFile);
+	return core2sys(cr);
+    }
+
+    if (ino) *ino = idFile;
+    if (attr) storeAttr(&info, attr);
+
+    return 0;
+}
+
+
+int do_mknod(struct fuse_in_header * in, struct fuse_mknod_in * arg, 
+    struct fuse_mknod_out * out)
+{
+    return createFile(in->ino, arg->name, arg->mode, arg->rdev,
+	&out->ino, &out->attr);
+}
+
+
 #if 0
-int aefs_mknod(const char * path, mode_t mode, dev_t rdev)
+int do_mkdir(struct fuse_in_header * in, struct fuse_mkdir_in * arg)
 {
-    return -ENOTSUP;
-}
-
-
-int aefs_mkdir(const char * path, mode_t mode)
-{
-    return -ENOTSUP;
-}
-
-
-int aefs_unlink(const char * path)
-{
-    return -ENOTSUP;
-}
-
-
-int aefs_rmdir(const char * path)
-{
-    return -ENOTSUP;
-}
-
-
-int aefs_symlink(const char * from, const char * to)
-{
-    return -ENOTSUP;
-}
-
-
-int aefs_rename(const char * from, const char * to)
-{
-    return -ENOTSUP;
-}
-
-
-int aefs_link(const char * from, const char * to)
-{
-    return -ENOTSUP;
-}
-
-
-int aefs_chmod(const char * path, mode_t mode)
-{
-    return -ENOTSUP;
-}
-
-
-int aefs_chown(const char * path, uid_t uid, gid_t gid)
-{
-    return -ENOTSUP;
-}
-
-
-int aefs_truncate(const char * path, off_t size)
-{
-    return -ENOTSUP;
-}
-
-
-int aefs_utime(const char * path, struct utimbuf * buf)
-{
-    return -ENOTSUP;
+    return createFile(in->ino, arg->name, arg->mode | CFF_IFDIR, 0, 0, 0);
 }
 #endif
+
+
+int do_remove(struct fuse_in_header * in, char * pszName)
+{
+    CoreResult cr;
+    CryptedFileID idDir = in->ino, idFile;
+    CryptedFileInfo info;
+    CryptedDirEntry * pFirstEntry;
+
+/*     fprintf(stderr, "remove %ld %s\n", idDir, pszName); */
+
+    cr = coreQueryIDFromPath(pVolume, idDir, pszName, &idFile, 0);
+    if (cr) return core2sys(cr);
+
+    cr = coreQueryFileInfo(pVolume, idFile, &info);
+    if (cr) return core2sys(cr);
+
+    if (CFF_ISDIR(info.flFlags)) {
+	cr = coreQueryDirEntries(pVolume, idFile, &pFirstEntry);
+	coreFreeDirEntries(pFirstEntry);
+	if (cr) return core2sys(cr);
+	if (pFirstEntry) return -ENOTEMPTY;
+    }
+
+    /* Remove the directory entry. */
+    cr = coreMoveDirEntry(pVolume, pszName, idDir, 0, 0);
+    if (cr) return core2sys(cr);
+
+    /* Decrease reference count and delete if appropriate. */
+    info.cRefs--;
+    if (CFF_ISDIR(info.flFlags) || (info.cRefs == 0))
+        cr = coreDeleteFile(pVolume, idFile);
+    else
+        cr = coreSetFileInfo(pVolume, idFile, &info);
+
+    return core2sys(cr);
+}
 
 
 int do_open(struct fuse_in_header * in, struct fuse_open_in * arg)
@@ -264,53 +339,33 @@ int do_read(struct fuse_in_header * in, struct fuse_read_in * arg, char * outbuf
 }
 
 
-#if 0
-int aefs_write(const char * path, const char * buf, size_t size,
-    off_t offset)
+int do_write(struct fuse_in_header * in, struct fuse_write_in * arg)
 {
-    return -ENOTSUP;
-}
-#endif
+    CoreResult cr;
+    CryptedFileID idFile = in->ino;
+    CryptedFilePos cbWritten;
 
+/*     fprintf(stderr, "write %ld %Ld %d\n", idFile, arg->offset, arg->size); */
 
-static void exit_handler()
-{
-    exit(0);
-}
+    cr = coreWriteToFile(pVolume, idFile, arg->offset, arg->size, arg->buf, &cbWritten);
+    if (cr) return core2sys(cr);
 
+    if (arg->size != cbWritten) return -EIO;
 
-static void set_signal_handlers()
-{
-    struct sigaction sa;
-
-    sa.sa_handler = exit_handler;
-    sigemptyset(&(sa.sa_mask));
-    sa.sa_flags = 0;
-
-    if (sigaction(SIGHUP, &sa, NULL) == -1 || 
-	sigaction(SIGINT, &sa, NULL) == -1 || 
-	sigaction(SIGTERM, &sa, NULL) == -1) {
-	
-	perror("Cannot set exit signal handlers");
-        exit(1);
-    }
-
-    sa.sa_handler = SIG_IGN;
-    
-    if(sigaction(SIGPIPE, &sa, NULL) == -1) {
-	perror("Cannot set ignored signals");
-        exit(1);
-    }
+    return 0;
 }
 
+
+#define FUSE_UMOUNT_CMD_ENV  "_FUSE_UNMOUNT_CMD"
 
 static char *unmount_cmd;
 
 static void cleanup()
 {
     close(0);
-    system(unmount_cmd);    
+/*     system(unmount_cmd); */
 }
+
 
 int main(int argc, char * * argv)
 {
@@ -318,13 +373,12 @@ int main(int argc, char * * argv)
     CoreResult cr;
     char szKey[1024], * pszKey = 0, * pszBasePath;
 
-    unmount_cmd = argv[1];
-    pszBasePath = argv[2];
-    
+    pszBasePath = argv[1];
+
+    unmount_cmd = getenv(FUSE_UMOUNT_CMD_ENV);
     fprintf(stderr, "unmount_cmd: `%s', \n", unmount_cmd);
 
-    set_signal_handlers();
-    atexit(cleanup);
+    sysInitPRNG();
 
     coreSetDefVolumeParms(&parms);
 
@@ -354,6 +408,10 @@ retry:
     pVolume = pSuperBlock->pVolume;
 
     runLoop();
+
+    cleanup();
+
+    coreDropSuperBlock(pSuperBlock);
 
     return 0;
 }

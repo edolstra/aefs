@@ -39,7 +39,7 @@ static void sendReply(struct fuse_in_header * in, int error,
     if(argsize != 0)
         memcpy(outbuf + sizeof(struct fuse_out_header), arg, argsize);
 
-    if (1) {
+    if (0) {
         printf("   unique: %i, error: %i (%s), outsize: %i\n", out->unique,
             out->error, strerror(-out->error), outsize);
         fflush(stdout);
@@ -64,7 +64,7 @@ void processCommand()
     size_t argsize;
     int res;
 
-    if (1) {
+    if (0) {
         printf("unique: %i, opcode: %i, ino: %li, insize: %i\n", in->unique,
             in->opcode, in->ino, buflen);
         fflush(stdout);
@@ -79,22 +79,21 @@ void processCommand()
         sendReply(in, res, outbuf, sizeof(struct fuse_lookup_out));
         break;
 
-#if 0
     case FUSE_FORGET:
-        do_forget(f, in, (struct fuse_forget_in *) inarg);
         break;
-#endif
 
     case FUSE_GETATTR:
         res = do_getattr(in, (struct fuse_getattr_out *) outbuf);
         sendReply(in, res, outbuf, sizeof(struct fuse_getattr_out));
         break;
 
-#if 0
     case FUSE_SETATTR:
-        do_setattr(f, in, (struct fuse_setattr_in *) inarg);
+        res = do_setattr(in, (struct fuse_setattr_in *) inarg, 
+	    (struct fuse_setattr_out *) outbuf);
+        sendReply(in, res, outbuf, sizeof(struct fuse_setattr_out));
         break;
 
+#if 0
     case FUSE_READLINK:
         do_readlink(f, in);
         break;
@@ -106,20 +105,26 @@ void processCommand()
         if (!res) close(((struct fuse_getdir_out *) outbuf)->fd);
         break;
 
-#if 0
     case FUSE_MKNOD:
-        do_mknod(f, in, (struct fuse_mknod_in *) inarg);
-        break;
-            
-    case FUSE_MKDIR:
-        do_mkdir(f, in, (struct fuse_mkdir_in *) inarg);
-        break;
-            
-    case FUSE_UNLINK:
-    case FUSE_RMDIR:
-        do_remove(f, in, (char *) inarg);
+        res = do_mknod(in, (struct fuse_mknod_in *) inarg, 
+	    (struct fuse_mknod_out *) outbuf);
+        sendReply(in, res, outbuf, sizeof(struct fuse_mknod_out));
         break;
 
+#if 0            
+    case FUSE_MKDIR:
+        res = do_mkdir(in, (struct fuse_mkdir_in *) inarg);
+        sendReply(in, res, 0, 0);
+        break;
+#endif
+
+    case FUSE_UNLINK:
+    case FUSE_RMDIR:
+        res = do_remove(in, (char *) inarg);
+        sendReply(in, res, 0, 0);
+        break;
+
+#if 0
     case FUSE_SYMLINK:
         do_symlink(f, in, (char *) inarg, 
                    ((char *) inarg) + strlen((char *) inarg) + 1);
@@ -146,11 +151,11 @@ void processCommand()
         free(outbuf2);
         break;
 
-#if 0
     case FUSE_WRITE:
-        do_write(f, in, (struct fuse_write_in *) inarg);
+        res = do_write(in, (struct fuse_write_in *) inarg);
+        sendReply(in, res, 0, 0);
         break;
-#endif
+
     default:
         fprintf(stderr, "Operation %i not implemented\n", in->opcode);
         /* No need to send reply to async requests */
