@@ -9,7 +9,7 @@ all: $(PROG1) $(PROG2)
 SRCS1 = aefsnfsd.c \
  nfs_prot_svc.c nfs_prot_xdr.c \
  mount_svc.c mount_xdr.c \
- aefsctrl_svc.c aefsctrl_clnt.c aefsctrl_xdr.c
+ aefsctrl_svc.c aefsctrl_xdr.c
 SRCS2 = aefsadd.c aefsctrl_clnt.c aefsctrl_xdr.c
 SRCS = $(SRCS1) $(SRCS2)
 
