@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.26 2001/12/03 20:49:26 eelco Exp $
+   $Id: aefsnfsd.c,v 1.27 2001/12/24 19:29:50 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,7 +18,6 @@
    Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
 
 #include <unistd.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,11 +29,12 @@
 #include <sys/select.h>
 #define PORTMAP /* enables backward compatibility under Solaris */
 #include <rpc/rpc.h>
-#include <syslog.h>
+#include <time.h>
 
 #include "getopt.h"
 
 #include "sysdep.h"
+#include "logging.h"
 #include "ciphertable.h"
 #include "corefs.h"
 #include "coreutils.h"
@@ -86,26 +86,7 @@ char * pszProgramName;
 int voidthing;
 #define VOIDOBJ ((void *) &voidthing)
 
-bool fDebug = false;
-
 bool fTerminate = false;
-
-
-/* Write a message to syslog. */
-static void logMsg(int level, char * pszMsg, ...)
-{
-    va_list args;
-    if ((level == LOG_DEBUG) && !fDebug) return;
-    va_start(args, pszMsg);
-    if (fDebug) {
-        vfprintf(stderr, pszMsg, args);
-        fprintf(stderr, "\n");
-        fflush(stderr);
-    } else {
-        vsyslog(level, pszMsg, args);
-    }
-    va_end(args);
-}
 
 
 /* Construct an NFS file handle from a file system identifier and a
@@ -178,7 +159,7 @@ static nfsstat core2nfsstat(CoreResult cr)
         case CORERC_ID_EXISTS: return NFSERR_IO;
         default:
             if (IS_CORERC_SYS(cr)) return NFSERR_IO;
-            fprintf(stderr, "unexpected corefs error %d\n", cr);
+            logMsg(LOG_ERR, "unexpected corefs error %d\n", cr);
             return NFSERR_PERM;
     }
 }
