@@ -1,0 +1,89 @@
+include $(BASE)/Makefile.conf
+
+DEBUG=0
+
+AEFS_VERSION = "\"AEFS 0.2.1\""
+
+DEFS = -DSYSTEM_$(SYSTEM) -DAEFS_VERSION=$(AEFS_VERSION)
+
+INCL = -I$(BASE)/corefs -I$(BASE)/ciphers -I$(BASE)/misc \
+ -I$(BASE)/ifsdriver -I$(BASE)/system -I$(BASE)/system/$(SYSTEM) \
+ -I$(BASE)/utils -I$(BASE)/ifsdaemon -I$(BASE)
+
+ifneq ($(DEBUG),1)
+OPTFLAGS = $(_OPTFLAGS)
+endif
+ifeq ($(CC),gcc)
+CFLAGS += -Wall -Wno-parentheses
+endif
+CFLAGS += $(SYSINCL) $(INCL) $(SYSCFLAGS) $(OPTFLAGS) $(DEFS)
+
+LDFLAGS = $(SYSLDFLAGS)
+
+ifeq ($(DEBUG),1)
+CFLAGS += -g
+LDFLAGS += -g
+endif
+
+%.d: %.c
+	$(CC) $(CFLAGS) -MM -MG $< \
+		| sed "s/\($*\)\.o[ :]*/\1.o $@ : /g" > $@
+
+%.h: %.x
+	rpcgen -C -h $^ > $@
+
+%_xdr.c: %.x
+	rpcgen -C -c $^ > $@
+
+%_clnt.c: %.x
+	rpcgen -C -l $^ > $@
+
+%_svc.c: %.x
+	rpcgen -C -m $^ > $@
+
+
+default: all
+
+
+# Autoconf/autoheader regeneration rules.
+
+$(BASE)/Makefile.conf: $(BASE)/Makefile.conf.in
+	(cd $(BASE) ; ./config.status)
+
+$(BASE)/config.h: $(BASE)/config.h.in
+	(cd $(BASE) ; ./config.status)
+
+$(BASE)/config.h.in: 
+	(cd $(BASE) ; autoheader)
+
+$(BASE)/configure: $(BASE)/configure.in
+	(cd $(BASE) ; autoconf)
+
+$(BASE)/config.status: $(BASE)/configure.in
+	(cd $(BASE) ; ./config.status --recheck)
+
+
+# Default targets.
+
+.PHONY: all clean install
+
+clean-default:
+	$(RM) *.d *.o *.s *.a *~ core
+
+clean-extra:
+
+clean: clean-default clean-extra
+
+install: all
+
+depend:
+
+dist:
+	mkdir $(distdir)
+	cp -p $(MANIFEST) $(distdir)
+	s="$(SUBDIRS)"; \
+	if test "$$s"; then \
+	  for subdir in $$s; do \
+	    (cd $$subdir && $(MAKE) -w $@ distdir=$(distdir)/$$subdir) || exit 1; \
+	  done \
+        fi\
