@@ -296,10 +296,28 @@ APIRET commitVolume(VolData * pVolData)
 }
 
 
+void dropVolume(ServerData * pServerData, VolData * pVolData)
+{
+   CoreResult cr;
+   
+   /* Close the volume */
+   if (cr = coreDropSuperBlock(pVolData->pSuperBlock))
+      /* Ignore errors, there's nothing we can do about it. */
+      logMsg(L_EVIL, "error closing volume, cr=%d", cr);
+
+   if (pVolData->pNext) pVolData->pNext->pPrev = pVolData->pPrev;
+   if (pVolData->pPrev)
+      pVolData->pPrev->pNext = pVolData->pNext;
+   else
+      pServerData->pFirstVolume = pVolData->pNext;
+
+   free(pVolData);
+}
+
+
 static APIRET detachVolume(ServerData * pServerData,
    struct attach * pattach)
 {
-   CoreResult cr;
    APIRET rc;
    VolData * pVolData = pattach->pVolData;
    AEFS_DETACH * parms = (AEFS_DETACH *) pServerData->pData;
@@ -328,20 +346,9 @@ static APIRET detachVolume(ServerData * pServerData,
       logMsg(L_EVIL, "error committing volume during detach, rc=%d", rc);
       if (!(parms->flFlags & DP_FORCE)) return rc;
    }
+
+   dropVolume(pServerData, pVolData);
    
-   /* Close the volume */
-   if (cr = coreDropSuperBlock(pVolData->pSuperBlock))
-      /* Ignore errors, there's nothing we can do about it. */
-      logMsg(L_EVIL, "error closing volume, cr=%d", cr);
-
-   if (pVolData->pNext) pVolData->pNext->pPrev = pVolData->pPrev;
-   if (pVolData->pPrev)
-      pVolData->pPrev->pNext = pVolData->pNext;
-   else
-      pServerData->pFirstVolume = pVolData->pNext;
-
-   free(pVolData);
-
    return NO_ERROR;
 }
 

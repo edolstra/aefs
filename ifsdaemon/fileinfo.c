@@ -121,7 +121,7 @@ APIRET stampFileAndFlush(VolData * pVolData, CryptedFileID idFile,
    CoreResult cr;
    CryptedVolume * pVolume = pVolData->pVolume;
    CryptedFileInfo info;
-   
+
    /* If any of the ST_Sxxx stamp bits is set, copy the sffsi times
       into the info sector. */
    if (!pVolData->fReadOnly &&

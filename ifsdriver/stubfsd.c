@@ -59,6 +59,11 @@ SEM semRqAvail;
    of the request in the exchange buffers to a process. */
 SEM semRqDone;
 
+/* If the requesting thread is interrupted before the daemon completes
+   the request, then the reply will be lost.  In that case we will set
+   this flag so that the daemon will know about it. */ 
+int fCallerInterrupted;
+
 /* Lock handles for the exchange buffers. */
 typedef char HVMLOCK[12];
 HVMLOCK ahvmlock[2];
@@ -129,6 +134,12 @@ static int requestExchangeXS()
    if (queryCurrentPid() == pidDaemon)
       return ERROR_STUBFSD_DEADLOCK; /* deadlock prevented */
 
+   /* The daemon could still be accessing the exchange buffers; this
+      happens if the previous requesting thread was interrupted.  So
+      wait until the daemon is done with the previous request. */
+   rc = FSH_SEMWAIT(&semRqDone, TO_INFINITE);
+   if (rc) return rc;
+
    rc = FSH_SEMREQUEST(&semSerialize, TO_INFINITE);
    if (rc) return rc;
 
@@ -158,11 +169,19 @@ static int signalDaemonAndWait()
    rc = FSH_SEMSET(&semRqDone);
    if (rc) return rc;
 
+   fCallerInterrupted = 0;
+
    rc = FSH_SEMCLEAR(&semRqAvail);
    if (rc) return rc;
 
    rc = FSH_SEMWAIT(&semRqDone, TO_INFINITE);
-   if (rc) return rc;
+   /* We could be interrupted prematurely (ERROR_INTERRUPT).  If so,
+      we still release semSerialize, since requestExchangeXS() will
+      wait for semRqDone to clear anyway. */
+   if (rc) {
+       fCallerInterrupted = 1;
+       return rc;
+   }
 
    if (!pidDaemon)
       return ERROR_STUBFSD_DAEMON_NOT_RUNNING;
@@ -230,6 +249,9 @@ static APIRET daemonStarted(PSETXCHGBUFFERS pxchg)
 
    /* Set up the semaphores. */
    rc = FSH_SEMSET(&semRqAvail);
+   if (rc) return rc;
+   
+   rc = FSH_SEMCLEAR(&semRqDone);
    if (rc) return rc;
    
    rc = FSH_SEMCLEAR(&semSerialize);
@@ -350,6 +372,7 @@ FS_FSCTL(
 {
    int rc;
    struct fsctl far * p = &pRequest->data.fsctl;
+   int f;
 
    /* Validate iArgType. */
    if ((iArgType != FSCTL_ARG_FILEINSTANCE) &&
@@ -412,10 +435,14 @@ FS_FSCTL(
          if (queryCurrentPid() != pidDaemon)
             return ERROR_STUBFSD_NOT_DAEMON;
 
+         /* After clearing semRqDone we can no longer touch
+            fCallerInterrupted. */
+         f = fCallerInterrupted;
+         
          rc = FSH_SEMCLEAR(&semRqDone);
          if (rc) return rc;
 
-         return NO_ERROR;
+         return f ? ERROR_STUBFSD_CALLER_INTERRUPTED : NO_ERROR;
 
       default: /* unknown FSCTL, send to daemon */
 

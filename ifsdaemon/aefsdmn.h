@@ -190,6 +190,10 @@ int os2TimeToCore(FDATE fdate, FTIME ftime, CoreTime * ptime);
 
 APIRET commitVolume(VolData * pVolData);
 
+void dropVolume(ServerData * pServerData, VolData * pVolData);
+     
+void freeSearchData(SearchData * pSearchData);
+
 
 /* FSD functions. */
 APIRET fsFsCtl(ServerData * pServerData, struct fsctl * pfsctl);

@@ -50,6 +50,9 @@ void logMsg(int level, char * pszMsg, ...)
    va_list args;
    if ((level == L_DBG) && !debug) return;
    va_start(args, pszMsg);
+/*    vfprintf(stderr, pszMsg, args); */
+/*    fprintf(stderr, "\n"); */
+/*    fflush(stderr); */
    vsyslog(level, pszMsg, args);
    va_end(args);
 }
@@ -525,7 +528,7 @@ static int getNextRequest(ServerData * pServerData)
 
 
 /* Signal to the FSD that the request has completed. */
-static int signalRequestDone(ServerData * pServerData)
+static APIRET signalRequestDone(ServerData * pServerData)
 {
    APIRET rc;
    
@@ -536,12 +539,8 @@ static int signalRequestDone(ServerData * pServerData)
       (PSZ) AEFS_IFS_NAME,
       (HFILE) -1,
       FSCTL_FSDNAME);
-   if (rc) {
-      logMsg(L_FATAL, "error signalling request completion to FSD, rc=%d", rc);
-      return 1;
-   }
-
-   return 0;
+   
+   return rc;
 }
 
 
@@ -674,7 +673,7 @@ static void handleRequest(ServerData * pServerData)
    
    logMsg(L_DBG, "\\----- FSD request done, result = %d", rc);
 }
- 
+
 
 static int runDaemon(ServerData * pServerData)
 {
@@ -699,8 +698,64 @@ static int runDaemon(ServerData * pServerData)
       
       DosReleaseMutexSem(pServerData->hmtxGlobal);
 
-   done:      
-      if (signalRequestDone(pServerData)) return 1;
+   done:
+      /* After signalRequestDone() we shouldn't touch the exchange
+         buffers any more.  So copy all data relevant to undoing the
+         request. */
+      {
+         ULONG rq = pServerData->pRequest->rq;
+         USHORT fsFlag =
+            pServerData->pRequest->data.attach.fsFlag;
+         VolData * pVolData1 =
+            pServerData->pRequest->data.attach.pVolData;
+         OpenFileData * pOpenFileData =
+            pServerData->pRequest->data.opencreate.pOpenFileData;
+         VolData * pVolData2 =
+            pServerData->pRequest->data.opencreate.pVolData;
+         SearchData * pSearchData =
+            pServerData->pRequest->data.findfirst.pSearchData;
+         VolData * pVolData3 =
+            pServerData->pRequest->data.findfirst.pVolData;
+      
+         switch (signalRequestDone(pServerData)) {
+
+            case NO_ERROR:
+               break;
+                  
+            case ERROR_STUBFSD_CALLER_INTERRUPTED:
+               logMsg(L_ERR, "caller interrupted, reply lost");
+                  
+               switch (rq) {
+                  case FSRQ_ATTACH:
+                     if ((fsFlag == FSA_ATTACH) && !rc) {
+                        logMsg(L_ERR, "freeing volume data");
+                        dropVolume(pServerData, pVolData1);
+                     }
+                     break;
+                  case FSRQ_OPENCREATE:
+                     if (!rc) {
+                        logMsg(L_ERR, "freeing file data");
+                        sysFreeSecureMem(pOpenFileData);
+                        pVolData2->cOpenFiles--;
+                     }
+                     break;
+                  case FSRQ_FINDFIRST:
+                     if ((!rc) || (rc == ERROR_EAS_DIDNT_FIT)) {
+                        logMsg(L_ERR, "freeing search data");
+                        freeSearchData(pSearchData);
+                        pVolData3->cSearches--;
+                     }
+                     break;
+               }
+                  
+               break;
+
+            default:
+               logMsg(L_FATAL, "error signalling request "
+                  "completion to FSD, rc=%d", rc);
+               return 1;
+         }
+      }
    }
    
    return 0;
@@ -724,6 +779,8 @@ int main(int argc, char * * argv)
 
    /* Initialize logging to syslog. */
    openlog("aefsdmn", LOG_DAEMON, 0);
+
+/*    freopen("d:/debug", "at", stderr); */
 
    if (processArgs(&serverData, argc, argv, 1)) return 2;
    if (initDaemon(&serverData)) return 1;

@@ -23,7 +23,7 @@
 #include "aefsdmn.h"
 
 
-static void freeSearchData(SearchData * pSearchData)
+void freeSearchData(SearchData * pSearchData)
 {
    coreFreeDirEntries(pSearchData->pFirstInDir);
    free(pSearchData);
