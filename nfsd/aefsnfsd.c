@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.10 2000/12/30 00:44:36 eelco Exp $
+   $Id: aefsnfsd.c,v 1.11 2000/12/30 12:38:04 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1741,10 +1741,12 @@ addfsres * aefsctrlproc_addfs_1_svc(addfsargs * args, struct svc_req * rqstp)
     parms.fReadOnly = args->flags & AF_READONLY;
     parms.dirtyCallBack = dirtyCallBack;
     parms.pUserData = (void *) i; /* hack! */
+#ifdef SYSTEM_posix
     parms.cred.fEnforce = TRUE;
     parms.cred.uid = args->stor_uid;
     parms.cred.gid = args->stor_gid;
     parms.cred.mode = args->stor_mode;
+#endif
 
     /* Read the superblock, initialize volume structures. */
 retry:
