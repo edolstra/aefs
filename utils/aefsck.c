@@ -619,6 +619,31 @@ static int makeFreeList(State * pState)
 }
 
 
+static int checkISFSize(State * pState)
+{
+   CryptedFileID idCur;
+   SectorNumber csNewSize = 1;
+
+   assert(pState->csISFSize);
+
+   for (idCur = 1; idCur < pState->csISFSize; idCur++)
+       if (pState->pFreeList[idCur] == 'I')
+           csNewSize = idCur + 1;
+
+   assert(csNewSize <= pState->csISFSize);
+
+   if (csNewSize < pState->csISFSize) {
+      printf("isf: longer then necessary (%ld instead of %ld, not an error)\n",
+          pState->csISFSize, csNewSize);
+      pState->csISFSize = csNewSize;
+      pState->fRewriteFreeList = true;
+      return AEFSCK_ERRORFOUND;
+   }
+
+   return 0;
+}
+
+
 static int checkFreeList(State * pState)
 {
    int res;
@@ -711,6 +736,13 @@ static int rewriteFreeList(State * pState)
    CryptedFileInfoFreeLink link;
    
    printf("isf: rewriting free list...\n");
+
+   cr = coreSuggestFileAllocation(pState->pVolume,
+       INFOSECTORFILE_ID, pState->csISFSize);
+   if (cr) {
+       printf("isf: cannot truncate: %s\n", core2str(cr));
+       return AEFSCK_ABORT;
+   }
 
    idCur = 0;
 
@@ -846,6 +878,9 @@ retry:
       if (STOP(res)) return res;
       if (res2) pState->fRewriteFreeList = true;
    }
+
+   res |= checkISFSize(pState);
+   if (STOP(res)) return res;
 
    if (pState->fRewriteFreeList && (pState->flags & FSCK_FIX)) {
       res |= rewriteFreeList(pState);
