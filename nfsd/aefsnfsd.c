@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.21 2001/03/07 18:18:14 eelco Exp $
+   $Id: aefsnfsd.c,v 1.22 2001/03/07 19:37:58 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -356,13 +356,15 @@ static nfsstat queryDirEntries(fsid fs, CryptedFileID idDir,
 
 
 /* Remove the cached contents of a directory.  Must be called when the
-   directory has changed. */
+   directory has changed.  idDir set to 0 will flush all directories
+   on the file system. */
 static void dirtyDir(fsid fs, CryptedFileID idDir)
 {
     unsigned int i, j;
     for (i = 0; i < DIRCACHE_SIZE; i++)
-        if (dirCache[i] && (dirCache[i]->fs == fs) && 
-            (dirCache[i]->idDir == idDir)) {
+        if (dirCache[i] && (dirCache[i]->fs == fs) &&
+            (!idDir || (dirCache[i]->idDir == idDir))) 
+        {
             freeDirCacheEntry(dirCache[i]);
             for (j = i + 1; j < DIRCACHE_SIZE; j++)
                 dirCache[j - 1] = dirCache[j];
@@ -1726,6 +1728,8 @@ void * mountproc_umnt_1_svc(dirpath * path, struct svc_req * rqstp)
             pFS->cRefs--;
             /* !!! print error if cRefs < 0 */
             if (pFS->cRefs <= 0) {
+                logMsg(LOG_DEBUG, "dropping volume");
+                dirtyDir(i, 0);
                 commitVolume(i);
                 coreDropSuperBlock(GET_SUPERBLOCK(i));
                 free(pFS);
