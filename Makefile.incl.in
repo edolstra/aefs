@@ -32,7 +32,7 @@ CFLAGS = -Wall -Wno-parentheses -pedantic \
 
 SYSLDFLAGS = @SYSLDFLAGS@
 LDFLAGS = $(SYSLDFLAGS)
-SYSLIBS = @SYSLIBS@
+SYSLIBS = @SYSLIBS@ @LIBS@
 
 ifeq ($(DEBUG),1)
 CFLAGS += -g
