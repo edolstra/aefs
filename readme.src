@@ -423,8 +423,8 @@
 
 þitem þsy{--quit}
 
-  Kill the daemon.  Useful for debugging.  Detach all attached volumes
-  first.
+  Kill the daemon.  Useful for debugging.  You should detach all
+  attached volumes first.
 
 þitem þsy{--info}
 
