@@ -1,7 +1,7 @@
 /* cipher.c -- Defines cipher and key structures.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: cipher.h,v 1.3 2001/09/23 13:30:08 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

@@ -1,7 +1,7 @@
 /* attach.h -- Handles (at|de)tachments and other volume stuff.
    Copyright (C) 1999, 2002 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: attach.c,v 1.11 2002/02/16 18:32:21 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

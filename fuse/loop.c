@@ -4,7 +4,7 @@
    Some of the stuff here is take from FUSE, which is
    Copyright (C) 2001 Miklos Szeredi (mszeredi@inf.bme.hu)
 
-   $Id: loop.c,v 1.10 2003/01/19 22:49:31 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

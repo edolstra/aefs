@@ -1,4 +1,4 @@
-/* $Id: twofish.c,v 1.5 2001/09/23 13:30:09 eelco Exp $ */
+/* $Id$ */
 
 /* This is an independent implementation of the encryption algorithm:   */
 /*                                                                      */

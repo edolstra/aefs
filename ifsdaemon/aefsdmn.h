@@ -1,7 +1,7 @@
 /* aefsdmn.h -- Header file for the daemon code.
    Copyright (C) 1999, 2002 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsdmn.h,v 1.8 2002/01/21 19:44:42 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

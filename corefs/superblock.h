@@ -1,7 +1,7 @@
 /* superblock.h -- Header file to the standard superblock code.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: superblock.h,v 1.8 2001/12/28 19:31:11 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

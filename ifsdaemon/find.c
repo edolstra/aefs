@@ -1,7 +1,7 @@
 /* find.c -- Read directory contents with file info.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: find.c,v 1.8 2002/01/14 21:35:04 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

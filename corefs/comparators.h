@@ -1,7 +1,7 @@
 /* comparators.h -- Filename comparators.
    Copyright (C) 2002 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: comparators.h,v 1.2 2002/01/14 21:36:42 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

@@ -1,7 +1,7 @@
 /* utilutils.h -- Helper routines for the utility programs.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: utilutils.h,v 1.6 2001/12/06 16:08:18 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

@@ -1,7 +1,7 @@
 /* os2.c -- OS/2 (EMX)-specific low-level code.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: os2.c,v 1.7 2001/09/23 13:30:21 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

@@ -1,7 +1,7 @@
 /* aefsfuse.h - AEFS FUSE header file.
    Copyright (C) 2001, 2002 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsfuse.h,v 1.5 2003/01/19 22:49:31 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

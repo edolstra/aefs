@@ -1,7 +1,7 @@
 /* identity.c -- Identity ("no-op") cipher.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: identity.c,v 1.2 2001/09/23 13:30:08 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

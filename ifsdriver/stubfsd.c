@@ -1,7 +1,7 @@
 /* stubfsd.c -- Ring 0 IFS stub.  Passes requests to the ring 3 daemon.
    Copyright (C) 1999, 2002 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: stubfsd.c,v 1.7 2002/07/17 21:02:44 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

@@ -1,7 +1,7 @@
 /* openclose.c -- Create, open and close files.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: openclose.c,v 1.8 2002/01/14 21:35:05 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

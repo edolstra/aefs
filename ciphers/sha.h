@@ -4,7 +4,7 @@
 #include "types.h"
 
 /* 
- * $Id: sha.h,v 1.3 2001/03/04 22:54:10 eelco Exp $
+ * $Id$
  */
 
 /* The SHA block size and message digest sizes, in bytes */

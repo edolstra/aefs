@@ -1,4 +1,4 @@
-/* $Id: sha.c,v 1.3 2001/09/23 13:30:08 eelco Exp $ */
+/* $Id$ */
 
 /* sha.c - Implementation of the Secure Hash Algorithm
  *
@@ -11,7 +11,7 @@
  * Adapted to pike and some cleanup by Niels Möller.
  */
 
-/* $Id: sha.c,v 1.3 2001/09/23 13:30:08 eelco Exp $ */
+/* $Id$ */
 
 /* SHA: NIST's Secure Hash Algorithm */
 

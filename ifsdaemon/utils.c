@@ -1,7 +1,7 @@
 /* utils.c -- Helper routines for the daemon.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: utils.c,v 1.11 2002/01/21 19:43:41 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

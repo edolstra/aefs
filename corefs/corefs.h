@@ -1,7 +1,7 @@
 /* corefs.h -- Header file to the system-independent FS code.
    Copyright (C) 1999, 2002 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: corefs.h,v 1.12 2002/01/21 20:48:18 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

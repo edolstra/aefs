@@ -1,7 +1,7 @@
 /* directory.c -- Directory access and modification.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: directory.c,v 1.5 2003/01/24 13:30:46 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

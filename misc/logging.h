@@ -1,7 +1,7 @@
 /* logging.h -- Header file to the logging support code.
    Copyright (C) 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: logging.h,v 1.1 2001/12/24 19:29:08 eelco Exp $
+   $Id$
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
