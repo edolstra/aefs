@@ -654,7 +654,8 @@
   The daemon should disappear into to background.  Error messages
   should appear in your system log.  Specify þtt{-d} to get debug
   output on stdout in case something goes wrong.  The daemon listens
-  to TCP and UDP requests on port 843, and not port 2049, which is the
+  to TCP and UDP requests on the loopback interface on port 843, and
+  not port 2049, which is the
   usual port for NFS.  This is because 2049 is not a privileged port,
   so any user could bind to it and intercept your keys, and because
   this way the daemon doesn't interfere with your regular NFS server.
