@@ -39,7 +39,7 @@ check: checkvectors.pl testcipher$(EXE) testvec
 	perl checkvectors.pl < testvec
 
 clean-extra:
-	$(RM) $(PROGS:.c=$(EXE))
+	$(RM) $(PROGS:.c=$(EXE)) testcipher$(EXE) 
 
 install: all
 	$(INSTALL_DIR) $(bindir)

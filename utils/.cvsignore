@@ -1,0 +1,7 @@
+timings
+testcipher
+mkaefs
+aefsck
+aefsdump
+aefsutil
+*.d
