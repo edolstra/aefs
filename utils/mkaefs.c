@@ -1,7 +1,7 @@
 /* mkaefs.c -- AEFS file system creation program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: mkaefs.c,v 1.9 2001/09/23 13:30:25 eelco Exp $
+   $Id: mkaefs.c,v 1.10 2001/11/15 13:18:07 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -213,7 +213,7 @@ int initVolume(char * pszBasePath, Key * pKey,
 
 
 int createVolumeInPath(char * pszBasePath, Key * pKey,
-   bool fUseCBC, bool fForce)
+   bool fUseCBC)
 {
    CoreResult cr;
    int res;
@@ -231,7 +231,7 @@ int createVolumeInPath(char * pszBasePath, Key * pKey,
       *p = 0;
    
    /* Create the base path. */
-   if (mkdir(szBasePath, 0700) && (errno != EEXIST || !fForce)) {
+   if (mkdir(szBasePath, 0700)) {
       fprintf(stderr, "%s: creating directory: %s\n", pszProgramName,
          strerror(errno));
       return 1;
@@ -289,8 +289,6 @@ static void printUsage(int status)
 Usage: %s [OPTION]... PATH\n\
 Create an AEFS file system in directory PATH.\n\
 \n\
-      --force          force use of specified directory, even if it\n\
-                        already exists\n\
   -k, --key=KEY        use specified key, do not ask\n\
   -c, --cipher=CIPHER  use CIPHER (see list below)\n\
       --no-cbc         do not use CBC mode (only for debugging)\n\
@@ -326,7 +324,6 @@ bits).  The first entry in the table is the default cipher.\n\
 int main(int argc, char * * argv)
 {
    bool fUseCBC = true;
-   bool fForce = false;
    int res;
    Key * pKey;
    int c;
@@ -339,7 +336,6 @@ int main(int argc, char * * argv)
       { "key", required_argument, 0, 'k' },
       { "cipher", required_argument, 0, 'c' },
       { "no-cbc", no_argument, 0, 3 },
-      { "force", no_argument, 0, 4 },
       { 0, 0, 0, 0 } 
    };
 
@@ -375,10 +371,6 @@ int main(int argc, char * * argv)
             fUseCBC = false;
             break;
 
-         case 4: /* --force */
-            fForce = true;
-            break;
-
          default:
             printUsage(1);
       }
@@ -397,7 +389,7 @@ int main(int argc, char * * argv)
    if (!pKey) return 1;
 
    /* Make the volume. */
-   res = createVolumeInPath(pszBasePath, pKey, fUseCBC, fForce);
+   res = createVolumeInPath(pszBasePath, pKey, fUseCBC);
 
    /* Clean up. */
    cryptDestroyKey(pKey);
