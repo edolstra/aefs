@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.8 2000/12/29 22:03:53 eelco Exp $
+   $Id: aefsnfsd.c,v 1.9 2000/12/29 23:50:52 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
@@ -979,7 +980,7 @@ diropres * nfsproc_lookup_2_svc(diropargs * args, struct svc_req * rqstp)
 readlinkres * nfsproc_readlink_2_svc(nfs_fh * fh, struct svc_req * rqstp)
 {
     static readlinkres res;
-    static char path[MAXPATHLEN];
+    static char path[NFS_MAXPATHLEN];
     fsid fs;
     CryptedFileID idLink;
     CryptedFileInfo info;
@@ -1002,7 +1003,7 @@ readlinkres * nfsproc_readlink_2_svc(nfs_fh * fh, struct svc_req * rqstp)
         return &res;
     }
 
-    if (info.cbFileSize >= MAXPATHLEN) {
+    if (info.cbFileSize >= NFS_MAXPATHLEN) {
         res.status = NFSERR_NAMETOOLONG;
         return &res;
     }
