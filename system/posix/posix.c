@@ -1,7 +1,7 @@
 /* posix.c -- Posix-specific low-level code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: posix.c,v 1.4 2000/12/29 20:15:14 eelco Exp $
+   $Id: posix.c,v 1.5 2000/12/29 22:04:29 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -93,12 +93,15 @@ File * sysOpenFile(char * pszName, int flFlags, Cred cred)
 #endif
 
    h = open(pszName, f, pmode);
+#ifdef HAVE_SETFSUID
+   if (cred.fEnforce) {
+      setfsuid(euid); setfsgid(egid);
+   }
+#endif
    if (h == -1) return 0;
 
+#ifndef HAVE_SETFSUID
    if (cred.fEnforce) {
-#ifdef HAVE_SETFSUID
-      setfsuid(euid); setfsgid(egid);
-#else
       /* Check that we have permission to access this file.  We have
          to do this *after* opening the file to prevent someone from
          exploiting the time window between stat() and open(). */
@@ -110,8 +113,8 @@ File * sysOpenFile(char * pszName, int flFlags, Cred cred)
          close(h);
          return 0;
       }
-#endif
    }
+#endif
 
    if (!lock(h, flFlags)) {
       close(h);
@@ -157,12 +160,15 @@ File * sysCreateFile(char * pszName, int flFlags,
    if (cred.fEnforce) umask(0077);
 
    h = open(pszName, f, pmode);
+#ifdef HAVE_SETFSUID
+   if (cred.fEnforce) {
+      setfsuid(euid); setfsgid(egid);
+   }
+#endif
    if (h == -1) return 0;
 
    if (cred.fEnforce) {
-#ifdef HAVE_SETFSUID
-      setfsuid(euid); setfsgid(egid);
-#else
+#ifndef HAVE_SETFSUID
       if (fchown(h, cred.uid, cred.gid)) {
          close(h);
          return 0;
