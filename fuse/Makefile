@@ -1,7 +1,8 @@
 BASE = ..
 include $(BASE)/Makefile.incl
 
-MANIFEST := Makefile
+MANIFEST := Makefile \
+ aefsfuse.c aefsfuse.h loop.c
 
 ifeq ($(BUILD_FUSE), 1)
 
