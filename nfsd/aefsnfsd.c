@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.20 2001/03/04 23:10:10 eelco Exp $
+   $Id: aefsnfsd.c,v 1.21 2001/03/07 18:18:14 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -914,6 +914,12 @@ void * nfsproc_root_2_svc(void * arg, struct svc_req * rqstp)
 }
 
 
+static bool isDot(char * p)
+{
+    return strcmp(p, ".") == 0 || strcmp(p, "..") == 0;
+}
+
+
 /* Find a file in a directory by name. */
 static nfsstat lookup(fsid fs, CryptedFileID idDir, char * pszName, 
     User * pUser, CryptedFileID * pidFound)
@@ -1133,6 +1139,8 @@ static nfsstat createFile(diropargs * where, sattr * attrs,
 
     *pidFile = 0;
 
+    if (isDot(where->name)) return NFSERR_EXIST;
+
     switch (attrs->mode & 0170000) {
         case 0100000: /* regular file */
         case 0120000: /* symlink */
@@ -1152,6 +1160,8 @@ static nfsstat createFile(diropargs * where, sattr * attrs,
 
     /* Do we have write and search permission on the directory? */
     if (!havePerm(1 | 2, pUser, &dirinfo)) return NFSERR_PERM;
+
+    /* !!! check setuid & setgid bits on directory */
 
     /* Create the file. */
     memset(&info, 0, sizeof(info));
@@ -1222,16 +1232,31 @@ diropres * nfsproc_create_2_svc(createargs * args, struct svc_req * rqstp)
 }
 
 
+/* Return NFS_OK if the directory is empty, NFSERR_NOTEMPTY if it's
+   not. */
+static nfsstat checkDirEmpty(fsid fs, CryptedFileID idDir)
+{
+    CoreResult cr;
+    CryptedDirEntry * pFirstEntry;
+    cr = coreQueryDirEntries(GET_VOLUME(fs), idDir, &pFirstEntry);
+    coreFreeDirEntries(pFirstEntry);
+    if (cr) return cr;
+    if (pFirstEntry) return NFSERR_NOTEMPTY;
+    return NFS_OK;
+}
+
+
 /* Remove an entry from a directory and delete the file pointed to by
    that entry iff its reference count becomes zero. */
 static nfsstat removeFile(fsid fs, CryptedFileID idDir, 
     char * pszName, int fDir, User * pUser)
 {
     nfsstat res;
-    CryptedDirEntry * pFirstEntry;
     CryptedFileID idFile;
     CryptedFileInfo info;
     CoreResult cr;
+
+    if (isDot(pszName)) return NFSERR_EXIST;
 
     res = lookup(fs, idDir, pszName, pUser, &idFile);
     if (res) return res;
@@ -1242,22 +1267,17 @@ static nfsstat removeFile(fsid fs, CryptedFileID idDir,
     smashUGID(fs, &info);
 
     if (fDir) {
-
         if (!CFF_ISDIR(info.flFlags)) return NFSERR_NOTDIR;
-
-        cr = coreQueryDirEntries(GET_VOLUME(fs), 
-            idFile, &pFirstEntry);
-        if (cr || pFirstEntry) {
-            coreFreeDirEntries(pFirstEntry);
-            return cr ? core2nfsstat(cr) : NFSERR_NOTEMPTY;
-        }
-        
+        res = checkDirEmpty(fs, idFile);
+        if (res) return res;
     } else
         if (CFF_ISDIR(info.flFlags)) return NFSERR_ISDIR;
     
     /* Do we have write and search permission on the directory? */
     res = havePerm2(1 | 2, pUser, fs, idDir);
     if (res) return res;
+
+    /* !!! check sticky bit */
 
     dirtyDir(fs, idDir);
     dirtyDir(fs, idFile);
@@ -1309,12 +1329,18 @@ nfsstat * nfsproc_rename_2_svc(renameargs * args, struct svc_req * rqstp)
     User user;
     CoreResult cr;
     fsid fs, fs2;
-    CryptedFileID idFrom, idTo;
+    CryptedFileID idFrom, idTo, idSrc, idDst;
+    CryptedFileInfo infoSrc, infoDst;
 
     logMsg(LOG_DEBUG, "nfsproc_rename");
 
     res = authCaller(rqstp, &user);
     if (res) return &res;
+
+    if (isDot(args->from.name) || isDot(args->to.name)) {
+        res = NFSERR_EXIST;
+        return &res;
+    }
 
     res = decodeFH(&args->from.dir, &fs, &idFrom);
     if (res) return &res;
@@ -1331,6 +1357,46 @@ nfsstat * nfsproc_rename_2_svc(renameargs * args, struct svc_req * rqstp)
     res = havePerm2(1 | 2, &user, fs, idTo);
     if (res) return &res;
 
+    /* Look up the source. */
+    res = lookup(fs, idFrom, args->from.name, &user, &idSrc);
+    if (res) return &res;
+
+    cr = coreQueryFileInfo(GET_VOLUME(fs), idSrc, &infoSrc);
+    if (cr) {
+        res = core2nfsstat(cr);
+        return &res;
+    }
+
+    /* Look up the target. */
+    res = lookup(fs, idTo, args->to.name, &user, &idDst);
+    if (res && res != NFSERR_NOENT) return &res;
+
+    if (!res) {
+
+        /* If the target already exists, it should be "compatible"
+           (according to NFS version 3), i.e. the target and source
+           should both be a non-directory or both be a directory.  If
+           the target is a directory, it must be empty.  The target is
+           deleted. */
+        
+        cr = coreQueryFileInfo(GET_VOLUME(fs), idDst, &infoDst);
+        if (cr) {
+            res = core2nfsstat(cr);
+            return &res;
+        }
+        
+        if (CFF_ISDIR(infoSrc.flFlags) != CFF_ISDIR(infoDst.flFlags)) {
+            res = NFSERR_EXIST;
+            return &res;
+        }
+
+        /* Remove the target.  removeFile() will check whether the
+           directory is empty. */
+        res = removeFile(fs, idTo, args->to.name,
+            CFF_ISDIR(infoDst.flFlags), &user);
+        if (res) return &res;
+    }
+    
     dirtyDir(fs, idFrom);
     dirtyDir(fs, idTo);
 
