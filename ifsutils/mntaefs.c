@@ -1,7 +1,7 @@
 /* mntaefs.c -- AEFS mount program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: mntaefs.c,v 1.7 2001/12/06 16:08:18 eelco Exp $
+   $Id: mntaefs.c,v 1.8 2001/12/28 19:18:22 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -76,7 +76,7 @@ int main(int argc, char * * argv)
    bool fForceMount = false;
    bool fReadOnly = false;
    bool fAutoCheck = true;
-   char szPassPhrase[1024], * pszOrigKey = 0;
+   char szPassPhrase[MAX_PASSPHRASE_SIZE], * pszOrigKey = 0;
    int c, r;
    AEFS_ATTACH attachparms;
    APIRET rc;
@@ -180,7 +180,7 @@ int main(int argc, char * * argv)
       }
    }
 
-   /* Does the key fit? */
+   /* Does the passphrase fit? */
    if (strlen(pszPassPhrase) >= sizeof(attachparms.szPassPhrase)) {
       fprintf(stderr, "%s: passphrase is too long\n",
          pszProgramName);
