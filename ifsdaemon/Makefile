@@ -12,6 +12,8 @@ LIB = $(BASE)/corefs/corefs.a $(BASE)/ciphers/ciphers.a \
  $(BASE)/misc/getopt.a \
  $(BASE)/system/$(SYSTEM)/sysdep.a
 
+SYSLIB += -lsyslog -lsocket
+
 all: aefsdmn$(EXE)
 
 aefsdmn$(EXE): $(SRCS:.c=.o) $(LIB)

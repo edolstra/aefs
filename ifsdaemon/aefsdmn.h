@@ -21,6 +21,8 @@
 #define INCL_DOSERRORS
 #include <os2.h>
 
+#include <syslog.h>
+
 #include "stubfsd.h"
 
 #include "aefsdint.h"
@@ -107,11 +109,12 @@ struct _VolData {
 
 
 /* Message severity codes. */
-#define L_FATAL  1
-#define L_EVIL   2
-#define L_ERR    3
-#define L_WARN   4
-#define L_DBG    9
+#define L_FATAL  LOG_ALERT
+#define L_EVIL   LOG_CRIT
+#define L_ERR    LOG_ERR
+#define L_WARN   LOG_WARNING
+#define L_INFO   LOG_INFO
+#define L_DBG    LOG_DEBUG
 
 
 /* Additional value for DOS attribute fields. */

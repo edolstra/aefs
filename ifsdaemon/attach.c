@@ -152,8 +152,7 @@ static APIRET attachVolume(ServerData * pServerData,
        VERIFYFIXED(parms->szKey))
       return ERROR_INVALID_PARAMETER;
             
-   logMsg(L_DBG, "attaching drive, basepath=%s, password=%s",
-      parms->szBasePath, parms->szKey);
+   logMsg(L_DBG, "attaching drive, basepath=%s", parms->szBasePath);
 
    /* The base path must be absolute. */
    if ((strncmp(parms->szBasePath, "\\\\", 2) != 0) && /* UNC */

@@ -35,31 +35,22 @@
 #include "sysdep.h"
 
 
-char * pszProgramName;
-
-
-int loglevel = 7;
+static char * pszProgramName;
 
 
 #define LOCKSEM_TIMEOUT 60000 /* 1 min */
 
 
-/* Format and write a message to stderr if level <= loglevel. */
+static int debug = 0;
+
+
+/* Write a message to the log file. */
 void logMsg(int level, char * pszMsg, ...)
 {
-   time_t now;
-   char szTime[128];
    va_list args;
-   if (level > loglevel) return;
+   if ((level == L_DBG) && !debug) return;
    va_start(args, pszMsg);
-   time(&now);
-   strftime(szTime, sizeof(szTime),
-      "%a, %d %b %Y %H:%M:%S",
-      gmtime(&now));
-   fprintf(stderr, "[%s] %d: ", szTime, level);
-   vfprintf(stderr, pszMsg, args);
-   fprintf(stderr, "\n");
-   fflush(stderr);
+   vsyslog(level, pszMsg, args);
    va_end(args);
 }
 
@@ -69,12 +60,13 @@ static void printDaemonStats(ServerData * pServerData)
    VolData * pVolData;
    CryptedVolumeStats stats;
    
-   fprintf(stderr, "*** INFO ***\n");
-   fprintf(stderr, "secure alloced = %9d / %9d\n",
+   logMsg(L_INFO, "*** BEGIN INFO ***");
+   
+   logMsg(L_INFO, "secure alloced = %9d / %9d",
       cbSecureAlloced, cSecureAlloced);
-   fprintf(stderr, "secure freed   = %9d / %9d\n",
+   logMsg(L_INFO, "secure freed   = %9d / %9d",
       cbSecureFreed, cSecureFreed);
-   fprintf(stderr, "secure in use  = %9d / %9d\n",
+   logMsg(L_INFO, "secure in use  = %9d / %9d",
       cbSecureAlloced - cbSecureFreed,
       cSecureAlloced - cSecureFreed);
          
@@ -82,25 +74,25 @@ static void printDaemonStats(ServerData * pServerData)
         pVolData;
         pVolData = pVolData->pNext)
    {
-      fprintf(stderr, "drive %c:\n", pVolData->chDrive);
-      fprintf(stderr, "  cOpenFiles        = %d\n",
+      logMsg(L_INFO, "drive %c:", pVolData->chDrive);
+      logMsg(L_INFO, "  cOpenFiles        = %d",
          pVolData->cOpenFiles);
-      fprintf(stderr, "  cSearches         = %d\n",
+      logMsg(L_INFO, "  cSearches         = %d",
          pVolData->cSearches);
-      fprintf(stderr, "  dirty             = %d\n",
+      logMsg(L_INFO, "  dirty             = %d",
          pVolData->pSuperBlock->flFlags & SBF_DIRTY);
       coreQueryVolumeStats(pVolData->pVolume, &stats);
-      fprintf(stderr, "  cCryptedFiles     = %d\n",
+      logMsg(L_INFO, "  cCryptedFiles     = %d",
          stats.cCryptedFiles);
-      fprintf(stderr, "  cOpenStorageFiles = %d\n",
+      logMsg(L_INFO, "  cOpenStorageFiles = %d",
          stats.cOpenStorageFiles);
-      fprintf(stderr, "  csInCache         = %d\n",
+      logMsg(L_INFO, "  csInCache         = %d",
          stats.csInCache);
-      fprintf(stderr, "  csDirty           = %d\n",
+      logMsg(L_INFO, "  csDirty           = %d",
          stats.csDirty);
    }
 
-   fflush(stderr);
+   logMsg(L_INFO, "*** END INFO ***");
 }
 
 
@@ -115,8 +107,8 @@ static void printUsage(int status)
 Usage: %s [OPTION]...\n\
 Start the AEFS daemon.\n\
 \n\
-  --logfile=FILE        log messages to FILE\n\
-  --loglevel=N          set severity level for logging messages\n\
+  --no-debug            don't write debug messages to syslog (default)\n\
+  --debug               write debug messages to syslog\n\
   --cache=N             max cache size per volume in 512 byte units\n\
   --storagefiles=N      max open storage files per volume\n\
   --files=N             max cached files per volume\n\
@@ -149,8 +141,8 @@ int processArgs(ServerData * pServerData, int argc, char * * argv,
    struct option options[] = {
       { "help", no_argument, 0, 1 },
       { "version", no_argument, 0, 2 },
-      { "logfile", required_argument, 0, 3 },
-      { "loglevel", required_argument, 0, 4 },
+      { "no-debug", no_argument, 0, 3 },
+      { "debug", no_argument, 0, 4 },
       { "cache", required_argument, 0, 5 },
       { "storagefiles", required_argument, 0, 6 },
       { "files", required_argument, 0, 7 },
@@ -175,17 +167,12 @@ int processArgs(ServerData * pServerData, int argc, char * * argv,
             logMsg(0, "aefsdmn - %s", AEFS_VERSION);
             return 1;
 
-         case 3: /* --logfile */
-            fclose(stderr);
-            if (freopen(optarg, "a", stderr) == 0) {
-               logMsg(L_ERR, "cannot open %s as stderr", optarg);
-               return 1;
-            }
+         case 3: /* --no-debug */
+            debug = 0;
             break;
 
-         case 4: /* --loglevel */
-            loglevel = atoi(optarg);
-            if (loglevel < 1) loglevel = 1;
+         case 4: /* --debug */
+            debug = 1;
             break;
 
          case 5: /* --cache */
@@ -489,6 +476,9 @@ static int initDaemon(ServerData * pServerData)
    if (announceDaemon(pServerData)) goto bad2;
    if (createGlobalMutex(pServerData)) goto bad3;
    if (startLazyWriter(pServerData)) goto bad4;
+   
+   logMsg(L_INFO, "daemon ready");
+      
    return 0;
 
 bad4:
@@ -732,10 +722,15 @@ int main(int argc, char * * argv)
    serverData.fLazyLastAccess = FALSE;
    serverData.fLazyWrite = TRUE;
 
+   /* Initialize logging to syslog. */
+   openlog("aefsdmn", LOG_DAEMON, 0);
+
    if (processArgs(&serverData, argc, argv, 1)) return 2;
    if (initDaemon(&serverData)) return 1;
    if (runDaemon(&serverData)) res = 1;
    if (doneDaemon(&serverData)) res = 1;
+
+   closelog();
 
    return res;
 }
