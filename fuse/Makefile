@@ -10,7 +10,8 @@ all: $(PROG)
 SRCS = aefsfuse.c
 
 LIBS = $(BASE)/corefs/corefs.a $(BASE)/ciphers/ciphers.a \
- $(BASE)/system/$(SYSTEM)/sysdep.a $(BASE)/misc/misc.a
+ $(BASE)/system/$(SYSTEM)/sysdep.a $(BASE)/misc/misc.a \
+ $(BASE)/utils/utilutils.o
 
 SYSLIBS += -lfuse
 

@@ -14,6 +14,10 @@
 #include "corefs.h"
 #include "coreutils.h"
 #include "superblock.h"
+#include "utilutils.h"
+
+
+char * pszProgramName;
 
 
 static SuperBlock * pSuperBlock;
@@ -53,7 +57,7 @@ static int aefs_getattr(const char * path, struct stat * stbuf)
     CryptedFileID idFile;
     CryptedFileInfo info;
 
-    fprintf(stderr, "getattr %s\n", path);
+/*     fprintf(stderr, "getattr %s\n", path); */
 
     cr = coreQueryIDFromPath(pVolume, pSuperBlock->idRoot, path, &idFile, 0);
     if (cr) return core2sys(cr);
@@ -91,7 +95,7 @@ static int aefs_getdir(const char * path, fuse_dirh_t h, fuse_dirfil_t filler)
     CryptedFileID idDir;
     CryptedDirEntry * pFirst, * pCur;
 
-    fprintf(stderr, "getdir %s\n", path);
+/*     fprintf(stderr, "getdir %s\n", path); */
 
     cr = coreQueryIDFromPath(pVolume, pSuperBlock->idRoot, path, &idDir, 0);
     if (cr) return core2sys(cr);
@@ -181,7 +185,7 @@ static int aefs_open(const char * path, int flags)
     CoreResult cr;
     CryptedFileID idFile;
 
-    fprintf(stderr, "open %s\n", path);
+/*     fprintf(stderr, "open %s\n", path); */
 
     cr = coreQueryIDFromPath(pVolume, pSuperBlock->idRoot, path, &idFile, 0);
     if (cr) return core2sys(cr);
@@ -196,7 +200,7 @@ static int aefs_read(const char * path, char * buf, size_t size, off_t offset)
     CryptedFileID idFile;
     CryptedFilePos cbRead;
 
-    fprintf(stderr, "read %s %ld %d\n", path, offset, size);
+/*     fprintf(stderr, "read %s %ld %d\n", path, offset, size); */
 
     cr = coreQueryIDFromPath(pVolume, pSuperBlock->idRoot, path, &idFile, 0);
     if (cr) return core2sys(cr);
@@ -281,18 +285,30 @@ int main(int argc, char * * argv)
     struct fuse * fuse;
     CryptedVolumeParms parms;
     CoreResult cr;
+    char szKey[1024], * pszKey = 0, * pszBasePath;
 
     unmount_cmd = argv[1];
-    fprintf(stderr, "unmount_cmd: %s\n", unmount_cmd);
+    pszBasePath = argv[2];
+    
+    fprintf(stderr, "unmount_cmd: `%s', \n", unmount_cmd);
 
     set_signal_handlers();
     atexit(cleanup);
 
     coreSetDefVolumeParms(&parms);
 
+    /* Ask the use to enter the key, if it wasn't specified with "-k". */
+    if (!pszKey) {
+        pszKey = szKey;
+        if (readKey("key: ", sizeof(szKey), szKey)) {
+            fprintf(stderr, "%s: error reading key\n", pszProgramName);
+            return 1;
+        }
+    }
+
     /* Read the superblock, initialize volume structures. */
 retry:
-    cr = coreReadSuperBlock("", "",
+    cr = coreReadSuperBlock(pszBasePath, pszKey,
         cipherTable, &parms, &pSuperBlock);
     if (cr) {
         if (pSuperBlock) coreDropSuperBlock(pSuperBlock);
@@ -306,7 +322,8 @@ retry:
     
     pVolume = pSuperBlock->pVolume;
 
-    flags = FUSE_DEBUG;
+/*     flags = FUSE_DEBUG; */
+    flags = 0;
     fuse = fuse_new(0, flags);
     fuse_set_operations(fuse, &operations);
     fuse_loop(fuse);
