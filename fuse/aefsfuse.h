@@ -1,7 +1,7 @@
 /* aefsfuse.h - AEFS FUSE header file.
    Copyright (C) 2001, 2002 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsfuse.h,v 1.3 2002/02/16 18:33:12 eelco Exp $
+   $Id: aefsfuse.h,v 1.4 2002/05/11 08:46:46 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #define _AEFSFUSE_H
 
 /* !!! fix this */
+#include "fuse.h"
 #include "../../fuse/include/linux/fuse.h"
 
 #include "sysdep.h"
@@ -28,7 +29,7 @@
 
 
 bool runLoop();
-bool dupFuseFD(void);
+void setFuseFD(int fd);
 void commitVolume();
 
 /* Syscall implementations. */

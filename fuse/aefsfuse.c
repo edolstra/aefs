@@ -1,7 +1,7 @@
 /* aefsfuse.c -- FUSE front-end to AEFS.
    Copyright (C) 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsfuse.c,v 1.14 2002/02/16 18:33:12 eelco Exp $
+   $Id: aefsfuse.c,v 1.15 2002/05/11 08:46:46 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
-
+#include <limits.h>
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -41,7 +41,6 @@
 #include "utilutils.h"
 
 #include "aefsfuse.h"
-#include "aefsfuseint.h"
 
 
 char * pszProgramName;
@@ -49,6 +48,12 @@ char * pszProgramName;
 
 static SuperBlock * pSuperBlock;
 static CryptedVolume * pVolume;
+
+static bool fForceMount = false;
+static bool fReadOnly = false;
+static char szBasePath[PATH_MAX + 1];
+static char * pszMountPoint;
+static int fdRes[2];
 
 
 static int core2sys(CoreResult cr)
@@ -576,59 +581,56 @@ void commitVolume()
 }
 
 
-static int readBuf(int fd, void * buf, int size)
+static void unmount()
 {
-    int r;
-    while (size) {
-        r = read(fd, buf, size);
-        if (r == -1 && errno != EINTR) return -1;
-        if (r == 0) return -1;
-        buf += r;
-        size -= r;
+    if (fork() == 0) {
+        execlp("fusermount", "fusermount", "-u", pszMountPoint, 0);
+        exit(0);
     }
-    return 0;
 }
-
-
-static FuseMountParams params;
-static int fdFrom, fdTo;
 
 
 static void writeResult(CoreResult cr)
 {
-    if (write(fdTo, &cr, sizeof(cr)) != sizeof(cr)) {
-        logMsg(LOG_ERR, "cannot write result: %s",
-            strerror(errno));
-    }
+    write(fdRes[1], &cr, sizeof cr);
 }
 
 
 /* Return true iff somebody unmounted us. */
-static bool run(void)
+static void run(char * pszPassPhrase)
 {
-    bool fUnmounted;
     CryptedVolumeParms parms;
     CoreResult cr;
-
-    /* Move the fuse file descriptor away from 0.  Must be done prior
-       to daemonizing. */
-    if (!dupFuseFD()) {
-        writeResult(CORERC_SYS + SYS_UNKNOWN);
-        return false;
-    }
+    int fd, fd2;
+    pid_t pid;
 
     /* Daemonize. */
-    if (!fDebug) daemon(0, 0);
+    if (!fDebug) {
+        pid = fork();
+        if (pid == -1) {
+            logMsg(LOG_ERR, "%s: cannot fork: %s", 
+                pszProgramName, strerror(errno));
+            exit(1);
+        }
+        if (pid != 0) return;
+        setsid();
+        chdir("/");
+        fd2 = open("/dev/null", O_RDWR);
+        if (fd2 == -1) abort();
+        dup2(fd2, 0);
+        dup2(fd2, 1);
+        dup2(fd2, 2);
+    }
     
     coreSetDefVolumeParms(&parms);
-    parms.fReadOnly = params.fReadOnly;
+    parms.fReadOnly = fReadOnly;
     parms.dirtyCallBack = dirtyCallBack;
 
     /* Read the superblock, initialize volume structures.  Note: we
        cannot call daemon() after coreReadSuperBlock(), since daemon()
        works by forking and children do not inherit file locks. */
 retry:
-    cr = coreReadSuperBlock(params.szBasePath, params.szPassPhrase,
+    cr = coreReadSuperBlock(szBasePath, pszPassPhrase,
         cipherTable, &parms, &pSuperBlock);
     if (cr) {
         if (pSuperBlock) coreDropSuperBlock(pSuperBlock);
@@ -639,55 +641,163 @@ retry:
 	logMsg(LOG_ERR, "%s: unable to read superblock: %s", 
 	    pszProgramName, core2str(cr));
         writeResult(cr);
-        return false;
+        goto exit;
     }
 
+    fd = fuse_mount(pszMountPoint, "");
+    if (fd == -1) {
+        writeResult(CORERC_SYS + SYS_UNKNOWN);
+        unmount();
+        goto exit;
+    }
+    setFuseFD(fd);
+    
     writeResult(CORERC_OK);
     
     pVolume = pSuperBlock->pVolume;
 
-    fUnmounted = runLoop();
+    if (!runLoop()) 
+        unmount();
 
     commitVolume();
     coreDropSuperBlock(pSuperBlock);
 
-    return fUnmounted;
+ exit:
+    if (!fDebug) exit(0); /* daemon exit */
+}
+
+
+static void printUsage(int status)
+{
+   if (status)
+      fprintf(stderr,
+         "\nTry `%s --help' for more information.\n",
+         pszProgramName);
+   else {
+      printf("\
+Usage: %s [OPTION]... AEFS-PATH MOUNT-POINT\n\
+Mount the AEFS volume stored in AEFS-PATH onto MOUNT-POINT.\n\
+\n\
+  -d, --debug        don't demonize, print debug info\n\
+  -f, --force        force mount of dirty volume\n\
+  -k, --key=KEY      use specified passphrase, do not ask\n\
+  -r, --readonly     mount read-only\n\
+      --help         display this help and exit\n\
+      --version      output version information and exit\n\
+\n\
+" STANDARD_KEY_HELP "\
+",
+         pszProgramName);
+   }
+   exit(status);
 }
 
 
 int main(int argc, char * * argv)
 {
-    char * pszEnv, * pszUnmount;
+    char szPassPhrase[1024], * pszOrigKey = 0;
+    int c;
+    char * pszPassPhrase = 0, * pszBasePath;
+    CoreResult cr;
 
-    pszProgramName = argv[0];
+    struct option const options[] = {
+        { "help", no_argument, 0, 1 },
+        { "version", no_argument, 0, 2 },
+        { "debug", no_argument, 0, 'd' },
+        { "key", required_argument, 0, 'k' },
+        { "force", no_argument, 0, 'f' },
+        { "readonly", no_argument, 0, 'r' },
+        { 0, 0, 0, 0 } 
+    };      
+
     sysInitPRNG();
 
-    /* Get the file descriptors used to communicate with mntaefsfuse. */
-    pszEnv = getenv("AEFS_FD");
-    if (!pszEnv) {
-        fprintf(stderr, "%s: must be run by mntaefsfuse\n", 
-            pszProgramName);
+    /* Parse the arguments. */
+
+    pszProgramName = argv[0];
+
+    while ((c = getopt_long(argc, argv, "dfk:r", options, 0)) != EOF) {
+        switch (c) {
+            case 0:
+                break;
+
+            case 1: /* --help */
+                printUsage(0);
+                break;
+
+            case 2: /* --version */
+                printf("aefsfuse - %s\n", AEFS_VERSION);
+                exit(0);
+                break;
+
+            case 'd': /* --debug */
+                fDebug = true;
+                break;
+
+            case 'k': /* --key */
+                pszPassPhrase = pszOrigKey = optarg;
+                break;
+
+            case 'f': /* --force */
+                fForceMount = true;
+                break;
+
+            case 'r': /* --readonly */
+                fReadOnly = true;
+                break;
+
+            default:
+                printUsage(1);
+        }
+    }
+
+    if (optind != argc - 2) {
+        fprintf(stderr, "%s: missing or too many parameters\n", pszProgramName);
+        printUsage(1);
+    }
+
+    pszBasePath = argv[optind++];
+    pszMountPoint = argv[optind++];
+
+    /* Create a pipe for talking to the child. */
+    if (pipe(fdRes) == -1) {
+        fprintf(stderr, "%s: cannot create a pipe: %s\n", 
+            pszProgramName, strerror(errno));
         return 1;
     }
-    if (sscanf(pszEnv, "%d %d", &fdFrom, &fdTo) != 2) abort();
 
-    /* Read the parameters. */
-    if (readBuf(fdFrom, &params, sizeof(params))) abort();
-    close(fdFrom);
-    logMsg(LOG_DEBUG, "mounting AEFS volume at %s", params.szBasePath);
+    /* Expand the given base path. */
+    if (!realpath(pszBasePath, szBasePath)) {
+        fprintf(stderr, "%s: cannot expand path: %s\n", 
+            pszProgramName, strerror(errno));
+        return 1;
+    }
+    strcat(szBasePath, "/");
 
-    fDebug = params.fDebug;
-
-    /* Get the unmounting command. */
-    pszUnmount = getenv("_FUSE_UNMOUNT_CMD");
-
-    /* Do actual work, then unmount unless somebody else did. */
-    if (!run()) {
-        logMsg(LOG_DEBUG, "unmounting using: %s", pszUnmount);
-        system(pszUnmount);
+    /* Ask the user to enter the passphrase, if it wasn't specified
+       with "-k". */
+    if (!pszPassPhrase) {
+        pszPassPhrase = szPassPhrase;
+        if (readPhrase("passphrase: ", sizeof(szPassPhrase), szPassPhrase)) {
+            fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
+            return 1;
+        }
     }
 
-    memset(&params, 0, sizeof(params)); /* burn */
+    run(szPassPhrase);
+    memset(szPassPhrase, 0, sizeof(szPassPhrase)); /* burn */
+
+    /* Read the result. */
+    if (read(fdRes[0], &cr, sizeof(cr)) != sizeof(cr)) {
+        fprintf(stderr, "%s: cannot read daemon result: %s\n",
+            pszProgramName, strerror(errno));
+        return 1;
+    }
+
+    if (cr) {
+        fprintf(stderr, "%s: %s\n", pszProgramName, core2str(cr));
+        return 1;
+    }
 
     return 0;
 }

@@ -1,7 +1,7 @@
 /* utilutils.c -- Helper routines for the utility programs.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: utilutils.c,v 1.11 2001/12/06 16:08:18 eelco Exp $
+   $Id: utilutils.c,v 1.12 2002/05/11 08:46:47 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -129,7 +129,7 @@ char * core2str(CoreResult cr)
       case CORERC_SYS + SYS_ROFS:
 	 return "storage file is on a read-only file system";
       case CORERC_SYS + SYS_UNKNOWN:
-	 return "unknown error accessing storage file";
+	 return "unknown system error";
       default: return "unknown error";
    }
 }

@@ -1,7 +1,7 @@
 /* loop.c -- Implements communication with the FUSE kernel module.
    Copyright (C) 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: loop.c,v 1.8 2002/02/16 18:33:13 eelco Exp $
+   $Id: loop.c,v 1.9 2002/05/11 08:46:47 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -250,25 +250,7 @@ bool runLoop()
 }
 
 
-bool dupFuseFD()
+void setFuseFD(int fd)
 {
-    int fd, fd2;
-    fd = dup(fdFuse);
-    if (fd == -1) {
-	logMsg(LOG_ERR, "cannot dup fuse fd: %s", strerror(errno));
-	return false;
-    }
-    if (fdFuse < 3) {
-	fd2 = open("/dev/null", O_RDONLY);
-	if (fd == -1) {
-	    logMsg(LOG_ERR, "cannot dup /dev/null: %s", strerror(errno));
-	    return false;
-	}
-	dup2(fd2, fdFuse);
-	close(fd2);
-    } else
-	close(fdFuse);
     fdFuse = fd;
-    logMsg(LOG_DEBUG, "fuse fd moved to %d", fdFuse);
-    return true;
 }
