@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.9 2000/12/29 23:50:52 eelco Exp $
+   $Id: aefsnfsd.c,v 1.10 2000/12/30 00:44:36 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#define PORTMAP /* enables backward compatibility under Solaris */
 #include <rpc/rpc.h>
 #include <syslog.h>
 

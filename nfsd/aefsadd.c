@@ -1,7 +1,7 @@
 /* aefsadd.c -- Utility to add file systems to the AEFS NFS server.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsadd.c,v 1.6 2000/12/29 23:25:15 eelco Exp $
+   $Id: aefsadd.c,v 1.7 2000/12/30 00:44:36 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
    along with this program; if not, write to the Free Software Foundation,
    Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
