@@ -63,8 +63,26 @@ EXE = @EXEEXT@
 
 default: all
 
+
+# Autoconf/autoheader regeneration rules.
+
 $(BASE)/Makefile.incl: $(BASE)/Makefile.incl.in
 	(cd $(BASE) ; ./config.status)
+
+$(BASE)/config.h: $(BASE)/config.h.in
+	(cd $(BASE) ; ./config.status)
+
+$(BASE)/config.h.in: 
+	(cd $(BASE) ; autoheader)
+
+$(BASE)/configure: $(BASE)/configure.in
+	(cd $(BASE) ; autoconf)
+
+$(BASE)/config.status: $(BASE)/configure.in
+	(cd $(BASE) ; ./config.status --recheck)
+
+
+# Default targets.
 
 .PHONY: all clean install
 
