@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.13 2000/12/30 23:58:37 eelco Exp $
+   $Id: aefsnfsd.c,v 1.14 2000/12/31 01:09:25 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -783,15 +783,15 @@ int main(int argc, char * * argv)
     if (!fDebug) daemon(0, 0);
 #endif
     
-    if (!fDebug) openlog("aefsdmn", LOG_DAEMON, 0);
+    if (!fDebug) openlog("aefsnfsd", LOG_DAEMON, 0);
 
-    logMsg(LOG_INFO, "aefsdmn started");
+    logMsg(LOG_INFO, "aefsnfsd started");
 
     run();
 
-    logMsg(LOG_INFO, "aefsdmn stopping, flushing everything...");
+    logMsg(LOG_INFO, "aefsnfsd stopping, flushing everything...");
     commitAll();
-    logMsg(LOG_INFO, "aefsdmn stopped");
+    logMsg(LOG_INFO, "aefsnfsd stopped");
 
     svc_destroy(udp);
     svc_destroy(tcp);
@@ -1719,6 +1719,7 @@ addfsres * aefsctrlproc_addfs_1_svc(addfsargs * args, struct svc_req * rqstp)
     CryptedVolumeParms parms;
     char szCanon[AEFSCTRL_MAXPATHLEN + 16];
     SuperBlock * pSuperBlock;
+    User user;
     CoreResult cr;
     int i;
 
@@ -1726,6 +1727,11 @@ addfsres * aefsctrlproc_addfs_1_svc(addfsargs * args, struct svc_req * rqstp)
 
     res.cr = 0;
     
+    if (authCaller(rqstp, &user)) {
+        res.stat = ADDFS_FAIL;
+        return &res;
+    }
+        
     canonicalizePath(args->path, szCanon);
 
     /* Perhaps we already have the key? */

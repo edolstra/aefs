@@ -1,7 +1,7 @@
 /* aefsadd.c -- Utility to add file systems to the AEFS NFS server.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsadd.c,v 1.10 2000/12/30 23:15:21 eelco Exp $
+   $Id: aefsadd.c,v 1.11 2000/12/31 01:09:25 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -326,6 +326,11 @@ int main(int argc, char * * argv)
         case ADDFS_DIRTY:
             fprintf(stderr, "%s: file system is dirty, "
                 "run `aefsck -f %s' and retry\n",
+                pszProgramName, pszBasePath);
+            break;
+        case ADDFS_PERM:
+            fprintf(stderr, "%s: you don't have permission to "
+                "talk to the server\n",
                 pszProgramName, pszBasePath);
             break;
         default:

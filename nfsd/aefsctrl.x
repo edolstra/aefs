@@ -1,7 +1,7 @@
 /* aefsctrl.x -- Control protocol for the AEFS NFS server.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsctrl.x,v 1.3 2000/12/29 22:03:53 eelco Exp $
+   $Id: aefsctrl.x,v 1.4 2000/12/31 01:09:25 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -42,7 +42,8 @@ enum addfsstat {
     ADDFS_MAX_FS = 2,   /* file system limit reached */
     ADDFS_CORE = 3,     /* corefs error, consult cr */
     ADDFS_FAIL = 4,     /* misc. failure */
-    ADDFS_DIRTY = 5	/* file system is dirty, run aefsck */
+    ADDFS_DIRTY = 5,	/* file system is dirty, run aefsck */
+    ADDFS_PERM = 6      /* you don't have permission to talk */
 };
 
 struct addfsres {
