@@ -2,7 +2,7 @@
    system-independent FS code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: sysdep.h,v 1.8 2000/12/30 23:55:59 eelco Exp $
+   $Id: sysdep.h,v 1.9 2000/12/31 11:35:30 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -80,8 +80,8 @@ SysResult sysWriteToFile(File * pFile, FilePos cbLength,
    octet * pabBuffer, FilePos * pcbWritten);
 SysResult sysSetFileSize(File * pFile, FilePos cbSize);
 SysResult sysQueryFileSize(File * pFile, FilePos * pcbSize);
-SysResult sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred);
-SysResult sysFileExists(char * pszName, Bool * pfExists);
+SysResult sysDeleteFile(char * pszName, bool fFastDelete, Cred cred);
+SysResult sysFileExists(char * pszName, bool * pfExists);
 
 void * sysAllocSecureMem(int cbSize);
 void sysFreeSecureMem(void * pMem);

@@ -1,6 +1,8 @@
 /* aefsdmn.h -- Header file for the daemon code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: aefsdmn.h,v 1.6 2000/12/31 11:35:20 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -36,7 +38,7 @@ typedef struct _ServerData ServerData;
 typedef struct _VolData VolData;
 
 struct _ServerData{
-      Bool fQuit;
+      bool fQuit;
       
       /* Mutex semaphore guarding against concurrent access. */
       HMTX hmtxGlobal;
@@ -61,12 +63,12 @@ struct _ServerData{
       
       /* If set, maintain the last-access time stamp of files lazily,
          that is, update it there are other changes to the file. */
-      Bool fLazyLastAccess;
+      bool fLazyLastAccess;
 
       /* If not set, flush all volumes after processing a request in
          the runDaemon() loop.  If set, flushing is done at fixed time
          intervals by the lazy writer thread. */
-      Bool fLazyWrite;
+      bool fLazyWrite;
 };
 
 typedef struct {
@@ -95,7 +97,7 @@ struct _VolData {
       CryptedVolume * pVolume; /* copy of pSuperBlock->pVolume */
       CryptedFileID idRoot; /* copy of pSuperBlock->idRoot */
 
-      Bool fReadOnly;
+      bool fReadOnly;
 
       /* Statistics. */
       int cOpenFiles;
@@ -135,7 +137,7 @@ int verifyString(char * pszStr, int cbMaxLen);
 
 int verifyPathName(char * pszName);
 
-Bool hasNon83Name(char * pszName);
+bool hasNon83Name(char * pszName);
 
 APIRET coreResultToOS2(CoreResult cr);
 
@@ -143,10 +145,10 @@ void splitPath(char * pszFull, char * pszPrefix, char * pszLast);
 
 void logsffsi(struct sffsi * psffsi);
 
-void coreToSffsi(Bool fHidden, CryptedFileInfo * pInfo,
+void coreToSffsi(bool fHidden, CryptedFileInfo * pInfo,
    struct sffsi * psffsi);
 
-USHORT makeDOSAttr(Bool fHidden, CryptedFileInfo * pInfo);
+USHORT makeDOSAttr(bool fHidden, CryptedFileInfo * pInfo);
 
 void extractDOSAttr(USHORT fsAttr, CryptedFileInfo * pInfo);
 
@@ -155,7 +157,7 @@ APIRET storeFileInfo(
    CryptedFileID idFile, /* DosFindXXX level 3 only */
    PGEALIST pgeas, /* DosFindXXX level 3 only */
    char * pszFileName, /* DosFindXXX only */
-   Bool fHidden,
+   bool fHidden,
    CryptedFileInfo * pInfo,
    char * * ppData,
    ULONG * pcbData,

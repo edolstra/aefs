@@ -1,6 +1,8 @@
 /* attach.h -- Handles (at|de)tachments and other volume stuff.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: attach.c,v 1.7 2000/12/31 11:35:21 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -108,7 +110,7 @@ APIRET fsFsCtl(ServerData * pServerData, struct fsctl * pfsctl)
 }
 
 
-static void dirtyCallBack(CryptedVolume * pVolume, Bool fDirty)
+static void dirtyCallBack(CryptedVolume * pVolume, bool fDirty)
 {
    CoreResult cr;
    VolData * pVolData = (VolData *)
@@ -140,7 +142,7 @@ static APIRET attachVolume(ServerData * pServerData,
    CoreResult cr;
    VolData * pVolData;
    AEFS_ATTACH * parms = (AEFS_ATTACH *) pServerData->pData;
-   Bool fReadOnly;
+   bool fReadOnly;
    CryptedVolumeParms vparms;
    char szFileName[MAX_VOLUME_BASE_PATH_NAME + 128];
    struct stat st;

@@ -1,5 +1,7 @@
 /* aefsdump.c -- Off-line data extraction.
-   Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
+
+   $Id: aefsdump.c,v 1.4 2000/12/31 11:35:38 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -64,7 +66,7 @@ int main(int argc, char * * argv)
    CipherResult cr2;
    
    char * pszKey = 0, * pszCipher = 0;
-   Bool fUseCBC = TRUE;
+   bool fUseCBC = true;
    char szKey[1024];
    octet abKey[MAX_KEY_SIZE];
    Cipher * pCipher;
@@ -119,7 +121,7 @@ int main(int argc, char * * argv)
             break;
 
          case 3: /* --no-cbc */
-            fUseCBC = FALSE;
+            fUseCBC = false;
             break;
 
          default:

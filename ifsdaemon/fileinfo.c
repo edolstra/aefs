@@ -1,6 +1,8 @@
 /* fileinfo.c -- Set and query file information.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: fileinfo.c,v 1.6 2000/12/31 11:35:21 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -25,7 +27,7 @@ APIRET storeFileInfo(
    CryptedFileID idFile, /* DosFindXXX level 3 only */
    PGEALIST pgeas, /* DosFindXXX level 3 only */
    char * pszFileName, /* DosFindXXX only */
-   Bool fHidden,
+   bool fHidden,
    CryptedFileInfo * pInfo,
    char * * ppData,
    ULONG * pcbData,
@@ -184,7 +186,7 @@ APIRET stampFileAndFlush(VolData * pVolData, CryptedFileID idFile,
 
 /* Set the archived bit and the last write time. */
 APIRET easChanged(CryptedVolume * pVolume, CryptedFileID idFile,
-   Bool fHidden, struct sffsi * psffsi)
+   bool fHidden, struct sffsi * psffsi)
 {
    CoreResult cr;
    CryptedFileInfo info;
@@ -206,11 +208,11 @@ APIRET easChanged(CryptedVolume * pVolume, CryptedFileID idFile,
 
 
 CoreResult setHiddenFlag(CryptedVolume * pVolume,
-   CryptedFileID idDir, CryptedFileID idFile, Bool fHidden)
+   CryptedFileID idDir, CryptedFileID idFile, bool fHidden)
 {
    CoreResult cr;
    CryptedDirEntry * pEntries, * pCur;
-   Bool fFound = FALSE;
+   bool fFound = false;
    
    cr = coreQueryDirEntries(pVolume, idDir, &pEntries);
    if (cr) {
@@ -220,7 +222,7 @@ CoreResult setHiddenFlag(CryptedVolume * pVolume,
 
    for (pCur = pEntries; pCur; pCur = pCur->pNext)
       if (pCur->idFile == idFile) {
-         fFound = TRUE;
+         fFound = true;
          if (fHidden)
             pCur->flFlags |= CDF_HIDDEN;
          else
@@ -262,7 +264,7 @@ APIRET doTimeChange(ULONG os2time, CoreTime * pcoretime,
 
 
 APIRET setLevel1Info(CryptedVolume * pVolume, struct sffsi * psffsi,
-   CryptedFileID idFile, CryptedFileID idDir, Bool fHidden,
+   CryptedFileID idFile, CryptedFileID idDir, bool fHidden,
    PFILESTATUS pStat)
 {
    CoreResult cr;
@@ -303,7 +305,7 @@ APIRET setLevel1Info(CryptedVolume * pVolume, struct sffsi * psffsi,
 APIRET doFileInfo(struct sffsi * psffsi,
    ULONG flFlag, ULONG ulLevel,
    VolData * pVolData, CryptedFileID idFile,
-   CryptedFileID idDir, Bool fHidden,
+   CryptedFileID idDir, bool fHidden,
    ULONG cbData, char * pData)
 {
    CoreResult cr;
@@ -423,7 +425,7 @@ APIRET fsPathInfo(ServerData * pServerData,
    CryptedFileID idDir;
    CryptedFileID idFile;
    CryptedDirEntry * pDirEntry;
-   Bool fHidden;
+   bool fHidden;
    
    if (VERIFYFIXED(ppathinfo->szName) ||
        verifyPathName(ppathinfo->szName))
@@ -470,7 +472,7 @@ APIRET fsFileAttribute(ServerData * pServerData,
    CryptedFileID idFile;
    CryptedFileInfo info, info2;
    CryptedDirEntry * pDirEntry;
-   Bool fHidden;
+   bool fHidden;
    
    if (VERIFYFIXED(pfileattribute->szName) ||
        verifyPathName(pfileattribute->szName))

@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.15 2000/12/31 11:06:02 eelco Exp $
+   $Id: aefsnfsd.c,v 1.16 2000/12/31 11:35:25 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -63,7 +63,7 @@ typedef struct {
         SuperBlock * pSuperBlock;
         int uid, gid;
         int cRefs;
-        Bool fLazyWrite;
+        bool fLazyWrite;
 } Filesystem;
 
 
@@ -86,9 +86,9 @@ char * pszProgramName;
 int voidthing;
 #define VOIDOBJ ((void *) &voidthing)
 
-Bool fDebug = FALSE;
+bool fDebug = false;
 
-Bool fTerminate = FALSE;
+bool fTerminate = false;
 
 
 /* Write a message to syslog. */
@@ -468,7 +468,7 @@ static nfsstat havePerm2(int what, User * pUser, fsid fs,
 
 
 /* Called by corefs whenever it marks a sector as dirty. */
-static void dirtyCallBack(CryptedVolume * pVolume, Bool fDirty)
+static void dirtyCallBack(CryptedVolume * pVolume, bool fDirty)
 {
     CoreResult cr;
     Filesystem * pFS = apFilesystems[(fsid)
@@ -577,7 +577,7 @@ static int makeSocket(int protocol)
 
 /* Create (and register) our RPC services on the given transport
    protocol. */
-static SVCXPRT * createAndRegister(int protocol, Bool fRegister)
+static SVCXPRT * createAndRegister(int protocol, bool fRegister)
 {
     SVCXPRT * transp;
     int s;
@@ -646,7 +646,7 @@ Start the AEFS NFS server.\n\
    system, we have to wait until the next time-out. */
 static void sigHandler(int signo)
 {
-    fTerminate = TRUE;
+    fTerminate = true;
 }
 
 
@@ -713,7 +713,7 @@ int main(int argc, char * * argv)
 {
     int i, c;
     SVCXPRT * udp, * tcp;
-    Bool fRegister = FALSE;
+    bool fRegister = false;
         
     struct option const options[] = {
         { "help", no_argument, 0, 1 },
@@ -741,7 +741,7 @@ int main(int argc, char * * argv)
                 break;
 
             case 'd': /* --debug */
-                fDebug = TRUE;
+                fDebug = true;
                 break;
 
             case 'l': /* --lock */
@@ -749,7 +749,7 @@ int main(int argc, char * * argv)
                 break;
 
             case 'r': /* --register */
-                fRegister = TRUE;
+                fRegister = true;
                 break;
 
             default:
@@ -1297,7 +1297,7 @@ nfsstat * nfsproc_remove_2_svc(diropargs * args, struct svc_req * rqstp)
     res = decodeFH(&args->dir, &fs, &idDir);
     if (res) return &res;
 
-    res = removeFile(fs, idDir, args->name, FALSE, &user);
+    res = removeFile(fs, idDir, args->name, false, &user);
     return &res;
 }
 
@@ -1483,7 +1483,7 @@ nfsstat * nfsproc_rmdir_2_svc(diropargs * args, struct svc_req * rqstp)
     res = decodeFH(&args->dir, &fs, &idDir);
     if (res) return &res;
 
-    res = removeFile(fs, idDir, args->name, TRUE, &user);
+    res = removeFile(fs, idDir, args->name, true, &user);
     return &res;
 }
 
@@ -1763,7 +1763,7 @@ addfsres * aefsctrlproc_addfs_1_svc(addfsargs * args, struct svc_req * rqstp)
     parms.dirtyCallBack = dirtyCallBack;
     parms.pUserData = (void *) i; /* hack! */
 #ifdef SYSTEM_posix
-    parms.cred.fEnforce = TRUE;
+    parms.cred.fEnforce = true;
     parms.cred.uid = args->stor_uid;
     parms.cred.gid = args->stor_gid;
     parms.cred.mode = args->stor_mode;
@@ -1776,7 +1776,7 @@ retry:
     if (cr) {
         if (pSuperBlock) coreDropSuperBlock(pSuperBlock);
         if (!parms.fReadOnly) {
-            parms.fReadOnly = TRUE;
+            parms.fReadOnly = true;
             goto retry;
         }
         res.stat = ADDFS_CORE;

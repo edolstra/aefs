@@ -3,6 +3,8 @@
    C files in this directory.  Also implements the lazy writer.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: aefsdmn.c,v 1.8 2000/12/31 11:35:20 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -201,7 +203,7 @@ int processArgs(ServerData * pServerData, int argc, char * * argv,
             break;
 
          case 8: /* --quit */
-            pServerData->fQuit = TRUE;
+            pServerData->fQuit = true;
             break;
 
          case 9: /* --info */
@@ -210,9 +212,9 @@ int processArgs(ServerData * pServerData, int argc, char * * argv,
 
          case 10: /* --lastaccess */
             if (strcmp(optarg, "active") == 0) 
-               pServerData->fLazyLastAccess = FALSE;
+               pServerData->fLazyLastAccess = false;
             else if (strcmp(optarg, "lazy") == 0) 
-               pServerData->fLazyLastAccess = TRUE;
+               pServerData->fLazyLastAccess = true;
             else {
                logMsg(L_ERR, "invalid argument to --lastaccess: %s", optarg);
                return 1;
@@ -221,9 +223,9 @@ int processArgs(ServerData * pServerData, int argc, char * * argv,
 
          case 11: /* --lazy */
             if (strcmp(optarg, "on") == 0) 
-               pServerData->fLazyWrite = TRUE;
+               pServerData->fLazyWrite = true;
             else if (strcmp(optarg, "off") == 0) 
-               pServerData->fLazyWrite = FALSE;
+               pServerData->fLazyWrite = false;
             else {
                logMsg(L_ERR, "invalid argument to --lazy: %s", optarg);
                return 1;
@@ -771,8 +773,8 @@ int main(int argc, char * * argv)
    serverData.cMaxOpenStorageFiles = 16;
    serverData.csMaxCached = 4096;
    serverData.cMaxCryptedFiles = 4096;
-   serverData.fLazyLastAccess = FALSE;
-   serverData.fLazyWrite = TRUE;
+   serverData.fLazyLastAccess = false;
+   serverData.fLazyWrite = true;
 
    /* Initialize logging to syslog. */
    openlog("aefsdmn", LOG_DAEMON, 0);

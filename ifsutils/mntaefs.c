@@ -1,6 +1,8 @@
 /* mntaefs.c -- AEFS mount program.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: mntaefs.c,v 1.4 2000/12/31 11:35:24 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -72,9 +74,9 @@ Examples:\n\
 
 int main(int argc, char * * argv)
 {
-   Bool fForceMount = FALSE;
-   Bool fReadOnly = FALSE;
-   Bool fAutoCheck = TRUE;
+   bool fForceMount = false;
+   bool fReadOnly = false;
+   bool fAutoCheck = true;
    char szKey[1024], * pszOrigKey = 0;
    int c, r;
    AEFS_ATTACH attachparms;
@@ -114,15 +116,15 @@ int main(int argc, char * * argv)
             break;
 
          case 'f': /* --force */
-            fForceMount = TRUE;
+            fForceMount = true;
             break;
 
          case 'r': /* --readonly */
-            fReadOnly = TRUE;
+            fReadOnly = true;
             break;
 
          case 'n': /* --nocheck */
-            fAutoCheck = FALSE;
+            fAutoCheck = false;
             break;
 
          default:
@@ -222,7 +224,7 @@ retry:
             } else {
                printf("%s: volume cleaned, retrying...\n",
                   pszProgramName);
-               fAutoCheck = FALSE;
+               fAutoCheck = false;
                goto retry;
             }
             

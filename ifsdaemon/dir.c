@@ -1,6 +1,8 @@
 /* dir.c -- Directory operations: chdir, mkdir, and rmdir.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: dir.c,v 1.7 2000/12/31 11:35:21 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)

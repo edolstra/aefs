@@ -1,5 +1,7 @@
 /* umntaefs.c -- AEFS unmount program.
-   Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
+
+   $Id: umntaefs.c,v 1.2 2000/12/31 11:35:24 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -59,7 +61,7 @@ Examples:\n\
 
 int main(int argc, char * * argv)
 {
-   Bool fForceUnmount = FALSE;
+   bool fForceUnmount = false;
    char * pszDrive;
    int c;
    APIRET rc;
@@ -91,7 +93,7 @@ int main(int argc, char * * argv)
             break;
 
          case 'f': /* --force */
-            fForceUnmount = TRUE;
+            fForceUnmount = true;
             break;
 
          default:

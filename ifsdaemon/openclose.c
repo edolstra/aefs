@@ -1,6 +1,8 @@
 /* openclose.c -- Create, open and close files.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: openclose.c,v 1.6 2000/12/31 11:35:21 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -25,7 +27,7 @@
    filling in the sffsi structure and the opencreate result fields. */
 static APIRET finalizeOpen(struct opencreate * popencreate,
    VolData * pVolData, CryptedFileID idFile, CryptedFileID idDir,
-   char * pszName, CryptedFileInfo * pInfo, Bool fHidden,
+   char * pszName, CryptedFileInfo * pInfo, bool fHidden,
    USHORT usAction)
 {
    OpenFileData * pOpenFileData = (OpenFileData *) &popencreate->sffsd;
@@ -105,7 +107,7 @@ APIRET fsOpenCreate(ServerData * pServerData,
    CryptedFileID idFile;
    CryptedFileInfo info;
    CryptedDirEntry * pDirEntry;
-   Bool fHidden;
+   bool fHidden;
    
    popencreate->fsGenFlag = 0;
    popencreate->oError = 0;

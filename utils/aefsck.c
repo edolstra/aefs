@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsck.c,v 1.10 2000/12/31 11:06:18 eelco Exp $
+   $Id: aefsck.c,v 1.11 2000/12/31 11:35:37 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -102,13 +102,13 @@ typedef struct {
       int cFiles;
       FSItem * pFirstSorted;
       
-      Bool fRewriteFreeList;
+      bool fRewriteFreeList;
       char * pFreeList;
 } State;
 
 
 /* User interrupt? */
-static Bool fInterrupted = FALSE;
+static bool fInterrupted = false;
 
 
 /* Ask the user a question.  `No' should always be the `safe'
@@ -279,7 +279,7 @@ static char * printFileName2(State * pState, CryptedFileID id,
 {
    CryptedDirEntry * pEntry;
    FSItem * fsi, * fsip;
-   Bool fFound;
+   bool fFound;
    
    if (!id) {
       strcpy(p, "???");
@@ -291,7 +291,7 @@ static char * printFileName2(State * pState, CryptedFileID id,
          sprintf(p, "$%08lx", id);
       } else {
          printFileName2(pState, fsi->idParent, p);
-         fFound = FALSE;
+         fFound = false;
          fsip = findFile(pState, fsi->idParent);
          if (fsip) {
             for (pEntry = fsip->pChildren; pEntry;
@@ -299,7 +299,7 @@ static char * printFileName2(State * pState, CryptedFileID id,
                if (pEntry->idFile == fsi->id) {
                   sprintf(strchr(p, 0), "/%s",
                      (char *) pEntry->pabName);
-                  fFound = TRUE;
+                  fFound = true;
                   break;
                }
          }
@@ -545,7 +545,7 @@ static int createInfoSector(State * pState, FSItem * fsi)
       return res | AEFSCK_ABORT;
    }
 
-   pState->fRewriteFreeList = TRUE;
+   pState->fRewriteFreeList = true;
 
    return res;
 }
@@ -824,7 +824,7 @@ retry:
    /* The ISF header will be checked when we walk the free list. */
 
    pState->csISFSize = st.st_size / SECTOR_SIZE;
-   pState->fRewriteFreeList = FALSE;
+   pState->fRewriteFreeList = false;
 
    if (pState->flags & FSCK_VERBOSE)
       printf("phase: looking for storage files...\n");
@@ -852,7 +852,7 @@ retry:
       res2 = checkFreeList(pState);
       res |= res2;
       if (STOP(res)) return res;
-      if (res2) pState->fRewriteFreeList = TRUE;
+      if (res2) pState->fRewriteFreeList = true;
    }
 
    if (pState->fRewriteFreeList && (pState->flags & FSCK_FIX)) {
@@ -1348,14 +1348,14 @@ static int isBadEntry(State * pState, FSItem * fsi,
 {
    unsigned char * p, * pszName =
       (unsigned char *) pEntry->pabName;
-   int fEmpty = TRUE;
-   int fWhite = FALSE;
-   int fBad = FALSE;
+   int fEmpty = true;
+   int fWhite = false;
+   int fBad = false;
 
    for (p = pszName; *p; p++) {
-      fEmpty = FALSE;
+      fEmpty = false;
       fWhite = (*p == ' ');
-      if (*p < 32 || *p == 127) fBad = TRUE;
+      if (*p < 32 || *p == 127) fBad = true;
    }
    
    if (fEmpty)
@@ -1467,11 +1467,11 @@ static int followDirEntries(State * pState, FSItem * fsi)
    int res = 0;
    CryptedDirEntry * pCur, * * ppCur, * pNext;
    FSItem * fsic;
-   Bool fRemove;
+   bool fRemove;
    
    for (ppCur = &fsi->pChildren, pCur = *ppCur; pCur; ) {
       pNext = pCur->pNext;
-      fRemove = FALSE;
+      fRemove = false;
       
       fsic = findFile(pState, pCur->idFile);
       
@@ -1483,7 +1483,7 @@ static int followDirEntries(State * pState, FSItem * fsi)
             (char *) pCur->pabName, pCur->idFile);
          if (pState->flags & FSCK_FIX) {
             printf(", removing from directory\n");
-            fRemove = TRUE;
+            fRemove = true;
          } else printf("\n");
          
       } else if (CFF_ISEA(fsic->info.flFlags)) {
@@ -1494,7 +1494,7 @@ static int followDirEntries(State * pState, FSItem * fsi)
             (char *) pCur->pabName, pCur->idFile);
          if (pState->flags & FSCK_FIX) {
             printf(", removing from directory\n");
-            fRemove = TRUE;
+            fRemove = true;
          } else printf("\n");
 
          /* redundant */
@@ -1507,7 +1507,7 @@ static int followDirEntries(State * pState, FSItem * fsi)
 /*             (char *) pCur->pabName, pCur->idFile); */
 /*          if (pState->flags & FSCK_FIX) { */
 /*             printf(", removing from this directory\n"); */
-/*             fRemove = TRUE; */
+/*             fRemove = true; */
 /*          } else printf("\n"); */
          
       } else if (CFF_ISDIR(fsic->info.flFlags) &&
@@ -1522,7 +1522,7 @@ static int followDirEntries(State * pState, FSItem * fsi)
             printFileName(pState, fsic->info.idParent));
          if (pState->flags & FSCK_FIX) {
             printf(", removing from this directory\n");
-            fRemove = TRUE;
+            fRemove = true;
          } else printf("\n");
          
       } else fsic->cRefs++;
@@ -1549,7 +1549,7 @@ static int followExtEAFile(State * pState, FSItem * fsi)
 {
    int res = 0;
    FSItem * fsic;
-   Bool fRemove = FALSE;
+   bool fRemove = false;
    
    fsic = findFile(pState, fsi->info.idEAFile);
    
@@ -1559,7 +1559,7 @@ static int followExtEAFile(State * pState, FSItem * fsi)
          printFileName(pState, fsi->id), fsi->info.idEAFile);
       if (pState->flags & FSCK_FIX) {
          printf(", clearing EA fields\n");
-         fRemove = TRUE;
+         fRemove = true;
       } else printf("\n");
       
    } else if (!CFF_ISEA(fsic->info.flFlags)) {
@@ -1568,7 +1568,7 @@ static int followExtEAFile(State * pState, FSItem * fsi)
          printFileName(pState, fsi->id), fsi->info.idEAFile);
       if (pState->flags & FSCK_FIX) {
          printf(", clearing EA fields\n");
-         fRemove = TRUE;
+         fRemove = true;
       } else printf("\n");
       
    } else if (fsic->info.idParent != fsi->id) {
@@ -1579,7 +1579,7 @@ static int followExtEAFile(State * pState, FSItem * fsi)
          printFileName(pState, fsic->info.idParent));
       if (pState->flags & FSCK_FIX) {
          printf(", clearing EA fields\n");
-         fRemove = TRUE;
+         fRemove = true;
       } else printf("\n");
       
    } else if (fsic->info.cbFileSize != fsi->info.cbEAs) {
@@ -1588,7 +1588,7 @@ static int followExtEAFile(State * pState, FSItem * fsi)
          printFileName(pState, fsi->id), fsi->info.idEAFile);
       if (pState->flags & FSCK_FIX) {
          printf(", clearing EA fields\n");
-         fRemove = TRUE;
+         fRemove = true;
       } else printf("\n");
       
    } else {
@@ -1952,7 +1952,7 @@ static int checkFS2(int flags, char * pszBasePath, char * pszKey)
       strcat(szBasePath, "/");
 
    coreSetDefVolumeParms(&parms);
-   if (!(flags & FSCK_FIX)) parms.fReadOnly = TRUE;
+   if (!(flags & FSCK_FIX)) parms.fReadOnly = true;
    
    cr = coreReadSuperBlock(szBasePath, pszKey, cipherTable, &parms,
       &state.pSuperBlock);
@@ -1979,7 +1979,7 @@ static int checkFS2(int flags, char * pszBasePath, char * pszKey)
 
 static void breakHandler(int sig)
 {
-   fInterrupted = TRUE;
+   fInterrupted = true;
 }
 
 

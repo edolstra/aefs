@@ -1,6 +1,8 @@
 /* corefs.h -- Header file to the system-independent FS code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: corefs.h,v 1.6 2000/12/31 11:35:18 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -102,7 +104,7 @@ typedef struct {
       int csMaxCached; /* > 0 */
       int csIOGranularity; /* > 0, <= csMaxCached */
       int csISFGrow; /* > 0 */
-      void (* dirtyCallBack)(CryptedVolume * pVolume, Bool fDirty);
+      void (* dirtyCallBack)(CryptedVolume * pVolume, bool fDirty);
       void * pUserData;
 } CryptedVolumeParms;
 

@@ -1,5 +1,7 @@
 /* mkaefs.c -- AEFS file system creation program.
-   Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
+
+   $Id: mkaefs.c,v 1.5 2000/12/31 11:35:38 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -210,7 +212,7 @@ int initVolume(char * pszBasePath, Key * pKey,
 
 
 int createVolumeInPath(char * pszBasePath, Key * pKey,
-   Bool fUseCBC, Bool fForce)
+   bool fUseCBC, bool fForce)
 {
    CoreResult cr;
    int res;
@@ -322,8 +324,8 @@ bits).  The first entry in the table is the default cipher.\n\
 
 int main(int argc, char * * argv)
 {
-   Bool fUseCBC = TRUE;
-   Bool fForce = FALSE;
+   bool fUseCBC = true;
+   bool fForce = false;
    int res;
    Key * pKey;
    int c;
@@ -369,11 +371,11 @@ int main(int argc, char * * argv)
             break;
 
          case 3: /* --no-cbc */
-            fUseCBC = FALSE;
+            fUseCBC = false;
             break;
 
          case 4: /* --force */
-            fForce = TRUE;
+            fForce = true;
             break;
 
          default:

@@ -1,6 +1,8 @@
 /* storage.c -- Storage and cache management.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: storage.c,v 1.11 2000/12/31 11:35:18 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -113,7 +115,7 @@ struct _CryptedSector {
       CryptedSector * pNextInMRU;
       CryptedSector * pPrevInMRU;
 
-      Bool fDirty;
+      bool fDirty;
 
       CryptedSectorData data;
 };
@@ -191,7 +193,7 @@ void coreSetDefVolumeParms(CryptedVolumeParms * pParms)
    pParms->flOpenFlags = SOF_READWRITE | SOF_DENYWRITE |
       SOF_RANDOMSEQUENTIAL;
    memset(&pParms->cred, 0, sizeof(pParms->cred));
-   pParms->fReadOnly = FALSE;
+   pParms->fReadOnly = false;
    pParms->cMaxCryptedFiles = 512;
    pParms->cMaxOpenStorageFiles = 8;
    pParms->csMaxCached = 1024;
@@ -421,7 +423,7 @@ static CoreResult storageFileExists(CryptedVolume * pVolume,
 {
    char szPathName[MAX_STORAGE_PATH_NAME];
    SysResult sr;
-   Bool fExists;
+   bool fExists;
    makeStoragePathName(pVolume, id, szPathName);
    if (sr = sysFileExists(szPathName, &fExists)) return sys2core(sr);
    return fExists ? CORERC_FILE_EXISTS : CORERC_OK;
@@ -482,7 +484,7 @@ static CoreResult closeStorageFile(CryptedFile * pFile)
 /* Make sure that the storage file for the specified CryptedFile is
    open.  If it is already open, it is moved to the head of the MRU
    list.  If it is not open, it is opened or created. */
-static CoreResult openStorageFile(CryptedFile * pFile, Bool fCreate,
+static CoreResult openStorageFile(CryptedFile * pFile, bool fCreate,
    CryptedFilePos cbInitialSize)
 {
    CoreResult cr;
@@ -640,7 +642,7 @@ CoreResult coreCreateFile(CryptedVolume * pVolume,
    if (cr) return cr;
 
    /* Create a storage file. */
-   cr = openStorageFile(pFile, TRUE, csPreallocate * SECTOR_SIZE);
+   cr = openStorageFile(pFile, true, csPreallocate * SECTOR_SIZE);
    if (cr) {
       dropFile(pFile);
       return cr;
@@ -675,7 +677,7 @@ CoreResult coreDestroyFile(CryptedVolume * pVolume, CryptedFileID id)
    if (cr) return cr;
 
    /* Delete the storage file. */
-   return sys2core(sysDeleteFile(szPathName, TRUE, pVolume->parms.cred));
+   return sys2core(sysDeleteFile(szPathName, true, pVolume->parms.cred));
 }
 
 
@@ -727,7 +729,7 @@ CoreResult coreSetFileAllocation(CryptedVolume * pVolume,
    deleteHighSectors(pFile, csAllocate);
    
    /* Make sure the storage file for this CryptedFile is open. */
-   cr = openStorageFile(pFile, FALSE, 0);
+   cr = openStorageFile(pFile, false, 0);
    if (cr) return cr;
 
    /* Set the new file size. */
@@ -746,13 +748,13 @@ static void clearDirtyFlag(CryptedSector * p)
 {
    CryptedVolume * pVolume = p->pFile->pVolume;
    if (p->fDirty) {
-      p->fDirty = FALSE;
+      p->fDirty = false;
       p->pFile->csDirty--;
       pVolume->csDirty--;
       assert(p->pFile->csDirty >= 0);
       assert(pVolume->csDirty >= 0);
       if (pVolume->csDirty == 0 && pVolume->parms.dirtyCallBack)
-         pVolume->parms.dirtyCallBack(pVolume, FALSE);
+         pVolume->parms.dirtyCallBack(pVolume, false);
    }
 }
 
@@ -787,7 +789,7 @@ static void removeSectorFromMRUList(CryptedSector * p)
 
 
 /* Add a sector to the cache.  The sector data is undefined.  The
-   dirty flag is initially FALSE. */
+   dirty flag is initially false. */
 static CoreResult addSector(CryptedFile * pFile, SectorNumber s,
    CryptedSector * * ppSector)
 {
@@ -801,7 +803,7 @@ static CoreResult addSector(CryptedFile * pFile, SectorNumber s,
 
    pSector->pFile = pFile;
    pSector->sectorNumber = s;
-   pSector->fDirty = FALSE;
+   pSector->fDirty = false;
 
    pFile->pVolume->csInCache++;
    
@@ -948,7 +950,7 @@ static CoreResult readBuffer(CryptedFile * pFile,
    SysResult sr;
    FilePos cbRead;
 
-   cr = openStorageFile(pFile, FALSE, 0);
+   cr = openStorageFile(pFile, false, 0);
    if (cr) return cr;
          
    if (sr = sysSetFilePos(pFile->pStorageFile, SECTOR_SIZE *
@@ -1117,7 +1119,7 @@ static CoreResult writeBuffer(CryptedSector * pStart, int c,
    
    assert(!pStart->pFile->pVolume->parms.fReadOnly);
 
-   cr = openStorageFile(pStart->pFile, FALSE, 0);
+   cr = openStorageFile(pStart->pFile, false, 0);
    if (cr) return cr;
          
    if (sr = sysSetFilePos(pStart->pFile->pStorageFile, SECTOR_SIZE *
@@ -1206,10 +1208,10 @@ static void dirtySector(CryptedVolume * pVolume,
    CryptedSector * pSector)
 {
    if (!pSector->fDirty) {
-      pSector->fDirty = TRUE;
+      pSector->fDirty = true;
       pSector->pFile->csDirty++;
       if (pVolume->csDirty++ == 0 && pVolume->parms.dirtyCallBack)
-         pVolume->parms.dirtyCallBack(pVolume, TRUE);
+         pVolume->parms.dirtyCallBack(pVolume, true);
    }
 }
 

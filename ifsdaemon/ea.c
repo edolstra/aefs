@@ -1,5 +1,7 @@
 /* ea.c -- CryptedEA list <-> FEALIST conversion.
-   Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
+
+   $Id: ea.c,v 1.2 2000/12/31 11:35:21 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -145,7 +147,7 @@ static APIRET storeMatchingEAs(CryptedEA * pEAs,
    CryptedEA * pCur;
    ULONG cbData = *pcbData;
    PFEA pfea = *ppfea;
-   Bool fMatch = 0;
+   bool fMatch = 0;
    
    /* Store each matching EA. */
    for (pCur = pEAs; pCur; pCur = pCur->pNext)

@@ -1,7 +1,7 @@
 /* types.h -- Declares data types.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: types.h,v 1.3 2000/12/30 21:19:40 eelco Exp $
+   $Id: types.h,v 1.4 2000/12/31 11:35:30 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,14 +23,14 @@
 #include "config.h"
 
 
-/* Booleans. */
-typedef int Bool;
+/* Booleans (C++/C99) style. */
+typedef int bool;
 
-#ifndef TRUE
-#define TRUE 1
+#ifndef true
+#define true 1
 #endif
-#ifndef FALSE
-#define FALSE 0
+#ifndef false
+#define false 0
 #endif
 
 

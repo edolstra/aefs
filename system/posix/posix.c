@@ -1,7 +1,7 @@
 /* posix.c -- Posix-specific low-level code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: posix.c,v 1.9 2000/12/31 11:07:15 eelco Exp $
+   $Id: posix.c,v 1.10 2000/12/31 11:35:35 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -316,9 +316,9 @@ SysResult sysQueryFileSize(File * pFile, FilePos * pcbSize)
 }
 
 
-SysResult sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred)
+SysResult sysDeleteFile(char * pszName, bool fFastDelete, Cred cred)
 {
-   Bool res;
+   bool res;
    int euid = 0, egid = 0;
 
 #ifdef HAVE_SETFSUID
@@ -340,12 +340,12 @@ SysResult sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred)
 }
 
 
-SysResult sysFileExists(char * pszName, Bool * pfExists)
+SysResult sysFileExists(char * pszName, bool * pfExists)
 {
    struct stat s;
    if (stat(pszName, &s) == -1) {
       if (errno != ENOENT) return unix2sys();
-      *pfExists = FALSE;
+      *pfExists = false;
    } else 
       *pfExists = S_ISREG(s.st_mode) != 0;
    return SYS_OK;

@@ -1,7 +1,7 @@
 /* os2.c -- OS/2 (EMX)-specific low-level code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: os2.c,v 1.5 2000/12/30 23:55:20 eelco Exp $
+   $Id: os2.c,v 1.6 2000/12/31 11:35:33 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -215,7 +215,7 @@ SysResult sysQueryFileSize(File * pFile, FilePos * pcbSize)
 }
 
 
-SysResult sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred)
+SysResult sysDeleteFile(char * pszName, bool fFastDelete, Cred cred)
 {
    return fFastDelete
       ? os2sys(DosForceDelete((PSZ) pszName))
@@ -223,7 +223,7 @@ SysResult sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred)
 }
 
 
-SysResult sysFileExists(char * pszName, Bool * pfExists)
+SysResult sysFileExists(char * pszName, bool * pfExists)
 {
    APIRET rc;
    FILESTATUS3 info;
@@ -232,7 +232,7 @@ SysResult sysFileExists(char * pszName, Bool * pfExists)
    {
       if (rc != ERROR_FILE_NOT_FOUND && rc != ERROR_PATH_NOT_FOUND)
          return os2sys(rc);
-      *pfExists = FALSE;
+      *pfExists = false;
    } else
       *pfExists = !(info.attrFile & FILE_DIRECTORY);
    return SYS_OK;

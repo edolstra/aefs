@@ -1,6 +1,8 @@
 /* fileio.c -- File I/O.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: fileio.c,v 1.5 2000/12/31 11:35:21 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)

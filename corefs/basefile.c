@@ -1,6 +1,8 @@
 /* basefile.c -- File I/O.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: basefile.c,v 1.5 2000/12/31 11:35:18 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -266,7 +268,7 @@ CoreResult coreWriteToFile(CryptedVolume * pVolume, CryptedFileID id,
    SectorNumber sCurrent;
    int offset, write;
    CryptedVolumeParms * pParms = coreQueryVolumeParms(pVolume);
-   Bool fChanged = FALSE;
+   bool fChanged = false;
    SectorNumber csExtent;
    int flFlags;
    
@@ -293,7 +295,7 @@ CoreResult coreWriteToFile(CryptedVolume * pVolume, CryptedFileID id,
    if (sCurrent > info.csSet) {
       cr = zeroSectors(pVolume, id, pParms, &info, sCurrent);
       if (cr) return cr;
-      fChanged = TRUE;
+      fChanged = true;
    }
 
    /* Write the data. */
@@ -343,7 +345,7 @@ CoreResult coreWriteToFile(CryptedVolume * pVolume, CryptedFileID id,
 
       if (sCurrent > info.csSet) {
          info.csSet = sCurrent;
-         fChanged = TRUE;
+         fChanged = true;
       }
    }
 
@@ -362,7 +364,7 @@ CoreResult coreSetFileSize(CryptedVolume * pVolume, CryptedFileID id,
    CoreResult cr;
    CryptedFileInfo info;
    SectorNumber cSectors;
-   Bool fChanged = FALSE;
+   bool fChanged = false;
    octet zero[PAYLOAD_SIZE];
    CryptedFilePos cbOldSize;
    int offset;
@@ -377,7 +379,7 @@ CoreResult coreSetFileSize(CryptedVolume * pVolume, CryptedFileID id,
    /* Change the file size. */
    if (info.cbFileSize != cbFileSize) {
       info.cbFileSize = cbFileSize;
-      fChanged = TRUE;
+      fChanged = true;
    }
    
    /* Reset the number of allocated sectors. */
@@ -386,13 +388,13 @@ CoreResult coreSetFileSize(CryptedVolume * pVolume, CryptedFileID id,
       cr = coreSetFileAllocation(pVolume, id, cSectors);
       if (cr) return cr;
       info.csAllocated = cSectors;
-      fChanged = TRUE;
+      fChanged = true;
    }
    
    /* Update the number of initialized sectors. */
    if (info.csSet > info.csAllocated) {
       info.csSet = info.csAllocated;
-      fChanged = TRUE;
+      fChanged = true;
    }
 
    if (fChanged) {

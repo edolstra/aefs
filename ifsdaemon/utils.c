@@ -1,7 +1,7 @@
 /* utils.c -- Helper routines for the daemon.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: utils.c,v 1.5 2000/12/30 23:58:02 eelco Exp $
+   $Id: utils.c,v 1.6 2000/12/31 11:35:21 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -52,32 +52,32 @@ int verifyPathName(char * pszName)
 #define DOSBADCHARS "<>|+=:;,.\"/\\[]"
 
 
-/* Return TRUE iff the specified name is not a valid DOS (that is,
+/* Return true iff the specified name is not a valid DOS (that is,
    8.3) filename. */
-Bool hasNon83Name(char * pszName)
+bool hasNon83Name(char * pszName)
 {
    char * p;
    int ext = 0, i = 0;
    if ((strcmp(pszName, ".") == 0) ||
        (strcmp(pszName, "..") == 0))
-      return FALSE;
+      return false;
    for (p = pszName; *p; p++) {
       i++;
       if (ext) {
-         if (*p == '.') return TRUE;
-         if (i > 3) return TRUE;
-         if (strchr(DOSBADCHARS, *p)) return TRUE;
+         if (*p == '.') return true;
+         if (i > 3) return true;
+         if (strchr(DOSBADCHARS, *p)) return true;
       } else {
          if (*p == '.') {
             ext = 1;
             i = 0;
          } else {
-            if (i > 8) return TRUE;
-            if (strchr(DOSBADCHARS, *p)) return TRUE;
+            if (i > 8) return true;
+            if (strchr(DOSBADCHARS, *p)) return true;
          }
       }
    }
-   return FALSE;
+   return false;
 }
 
 
@@ -164,7 +164,7 @@ void logsffsi(struct sffsi * psffsi)
 }
 
 
-void coreToSffsi(Bool fHidden, CryptedFileInfo * pInfo,
+void coreToSffsi(bool fHidden, CryptedFileInfo * pInfo,
    struct sffsi * psffsi)
 {
    coreTimeToOS2(pInfo->timeCreation,
@@ -180,7 +180,7 @@ void coreToSffsi(Bool fHidden, CryptedFileInfo * pInfo,
 }
 
 
-USHORT makeDOSAttr(Bool fHidden, CryptedFileInfo * pInfo)
+USHORT makeDOSAttr(bool fHidden, CryptedFileInfo * pInfo)
 {
    return 
       (fHidden ? FILE_HIDDEN : 0) |

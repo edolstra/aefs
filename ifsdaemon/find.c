@@ -1,6 +1,8 @@
 /* find.c -- Read directory contents with file info.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: find.c,v 1.5 2000/12/31 11:35:21 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -75,15 +77,15 @@ static BOOL entryMatches(SearchData * pSearchData,
 {
    if ((pEntry->flFlags & CDF_HIDDEN) &&
        !(pSearchData->flAttr & FILE_HIDDEN))
-      return FALSE;
+      return false;
    
    if (!(pEntry->flFlags & CDF_HIDDEN) &&
        (pSearchData->flAttr & (FILE_HIDDEN << 8)))
-      return FALSE;
+      return false;
 
    if (!(pSearchData->flAttr & FILE_NON83) &&
        hasNon83Name((char *) pEntry->pabName))
-      return FALSE;
+      return false;
    
    return nameMatches(pSearchData->szName, (char *) pEntry->pabName);
 }
@@ -99,26 +101,26 @@ static BOOL fileMatches(SearchData * pSearchData,
    BOOL fSystem = pInfo->flFlags & CFF_OS2S;
 
    if (fDir && !(pSearchData->flAttr & FILE_DIRECTORY))
-      return FALSE;
+      return false;
    
    if (!fDir && (pSearchData->flAttr & (FILE_DIRECTORY << 8)))
-      return FALSE;
+      return false;
 
    if (fSystem && !(pSearchData->flAttr & FILE_SYSTEM))
-      return FALSE;
+      return false;
    
    if (!fSystem && (pSearchData->flAttr & (FILE_SYSTEM << 8)))
-      return FALSE;
+      return false;
 
    if ((pInfo->flFlags & CFF_IWUSR) &&
        (pSearchData->flAttr & (FILE_READONLY << 8)))
-      return FALSE;
+      return false;
 
    if (!(pInfo->flFlags & CFF_OS2A) &&
        (pSearchData->flAttr & (FILE_ARCHIVED << 8)))
-      return FALSE;
+      return false;
 
-   return TRUE;
+   return true;
 }
 
 

@@ -1,7 +1,7 @@
 /* aefsadd.c -- Utility to add file systems to the AEFS NFS server.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsadd.c,v 1.11 2000/12/31 01:09:25 eelco Exp $
+   $Id: aefsadd.c,v 1.12 2000/12/31 11:35:25 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -161,9 +161,9 @@ static int parseUGID(char * param, uid_t * puid, gid_t * pgid)
 int main(int argc, char * * argv)
 {
     int c;
-    Bool fForceMount = FALSE;
-    Bool fReadOnly = FALSE;
-    Bool fLazyWrite = TRUE;
+    bool fForceMount = false;
+    bool fReadOnly = false;
+    bool fLazyWrite = true;
     char szKey[1024], * pszKey = 0, * pszBasePath;
     struct sockaddr_in addr;
     struct timeval time;
@@ -212,11 +212,11 @@ int main(int argc, char * * argv)
                 break;
 
             case 'f': /* --force */
-                fForceMount = TRUE;
+                fForceMount = true;
                 break;
 
             case 'r': /* --readonly */
-                fReadOnly = TRUE;
+                fReadOnly = true;
                 break;
 
             case 'm': /* --mode */
@@ -229,9 +229,9 @@ int main(int argc, char * * argv)
 
             case 11: /* --lazy */
                 if (strcmp(optarg, "on") == 0) 
-                    fLazyWrite = TRUE;
+                    fLazyWrite = true;
                 else if (strcmp(optarg, "off") == 0) 
-                    fLazyWrite = FALSE;
+                    fLazyWrite = false;
                 else {
                     fprintf(stderr, 
                         "%s: invalid argument to --lazy: %s", 
@@ -330,8 +330,7 @@ int main(int argc, char * * argv)
             break;
         case ADDFS_PERM:
             fprintf(stderr, "%s: you don't have permission to "
-                "talk to the server\n",
-                pszProgramName, pszBasePath);
+                "talk to the server\n", pszProgramName);
             break;
         default:
             fprintf(stderr, "%s: aefsnfsd returned error %d\n",

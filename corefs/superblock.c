@@ -1,6 +1,8 @@
 /* superblock.c -- Superblock code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: superblock.c,v 1.7 2000/12/31 11:35:18 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -189,7 +191,7 @@ static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
 
 /* Open the encrypted superblock file. */
 static CoreResult openSuperBlock2(SuperBlock * pSuperBlock,
-   CryptedVolumeParms * pParms, Bool fCreate)
+   CryptedVolumeParms * pParms, bool fCreate)
 {
    SysResult sr;
    char szFileName[MAX_VOLUME_BASE_PATH_NAME + 128];
@@ -224,7 +226,7 @@ static CoreResult readSuperBlock2(SuperBlock * pSuperBlock,
    SuperBlock2OnDisk * pOnDisk =
       (SuperBlock2OnDisk *) &sector.payload;
 
-   cr = openSuperBlock2(pSuperBlock, pParms, FALSE);
+   cr = openSuperBlock2(pSuperBlock, pParms, false);
    if (cr) return cr;
 
    if (sr = sysSetFilePos(pSuperBlock->pSB2File, 0)) 
@@ -376,7 +378,7 @@ CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, int flags)
    coreEncryptSectorData(&sector, (octet *) &sector,
       pSuperBlock->pKey, pParms->flCryptoFlags);
 
-   cr = openSuperBlock2(pSuperBlock, pParms, TRUE);
+   cr = openSuperBlock2(pSuperBlock, pParms, true);
    if (cr) return cr;
 
    if (sr = sysSetFilePos(pSuperBlock->pSB2File, 0)) 
