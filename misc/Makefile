@@ -1,14 +1,13 @@
 BASE = ..
 include $(BASE)/Makefile.incl
 
-MANIFEST := Makefile getopt.c getopt.h getopt1.c
+MANIFEST := Makefile getopt.c getopt.h getopt1.c missing.c
 
-GETOPT = getopt.c getopt1.c
-SRCS = $(GETOPT)
+SRCS = getopt.c getopt1.c missing.c
 
-all: getopt.a
+all: misc.a
 
-getopt.a: $(GETOPT:.c=.o)
+misc.a: $(SRCS:.c=.o)
 	ar crs $@ $?
 
 ifneq ($(MAKECMDGOALS),clean)

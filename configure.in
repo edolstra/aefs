@@ -11,6 +11,7 @@ AC_PROG_INSTALL
 AC_CHECK_PROG(CP,cp,cp -v)
 AC_CHECK_PROG(RM,rm,rm -vf)
 
+AC_CHECK_FUNCS(snprintf)
 AC_CHECK_FUNCS(ftruncate)
 AC_CHECK_FUNCS(chsize)
 AC_CHECK_FUNCS(strcasecmp)
