@@ -1,0 +1,49 @@
+AEFS_VERSION = "\"AEFS 0.1\""
+
+SYSTEM = @SYSTEM@
+SHELL = @SHELL@
+
+DEFS = -DSYSTEM=$(SYSTEM) -DAEFS_VERSION=$(AEFS_VERSION)
+
+SYSINCL = @SYSINCL@
+INCL = -I$(BASE)/corefs -I$(BASE)/ciphers -I$(BASE)/misc \
+ -I$(BASE)/ifsdriver -I$(BASE)/system -I$(BASE)/system/$(SYSTEM) \
+ -I$(BASE)/utils -I$(BASE)/ifsdaemon -I$(BASE)
+
+ifdef DEBUG
+OPTFLAGS = -g
+else
+OPTFLAGS = @OPTFLAGS@
+endif
+SYSCFLAGS = @SYSCFLAGS@
+CFLAGS = -Wall -Wno-parentheses -pedantic \
+ $(SYSINCL) $(INCL) $(OPTFLAGS) $(DEFS)
+
+SYSLDFLAGS = @SYSLDFLAGS@
+LDFLAGS = $(SYSLDFLAGS)
+SYSLIBS = $(SYSLIBS)
+
+CC = @CC@
+CP = @CP@
+RM = @RM@
+EXE = @EXEEXT@
+INSTALLDIR = $(BASE)/bin
+
+%.d: %.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) -MM -MG $< \
+		| sed "s/\($*\)\.o[ :]*/\1.o $@ : /g" > $@
+
+default: all
+
+.PHONY: clean all
+
+clean-default:
+	$(RM) *.d *.o *.s *.a *~ core
+
+clean-extra:
+
+clean: clean-default clean-extra
+
+install: all
+
+depend:
