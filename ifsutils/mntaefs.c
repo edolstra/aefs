@@ -57,7 +57,7 @@ to enter the key.\n\
 \n\
 If the volume is dirty, mntaefs will by default invoke aefsck to\n\
 check for and fix errors on the volume.  aefsck will be invoked\n\
-with switches `-i -f' and possibly `-k <key' if `-k' was an\n\
+with switches `--fix' and possibly `--key=<key>' if `-k' was an\n\
 argument to mntaefs.\n\
 \n\
 Examples:\n\
@@ -204,10 +204,10 @@ retry:
                pszProgramName);
             if (pszOrigKey)
                r = spawnl(P_WAIT, "aefsck.exe", "aefsck.exe",
-                  "-f", "-i", "-k", pszOrigKey, pszBasePath, (char *) 0);
+                  "--fix", "--key", pszOrigKey, pszBasePath, (char *) 0);
             else
                r = spawnl(P_WAIT, "aefsck.exe", "aefsck.exe",
-                  "-f", "-i", pszBasePath, (char *) 0);
+                  "--fix", pszBasePath, (char *) 0);
 
             if (r == -1) {
                printf("%s: aefsck.exe: %s\n", pszProgramName,
