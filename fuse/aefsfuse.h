@@ -20,9 +20,8 @@
 #ifndef _AEFSFUSE_H
 #define _AEFSFUSE_H
 
-/* !!! fix this */
 #include "fuse.h"
-#include "../../fuse/include/linux/fuse.h"
+#include "fuse_kernel.h"
 
 #include "sysdep.h"
 #include "logging.h"

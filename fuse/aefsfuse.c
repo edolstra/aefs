@@ -125,7 +125,7 @@ static unsigned long generation = 0;
 static void fillEntryOut(struct fuse_entry_out * out,
     CryptedFileID idFile, CryptedFileInfo * info, struct fuse_attr * attr)
 {
-    out->ino = idFile;
+    out->nodeid = idFile;
     out->generation = generation++;
     out->entry_valid = 1; /* sec */
     out->entry_valid_nsec = 0;
@@ -138,7 +138,7 @@ static void fillEntryOut(struct fuse_entry_out * out,
 int do_lookup(struct fuse_in_header * in, char * name, struct fuse_entry_out * out)
 {
     CoreResult cr;
-    CryptedFileID idDir = in->ino, idFile;
+    CryptedFileID idDir = in->nodeid, idFile;
     CryptedFileInfo info;
 
     logMsg(LOG_DEBUG, "lookup %ld %s", idDir, name);
@@ -159,7 +159,7 @@ int do_setattr(struct fuse_in_header * in, struct fuse_setattr_in * arg,
     struct fuse_attr_out * out)
 {
     CoreResult cr;
-    CryptedFileID idFile = in->ino;
+    CryptedFileID idFile = in->nodeid;
     CryptedFileInfo info;
 
     logMsg(LOG_DEBUG, "setattr %ld", idFile);
@@ -208,7 +208,7 @@ int do_setattr(struct fuse_in_header * in, struct fuse_setattr_in * arg,
 int do_getattr(struct fuse_in_header * in, struct fuse_attr_out * out)
 {
     CoreResult cr;
-    CryptedFileID idFile = in->ino;
+    CryptedFileID idFile = in->nodeid;
     CryptedFileInfo info;
 
     logMsg(LOG_DEBUG, "getattr %ld", idFile);
@@ -225,7 +225,7 @@ int do_getattr(struct fuse_in_header * in, struct fuse_attr_out * out)
 int do_readlink(struct fuse_in_header * in, char * outbuf)
 {
     CoreResult cr;
-    CryptedFileID idLink = in->ino;
+    CryptedFileID idLink = in->nodeid;
     CryptedFileInfo info;
     CryptedFilePos cbRead;
 
@@ -258,7 +258,7 @@ static int filler(int fd, CryptedFileID id, char * name)
     dirent.type = 0;
     reclen = FUSE_DIRENT_SIZE(&dirent);
     res = write(fd, &dirent, reclen);
-    if(res != reclen) {
+    if (res != reclen) {
         perror("writing directory file");
         return -EIO;
     }
@@ -269,13 +269,13 @@ static int filler(int fd, CryptedFileID id, char * name)
 int do_getdir(struct fuse_in_header * in, struct fuse_getdir_out * out)
 {
     CoreResult cr;
-    CryptedFileID idDir = in->ino;
+    CryptedFileID idDir = in->nodeid;
     CryptedFileInfo info;
     CryptedDirEntry * pFirst, * pCur;
 
     logMsg(LOG_DEBUG, "getdir %ld", idDir);
 
-    out->fd = creat("/tmp/fuse_tmp", 0600);
+    out->fd = open("/tmp/fuse_tmp", O_CREAT | O_TRUNC | O_RDWR, 0600);
     if (out->fd == -1) return -errno;
     unlink("/tmp/fuse_tmp");
 
@@ -350,14 +350,14 @@ int createFile(CryptedFileID idDir, char * pszName,
 int do_mknod(struct fuse_in_header * in, struct fuse_mknod_in * arg, 
     char * pszName, struct fuse_entry_out * out)
 {
-    return createFile(in->ino, pszName, arg->mode, arg->rdev, out);
+    return createFile(in->nodeid, pszName, arg->mode, arg->rdev, out);
 }
 
 
 int do_mkdir(struct fuse_in_header * in, struct fuse_mkdir_in * arg,
     char * pszName, struct fuse_entry_out * out)
 {
-    return createFile(in->ino, pszName, arg->mode | CFF_IFDIR, 0, out);
+    return createFile(in->nodeid, pszName, arg->mode | CFF_IFDIR, 0, out);
 }
 
 
@@ -405,7 +405,7 @@ int removeFile(CryptedFileID idDir, char * pszName)
 
 int do_remove(struct fuse_in_header * in, char * pszName)
 {
-    return removeFile(in->ino, pszName);
+    return removeFile(in->nodeid, pszName);
 }
 
 
@@ -416,13 +416,13 @@ int do_symlink(struct fuse_in_header * in,
     CryptedFilePos cbWritten;
     int res;
 
-    res = createFile(in->ino, pszName, 
+    res = createFile(in->nodeid, pszName, 
         0777 | CFF_IFLNK, 0, out);
     if (res) return res;
     
-    logMsg(LOG_DEBUG, "symlink %ld %s", out->ino, pszTarget);
+    logMsg(LOG_DEBUG, "symlink %ld %s", out->nodeid, pszTarget);
 
-    cr = coreWriteToFile(pVolume, out->ino, 0,
+    cr = coreWriteToFile(pVolume, out->nodeid, 0,
         strlen(pszTarget), (octet *) pszTarget, &cbWritten);
     if (cr) return core2sys(cr);
 
@@ -434,7 +434,7 @@ int do_rename(struct fuse_in_header * in, struct fuse_rename_in * arg,
     char * pszFrom, char * pszTo)
 {
     CoreResult cr;
-    CryptedFileID idFrom = in->ino, idTo = arg->newdir;
+    CryptedFileID idFrom = in->nodeid, idTo = arg->newdir;
     int res;
 
     logMsg(LOG_DEBUG, "rename %ld %s %ld %s", idFrom, pszFrom, idTo, pszTo);
@@ -467,7 +467,7 @@ int do_link(struct fuse_in_header * in, struct fuse_link_in * arg,
 int do_open(struct fuse_in_header * in, struct fuse_open_in * arg)
 {
     CoreResult cr;
-    CryptedFileID idFile = in->ino;
+    CryptedFileID idFile = in->nodeid;
     CryptedFileInfo info;
 
     logMsg(LOG_DEBUG, "open %ld", idFile);
@@ -482,7 +482,7 @@ int do_open(struct fuse_in_header * in, struct fuse_open_in * arg)
 int do_read(struct fuse_in_header * in, struct fuse_read_in * arg, char * outbuf)
 {
     CoreResult cr;
-    CryptedFileID idFile = in->ino;
+    CryptedFileID idFile = in->nodeid;
     CryptedFilePos cbRead;
 
     logMsg(LOG_DEBUG, "read %ld %Ld %d", idFile, arg->offset, arg->size);
@@ -498,7 +498,7 @@ int do_write(struct fuse_in_header * in, struct fuse_write_in * arg,
     void * pData, struct fuse_write_out * out)
 {
     CoreResult cr;
-    CryptedFileID idFile = in->ino;
+    CryptedFileID idFile = in->nodeid;
     CryptedFilePos cbWritten;
     int res = 0;
 
@@ -672,7 +672,7 @@ retry:
     /* FUSE expects that the root inode has index 1.  Fortunately
        that's the same as AEFS's default root inode number, but it
        doesn't have to be.  We should fix this (in FUSE, probably). */
-    assert(pSuperBlock->idRoot == FUSE_ROOT_INO);
+    assert(pSuperBlock->idRoot == FUSE_ROOT_ID);
 
     /* `large_read' causes reads to be done in 64 KB chunks instead of
        4 KB (only works on kernel 2.4). */

@@ -97,7 +97,7 @@ void processCommand()
 
     if (1) {
         logMsg(LOG_DEBUG, "unique: %i, opcode: %i, ino: %li, insize: %i", in->unique,
-            in->opcode, in->ino, buflen);
+            in->opcode, in->nodeid, buflen);
         fflush(stdout);
     }
     
