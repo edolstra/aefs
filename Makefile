@@ -48,7 +48,7 @@ os2dist: all dist
 	cp -p ifsutils/mntaefs.exe $(distdir)/bin
 	cp -p ifsutils/umntaefs.exe $(distdir)/bin
 	cp -p ifsutils/aefsparm.exe $(distdir)/bin
-	cp -p nfsd/aefsnfsd.exe $(distdir)/bin
-	cp -p nfsd/aefsadd.exe $(distdir)/bin
+#	cp -p nfsd/aefsnfsd.exe $(distdir)/bin
+#	cp -p nfsd/aefsadd.exe $(distdir)/bin
 	for i in $(distdir)/bin/*.exe; do emxbind -s $$i; done
 	cd $(distdir) ; make CHECKSUMS
