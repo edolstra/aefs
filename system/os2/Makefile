@@ -5,6 +5,8 @@ MANIFEST := Makefile os2.c sysspec.h
 
 SRCS = os2.c
 
+ifeq ($(SYSTEM), os2)
+
 all: sysdep.a 
 
 sysdep.a: $(SRCS:.c=.o)
@@ -13,3 +15,6 @@ sysdep.a: $(SRCS:.c=.o)
 ifneq ($(MAKECMDGOALS),clean)
 include $(SRCS:.c=.d)
 endif
+
+endif
+

@@ -6,4 +6,6 @@ SUBDIRS := os2 posix
 MANIFEST := Makefile sysdep.h types.h
 
 all clean clean-stuff install depend:
-	cd $(SYSTEM) && $(MAKE) -w $@
+	for subdir in $(SUBDIRS); do \
+	  (cd $$subdir && $(MAKE) -w $@) || exit 1; \
+	done
