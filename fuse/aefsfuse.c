@@ -10,6 +10,7 @@
 #include "getopt.h"
 
 #include "sysdep.h"
+#include "logging.h"
 #include "ciphertable.h"
 #include "corefs.h"
 #include "coreutils.h"
@@ -20,19 +21,6 @@
 
 
 char * pszProgramName;
-
-bool fDebug = false;
-
-
-void dprintf(const char * fmt, ...)
-{
-    va_list args;
-    if (fDebug) {
-	va_start(args, fmt);
-	vfprintf(stderr, fmt, args);
-	va_end(args);
-    }
-}
 
 
 static SuperBlock * pSuperBlock;
@@ -60,7 +48,7 @@ static int core2sys(CoreResult cr)
         case CORERC_ID_EXISTS: return -EIO;
         default:
             if (IS_CORERC_SYS(cr)) return -EIO;
-            fprintf(stderr, "unexpected corefs error %d\n", cr);
+            logMsg(LOG_ERR, "unexpected corefs error %d", cr);
             return -EPERM;
     }
 }
@@ -108,7 +96,7 @@ int do_lookup(struct fuse_in_header * in, char * name, struct fuse_lookup_out * 
     CryptedFileID idDir = in->ino, idFile;
     CryptedFileInfo info;
 
-    dprintf("lookup %ld %s\n", idDir, name);
+    logMsg(LOG_DEBUG, "lookup %ld %s", idDir, name);
 
     cr = coreQueryIDFromPath(pVolume, idDir, name, &idFile, 0);
     if (cr) return core2sys(cr);
@@ -130,29 +118,29 @@ int do_setattr(struct fuse_in_header * in, struct fuse_setattr_in * arg,
     CryptedFileID idFile = in->ino;
     CryptedFileInfo info;
 
-    dprintf("setattr %ld\n", idFile);
+    logMsg(LOG_DEBUG, "setattr %ld", idFile);
 
     cr = coreQueryFileInfo(pVolume, idFile, &info);
     if (cr) return core2sys(cr);
 
     if (arg->valid & FATTR_MODE) {
-	dprintf("set mode %od\n", arg->attr.mode);
+	logMsg(LOG_DEBUG, "set mode %od", arg->attr.mode);
 	info.flFlags = 
 	    (info.flFlags & ~07777) | (arg->attr.mode & 07777);
     }
 
     if (arg->valid & FATTR_UID) {
-	dprintf("set uid %d\n", arg->attr.uid);
+	logMsg(LOG_DEBUG, "set uid %d", arg->attr.uid);
 	info.uid = arg->attr.uid;
     }
 
     if (arg->valid & FATTR_GID) {
-	dprintf("set gid %d\n", arg->attr.gid);
+	logMsg(LOG_DEBUG, "set gid %d", arg->attr.gid);
 	info.gid = arg->attr.gid;
     }
 
     if (arg->valid & FATTR_UTIME) {
-	dprintf("set utime %ld\n", arg->attr.mtime);
+	logMsg(LOG_DEBUG, "set utime %ld", arg->attr.mtime);
 	info.timeWrite = arg->attr.mtime;
     }
 
@@ -160,7 +148,7 @@ int do_setattr(struct fuse_in_header * in, struct fuse_setattr_in * arg,
     if (cr) return core2sys(cr);
 
     if (arg->valid & FATTR_SIZE) {
-	dprintf("set size %Ld\n", arg->attr.size);
+	logMsg(LOG_DEBUG, "set size %Ld", arg->attr.size);
 	cr = coreSetFileSize(pVolume, idFile, arg->attr.size);
 	if (cr) return core2sys(cr);
 	cr = coreQueryFileInfo(pVolume, idFile, &info);
@@ -179,7 +167,7 @@ int do_getattr(struct fuse_in_header * in, struct fuse_getattr_out * out)
     CryptedFileID idFile = in->ino;
     CryptedFileInfo info;
 
-    dprintf("getattr %ld\n", idFile);
+    logMsg(LOG_DEBUG, "getattr %ld", idFile);
 
     cr = coreQueryFileInfo(pVolume, idFile, &info);
     if (cr) return core2sys(cr);
@@ -217,7 +205,7 @@ int do_getdir(struct fuse_in_header * in, struct fuse_getdir_out * out)
     CryptedFileInfo info;
     CryptedDirEntry * pFirst, * pCur;
 
-    dprintf("getdir %ld\n", idDir);
+    logMsg(LOG_DEBUG, "getdir %ld", idDir);
 
     out->fd = creat("/tmp/fuse_tmp", 0600);
     if (out->fd == -1) return -errno;
@@ -250,7 +238,7 @@ int createFile(CryptedFileID idDir, char * pszName,
     CryptedFileID idFile;
     CryptedFileInfo info;
 
-    dprintf("create %ld %s %ho %hx\n",
+    logMsg(LOG_DEBUG, "create %ld %s %ho %hx",
 	idDir, pszName, mode, rdev);
 
     mode = mode & (CFF_IFMT | 07777);
@@ -315,7 +303,7 @@ int do_remove(struct fuse_in_header * in, char * pszName)
     CryptedFileInfo info;
     CryptedDirEntry * pFirstEntry;
 
-    dprintf("remove %ld %s\n", idDir, pszName);
+    logMsg(LOG_DEBUG, "remove %ld %s", idDir, pszName);
 
     cr = coreQueryIDFromPath(pVolume, idDir, pszName, &idFile, 0);
     if (cr) return core2sys(cr);
@@ -356,7 +344,7 @@ int do_rename(struct fuse_in_header * in, struct fuse_rename_in * arg)
     char * pszFrom = arg->names;
     char * pszTo = arg->names + strlen(pszFrom) + 1;
 
-    dprintf("rename %ld %s %ld %s\n", idFrom, pszFrom, idTo, pszTo);
+    logMsg(LOG_DEBUG, "rename %ld %s %ld %s", idFrom, pszFrom, idTo, pszTo);
 
     cr = coreMoveDirEntry(pVolume,
         pszFrom, idFrom,
@@ -377,7 +365,7 @@ int do_open(struct fuse_in_header * in, struct fuse_open_in * arg)
     CryptedFileID idFile = in->ino;
     CryptedFileInfo info;
 
-    dprintf("open %ld\n", idFile);
+    logMsg(LOG_DEBUG, "open %ld", idFile);
 
     cr = coreQueryFileInfo(pVolume, idFile, &info);
     if (cr) return core2sys(cr);
@@ -392,7 +380,7 @@ int do_read(struct fuse_in_header * in, struct fuse_read_in * arg, char * outbuf
     CryptedFileID idFile = in->ino;
     CryptedFilePos cbRead;
 
-    dprintf("read %ld %Ld %d\n", idFile, arg->offset, arg->size);
+    logMsg(LOG_DEBUG, "read %ld %Ld %d", idFile, arg->offset, arg->size);
 
     cr = coreReadFromFile(pVolume, idFile, arg->offset, arg->size, outbuf, &cbRead);
     if (cr) return core2sys(cr);
@@ -407,7 +395,7 @@ int do_write(struct fuse_in_header * in, struct fuse_write_in * arg)
     CryptedFileID idFile = in->ino;
     CryptedFilePos cbWritten;
 
-    dprintf("write %ld %Ld %d\n", idFile, arg->offset, arg->size);
+    logMsg(LOG_DEBUG, "write %ld %Ld %d", idFile, arg->offset, arg->size);
 
     cr = coreWriteToFile(pVolume, idFile, arg->offset, arg->size, arg->buf, &cbWritten);
     if (cr) return core2sys(cr);
@@ -418,6 +406,34 @@ int do_write(struct fuse_in_header * in, struct fuse_write_in * arg)
     if (cr) return core2sys(cr);
 
     return 0;
+}
+
+
+/* Flush all dirty data on a volume, clear the dirty bit. */
+void commitVolume()
+{
+    CoreResult cr;
+
+    logMsg(LOG_DEBUG, "flushing volume");
+
+    /* Flush dirty data. */
+    cr = coreFlushVolume(pVolume);
+    if (cr) {
+        logMsg(LOG_ERR, "error flushing volume, cr=%d", cr);
+	return;
+    }
+
+    /* Clear the dirty bit in the superblock. */
+    if (pSuperBlock->flFlags & SBF_DIRTY) {
+        pSuperBlock->flFlags &= ~SBF_DIRTY;
+        cr = coreWriteSuperBlock(pSuperBlock,
+            CWS_NOWRITE_SUPERBLOCK1);
+        if (cr) {
+            logMsg(LOG_ERR, "error clearing dirty flag, cr=%d", cr);
+            pSuperBlock->flFlags |= SBF_DIRTY; /* retry */
+	    return;
+        }
+    }
 }
 
 
@@ -439,12 +455,14 @@ int main(int argc, char * * argv)
     char szPassPhrase[1024], * pszPassPhrase = 0;
     char szBasePath[MAX_VOLUME_BASE_PATH_NAME];
 
+    fDebug = true;
+
     /* !!! check */
     strcpy(szBasePath, argv[1]);
     strcat(szBasePath, "/");
 
     unmount_cmd = getenv(FUSE_UMOUNT_CMD_ENV);
-    dprintf("unmount_cmd: `%s', \n", unmount_cmd);
+    logMsg(LOG_DEBUG, "unmount_cmd: `%s'", unmount_cmd);
 
     if (!dupFuseFD()) return 1;
 
@@ -462,9 +480,7 @@ int main(int argc, char * * argv)
         }
     }
 
-#ifdef HAVE_DAEMON
     if (!fDebug) daemon(0, 0);
-#endif
     
     /* Read the superblock, initialize volume structures.  Note: we
        cannot call daemon() after coreReadSuperBlock(), since daemon()
@@ -478,7 +494,7 @@ retry:
             parms.fReadOnly = true;
             goto retry;
         }
-	fprintf(stderr, "%s: unable to read superblock: %s\n", 
+	logMsg(LOG_ERR, "%s: unable to read superblock: %s", 
 	    pszProgramName, core2str(cr));
         return 1;
     }

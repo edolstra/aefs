@@ -8,6 +8,7 @@
 #include <fcntl.h>
 
 #include "sysdep.h"
+#include "logging.h"
 
 #include "aefsfuse.h"
 
@@ -27,7 +28,7 @@ static void sendReply(struct fuse_in_header * in, int error,
     struct fuse_out_header *out;
 
     if (error > 0) {
-        fprintf(stderr, "positive error code: %i\n",  error);
+        logMsg(LOG_ERR, "positive error code: %i", error);
         error = -ERANGE;
     }
 
@@ -43,16 +44,15 @@ static void sendReply(struct fuse_in_header * in, int error,
         memcpy(outbuf + sizeof(struct fuse_out_header), arg, argsize);
 
     if (0) {
-        printf("   unique: %i, error: %i (%s), outsize: %i\n", out->unique,
+        logMsg(LOG_DEBUG, "   unique: %i, error: %i (%s), outsize: %i", out->unique,
             out->error, strerror(-out->error), outsize);
-        fflush(stdout);
     }
                 
     res = write(fdFuse, outbuf, outsize);
     if(res == -1) {
         /* ENOENT means the operation was interrupted */
         if(errno != ENOENT)
-            perror("writing fuse device");
+            logMsg(LOG_ERR, "error writing fuse device:", strerror(errno));
     }
 
     free(outbuf);
@@ -68,7 +68,7 @@ void processCommand()
     int res;
 
     if (0) {
-        printf("unique: %i, opcode: %i, ino: %li, insize: %i\n", in->unique,
+        logMsg(LOG_DEBUG, "unique: %i, opcode: %i, ino: %li, insize: %i", in->unique,
             in->opcode, in->ino, buflen);
         fflush(stdout);
     }
@@ -163,7 +163,7 @@ void processCommand()
         break;
 
     default:
-        fprintf(stderr, "Operation %i not implemented\n", in->opcode);
+        logMsg(LOG_ERR, "Operation %i not implemented", in->opcode);
         /* No need to send reply to async requests */
         if (in->unique != 0)
             sendReply(in, -ENOSYS, NULL, 0);
@@ -171,29 +171,51 @@ void processCommand()
 }
 
 
-bool readCommand()
-{
-    buflen = read(fdFuse, buf, sizeof(buf));
-    if (buflen == -1) {
-        perror("reading fuse device");
-        return false;
-    }
-    if ((size_t) buflen < sizeof(struct fuse_in_header)) {
-        fprintf(stderr, "short read on fuse device\n");
-        return false;
-    }
-    return true;
-}
+static bool fTerminate = false;
 
 
 void runLoop()
 {
-    while (1) {
-        if (!readCommand()) {
-            fprintf(stderr, "did not receive a command\n");
+    fd_set readfds;
+    struct timeval timeout;
+    int res;
+    time_t maxAge = 5, timeFlush = time(0), timeCur;
+
+    while (!fTerminate) {
+
+        /* Lazy writer.  Should we flush now?  Determine the time-out
+           for select(). */
+        timeCur = time(0);
+        if (timeCur >= timeFlush + maxAge) {
+            commitVolume();
+            timeFlush = timeCur;
+            timeout.tv_sec = maxAge;
+        } else
+            timeout.tv_sec = timeFlush + maxAge - timeCur;
+        timeout.tv_usec = 0;
+
+        /* Sleep until we get some input, or until we should flush. */
+	FD_ZERO(&readfds);
+	FD_SET(fdFuse, &readfds);
+        res = select(fdFuse + 1, &readfds, 0, 0, &timeout);
+        if (res == -1 && errno != EINTR) {
+            logMsg(LOG_ALERT, "error from select: %s",
+		strerror(errno));
             break;
         }
-        processCommand();
+
+	if (res > 0) {
+	    buflen = read(fdFuse, buf, sizeof(buf));
+	    if (buflen == -1) {
+		logMsg(LOG_ERR, "error reading fuse device: %s", strerror(errno));
+		break;
+	    }
+	    if ((size_t) buflen < sizeof(struct fuse_in_header)) {
+		logMsg(LOG_ERR, "short read on fuse device");
+		break;
+	    }
+	    processCommand();
+	}
     }
 }
 
