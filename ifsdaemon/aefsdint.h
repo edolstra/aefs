@@ -1,6 +1,8 @@
 /* aefsdint.h -- External interface to the AEFS FSD.
    Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: aefsdint.h,v 1.2 2000/12/30 23:57:01 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -35,8 +37,7 @@
 
 
 /* Flags for ATTACHPARMS.flFlags. */
-#define AP_READONLY            1  /* do not modify the volume in any
-                                     way */
+#define AP_READONLY            1  /* do not modify the volume in any way */
 #define AP_MOUNTDIRTY          2  /* mount even if dirty */
 
 
