@@ -3,7 +3,7 @@ include $(BASE)/Makefile.incl
 
 SUBDIRS := \
  misc system ciphers corefs utils nfsd \
- ifsdriver ifsdaemon ifsutils fuse emxdoc
+ ifsdriver ifsdaemon ifsutils fuse emxdoc test
 
 MANIFEST := COPYING Makefile Makefile.incl Makefile.conf.in \
  PGPKEY config.h.in config.sub config.guess \
