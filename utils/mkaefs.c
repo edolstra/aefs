@@ -20,6 +20,9 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 #include "getopt.h"
@@ -128,6 +131,7 @@ static CoreResult makeRootDir(CryptedVolume * pVolume,
    info.cbFileSize = 0;
    info.timeWrite = info.timeAccess = info.timeCreation = time(0);
    info.idParent = 0;
+   /* uid and gid are set to 0 */
    cr = coreCreateBaseFile(pVolume, &info, &idRootDir);
    if (cr) return cr;
 
@@ -190,6 +194,7 @@ int initVolume(char * pszBasePath, Key * pKey,
       sizeof(superblock.szDescription),
       "Volume created on %a, %d %b %Y %H:%M:%S UTC",
       gmtime(&now));
+   superblock.pSB2File = 0;
 
    /* Write the superblock. */
    cr = coreWriteSuperBlock(&superblock, 0);
