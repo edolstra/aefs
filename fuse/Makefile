@@ -3,6 +3,8 @@ include $(BASE)/Makefile.incl
 
 MANIFEST := Makefile
 
+ifeq ($(SYSTEM), linux)
+
 PROG = aefsfuse$(EXE)
 
 all: $(PROG)
@@ -25,4 +27,6 @@ install: all
 
 ifneq ($(MAKECMDGOALS),clean)
 include $(SRCS:.c=.d)
+endif
+
 endif
