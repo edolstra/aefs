@@ -2,7 +2,7 @@ include $(BASE)/Makefile.conf
 
 DEBUG=0
 
-AEFS_VERSION = "\"AEFS 0.2.1\""
+AEFS_VERSION = "\"AEFS 0.3pre2\""
 
 DEFS = -DSYSTEM_$(SYSTEM) -DAEFS_VERSION=$(AEFS_VERSION)
 
