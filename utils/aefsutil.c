@@ -2,7 +2,7 @@
    directories from an AEFS file system.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsutil.c,v 1.10 2001/12/06 16:08:18 eelco Exp $
+   $Id: aefsutil.c,v 1.11 2001/12/27 14:38:08 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -50,6 +50,9 @@ char * pszProgramName;
 #define FL_PRESERVE     4
 #define FL_VERYLONG     8
 #define FL_FORCE       16
+#define FL_VERBOSE     32
+#define FL_RECURSIVE   64
+#define FL_RECURSED  1024
 
 
 static void printUsage(int status);
@@ -60,6 +63,50 @@ static void paramError()
    fprintf(stderr, "%s: missing or too many parameters\n",
       pszProgramName);
    printUsage(1);
+}
+
+
+int findPath(bool fTop, CryptedVolume * pVolume, CryptedFileID idStart,
+   char * pszPath, CryptedFileID * pidFile, CryptedDirEntry * * ppEntry)
+{
+   CoreResult cr;
+
+   if (!fTop || pszPath[0] == '/') {
+
+      cr = coreQueryIDFromPath(
+	 pVolume, 
+	 idStart,
+	 pszPath, pidFile, ppEntry);
+      if (cr) {
+	 fprintf(stderr, "%s: unable to lookup file: %s\n", 
+	    pszProgramName, core2str(cr));
+	 return 1;
+      }
+
+      if (ppEntry && *pidFile == idStart) {
+         coreFreeDirEntries(*ppEntry);
+         cr = coreAllocDirEntry(4, (octet *) "root", 
+            *pidFile, 0, ppEntry);
+         assert(cr == CORERC_OK);
+      }
+
+   } else {
+
+      if (sscanf(pszPath, "%lx", pidFile) != 1) {
+	 fprintf(stderr, "%s: invalid path (must be path name or file ID)\n", 
+	    pszProgramName);
+	 return 1;
+      }
+
+      if (ppEntry) {
+         cr = coreAllocDirEntry(strlen(pszPath), (octet *) pszPath, 
+            *pidFile, 0, ppEntry);
+         assert(cr == CORERC_OK);
+      }
+
+   }
+
+   return 0;
 }
 
 
@@ -93,8 +140,8 @@ Cipher type: %s-%d-%d (%s) in %s mode\n\
 
 
 static int showFile(CryptedVolume * pVolume, 
-   CryptedFileID id, char * pszName, unsigned int flFlags, 
-   unsigned int flDirFlags)
+   CryptedFileID id, char * pszPrefix, char * pszName, 
+   unsigned int flFlags, unsigned int flDirFlags)
 {
    CryptedFileInfo info;
    CoreResult cr;
@@ -106,14 +153,14 @@ static int showFile(CryptedVolume * pVolume,
    char pwn[40], grn[40];
 
    if (!(flFlags & (FL_LONG | FL_VERYLONG))) {
-      printf("%s\n", pszName);
+      printf("%s%s\n", pszPrefix, pszName);
    } else {
       
       cr = coreQueryFileInfo(pVolume, id, &info);
       if (cr) {
          fprintf(stderr, "%s: unable to query file info about %s: %s\n", 
             pszProgramName, pszName, core2str(cr));
-         return 0;
+         return 1;
       }
 
       switch (info.flFlags & CFF_IFMT) {
@@ -154,14 +201,14 @@ static int showFile(CryptedVolume * pVolume,
       gr = getgrgid(info.gid);
       
       if (flFlags & FL_LONG)
-         printf("%s %-8s %-8s %10ld %s %s\n", 
+         printf("%s %-8s %-8s %10ld %s %s%s\n", 
             bits, pw ? pw->pw_name : pwn, gr ? gr->gr_name : grn,
-            info.cbFileSize, date, pszName);
+            info.cbFileSize, date, pszPrefix, pszName);
       else 
-         printf("%8lx %s%4d %-8s %-8s %10ld %5ld %s %s\n", 
+         printf("%8lx %s%4d %-8s %-8s %10ld %5ld %s %s%s\n", 
             id, bits, info.cRefs, pw ? pw->pw_name : pwn, 
             gr ? gr->gr_name : grn,
-            info.cbFileSize, info.cbEAs, date, pszName);
+            info.cbFileSize, info.cbEAs, date, pszPrefix, pszName);
    }
 
    return 0;
@@ -176,33 +223,33 @@ static bool isDir(CryptedVolume * pVolume, CryptedFileID id)
 }
 
 
-static int listDir(SuperBlock * pSuperBlock, char * pszPath, 
-   unsigned int flFlags)
+static int listDir(SuperBlock * pSuperBlock, CryptedFileID idFrom, 
+   char * pszPrefix, char * pszPath, unsigned int flFlags, bool fTop)
 {
+   char szFull[PATH_MAX]; /* !!! stack usage! */
+   CryptedVolume * pVolume = pSuperBlock->pVolume;
    CryptedDirEntry * pDir, * pFirst, * pCur;
    CryptedFileID idDir;
    CoreResult cr;
    int res = 0;
+   bool fIsDir;
+   
+   if (findPath(fTop, pVolume, idFrom, pszPath, &idDir, &pDir)) return 1;
 
-   cr = coreQueryIDFromPath(
-      pSuperBlock->pVolume, 
-      pSuperBlock->idRoot,
-      pszPath, &idDir, &pDir);
-   if (cr) {
-      fprintf(stderr, "%s: unable to lookup file: %s\n", 
-         pszProgramName, core2str(cr));
-      return 1;
-   }
+   fIsDir = isDir(pVolume, idDir);
 
-   if ((flFlags & FL_DIR) || !isDir(pSuperBlock->pVolume, idDir)) {
-      res = showFile(pSuperBlock->pVolume, idDir,
+   if (flFlags & FL_RECURSED && !fIsDir) return 0;
+
+   if ((flFlags & FL_DIR) || !fIsDir) {
+      res = showFile(pVolume, idDir, pszPrefix,
          (char *) pDir->pabName, flFlags, pDir->flFlags);
    } else {
 
-      res |= showFile(pSuperBlock->pVolume, idDir, ".", flFlags,
-         pDir->flFlags);
+      if (!(flFlags & FL_RECURSED))
+         res |= showFile(pVolume, idDir, pszPrefix, ".", flFlags,
+            pDir->flFlags);
 
-      cr = coreQueryDirEntries(pSuperBlock->pVolume, idDir, &pFirst);
+      cr = coreQueryDirEntries(pVolume, idDir, &pFirst);
       if (cr) {
          coreFreeDirEntries(pFirst);
          fprintf(stderr, "%s: unable to read directory: %s\n", 
@@ -210,8 +257,20 @@ static int listDir(SuperBlock * pSuperBlock, char * pszPath,
          res = 1;
       } else {
          for (pCur = pFirst; pCur; pCur = pCur->pNext) {
-            res |= showFile(pSuperBlock->pVolume, pCur->idFile,
+            res |= showFile(pVolume, pCur->idFile, pszPrefix,
                (char *) pCur->pabName, flFlags, pCur->flFlags);
+
+            if (flFlags & FL_RECURSIVE) {
+               if (snprintf(szFull, sizeof(szFull), "%s%s/",
+                      pszPrefix, (char *) pCur->pabName) > sizeof(szFull))
+               {
+                  fprintf(stderr, "%s: path too long\n", pszProgramName);
+                  continue;
+               }
+               res |= listDir(pSuperBlock, pCur->idFile, 
+                  szFull, "", flFlags | FL_RECURSED, false);
+            }
+
          }
       }
 
@@ -259,9 +318,9 @@ static int copy(CryptedVolume * pVolume, CryptedFileID idFile,
 
 
 static int dump(CryptedVolume * pVolume, CryptedFileID idFrom, 
-   char * pszFrom, char * pszTo, unsigned int flFlags)
+   char * pszFrom, char * pszTo, unsigned int flFlags, bool fTop)
 {
-   char szFull[_POSIX_PATH_MAX];
+   char szFull[PATH_MAX]; /* !!! stack usage! */
    CryptedDirEntry * pEntry, * pFirst, * pCur;
    CryptedFileID idFile;
    CryptedFileInfo info;
@@ -269,15 +328,8 @@ static int dump(CryptedVolume * pVolume, CryptedFileID idFrom,
    struct utimbuf timebuf;
    CoreResult cr;
 
-   cr = coreQueryIDFromPath(
-      pVolume, idFrom,
-      pszFrom, &idFile, &pEntry);
-   if (cr) {
-      coreFreeDirEntries(pEntry);
-      fprintf(stderr, "%s: unable to lookup file: %s\n", 
-         pszProgramName, core2str(cr));
-      return 1;
-   }
+   if (findPath(fTop, pVolume, idFrom, 
+          pszFrom, &idFile, &pEntry)) return 1;
 
    cr = coreQueryFileInfo(pVolume, idFile, &info);
    if (cr) {
@@ -295,6 +347,9 @@ static int dump(CryptedVolume * pVolume, CryptedFileID idFrom,
       return 1;
    }
    coreFreeDirEntries(pEntry);
+
+   if (flFlags & FL_VERBOSE)
+      fprintf(stderr, "%s\n", szFull);
       
    if (CFF_ISDIR(info.flFlags)) {
 
@@ -313,7 +368,7 @@ static int dump(CryptedVolume * pVolume, CryptedFileID idFrom,
       } else {
          for (pCur = pFirst; pCur; pCur = pCur->pNext) {
             res |= dump(pVolume, idFile, (char *) pCur->pabName,
-               szFull, flFlags);
+               szFull, flFlags, false);
          }
       }
 
@@ -357,19 +412,12 @@ static int dump(CryptedVolume * pVolume, CryptedFileID idFrom,
 
 static int cat(SuperBlock * pSuperBlock, char * pszPath)
 {
+   CryptedVolume * pVolume = pSuperBlock->pVolume;
    CryptedFileID idFile;
    CryptedFileInfo info;
    CoreResult cr;
 
-   cr = coreQueryIDFromPath(
-      pSuperBlock->pVolume, 
-      pSuperBlock->idRoot,
-      pszPath, &idFile, 0);
-   if (cr) {
-      fprintf(stderr, "%s: unable to lookup file: %s\n", 
-         pszProgramName, core2str(cr));
-      return 1;
-   }
+   if (findPath(true, pVolume, pSuperBlock->idRoot, pszPath, &idFile, 0)) return 1;
 
    cr = coreQueryFileInfo(pSuperBlock->pVolume, idFile, &info);
    if (cr) {
@@ -417,11 +465,12 @@ static int doCommand(char * pszPassPhrase, char * pszBasePath,
       res = showInfo(pSuperBlock, flFlags);
    } else if (strcmp(pszCommand, "ls") == 0) {
       if (argc != 1) paramError();
-      res = listDir(pSuperBlock, argv[0], flFlags);
+      res = listDir(pSuperBlock, pSuperBlock->idRoot, 
+         "", argv[0], flFlags, true);
    } else if (strcmp(pszCommand, "dump") == 0) {
       if (argc != 1) paramError();
       res = dump(pSuperBlock->pVolume, pSuperBlock->idRoot, argv[0], 
-         ".", flFlags);
+         ".", flFlags, true);
    } else if (strcmp(pszCommand, "cat") == 0) {
       if (argc != 1) paramError();
       res = cat(pSuperBlock, argv[0]);
@@ -455,6 +504,8 @@ in AEFS-PATH.\n\
   -l, --long         show detailed file information\n\
       --verylong     show very detailed file information\n\
   -p, --preserve     preserve permissions/ownerships when extracting\n\
+  -r, --recursieve   (ls) list recursively\n\
+  -v, --verbose      (dump) show what is happening\n\
       --help         display this help and exit\n\
       --version      output version information and exit\n\
 \n\
@@ -464,6 +515,9 @@ COMMAND is one of the following:\n\
   ls PATH            list directory contents\n\
   dump PATH          extract recursively to the current directory\n\
   cat PATH           extract file to standard output\n\
+\n\
+PATH must either be a fully qualified path name (i.e., starting with\n\
+`/') or a hexadecimal number denoting a file ID (inode number).\n\
 \n\
 " STANDARD_KEY_HELP "\
 \n\
@@ -497,12 +551,14 @@ int main(int argc, char * * argv)
       { "long", no_argument, 0, 'l' },
       { "verylong", no_argument, 0, 3 },
       { "preserve", no_argument, 0, 'p' },
+      { "recursive", no_argument, 0, 'r' },
+      { "verbose", no_argument, 0, 'v' },
       { 0, 0, 0, 0 } 
    };
 
    pszProgramName = argv[0];
 
-   while ((c = getopt_long(argc, argv, "k:dflp", options, 0)) != EOF) {
+   while ((c = getopt_long(argc, argv, "k:dflprv", options, 0)) != EOF) {
       switch (c) {
          case 0:
             break;
@@ -538,6 +594,14 @@ int main(int argc, char * * argv)
 
          case 'p': /* --preserve */
             flFlags |= FL_PRESERVE;
+            break;
+
+         case 'r': /* --recursive */
+            flFlags |= FL_RECURSIVE;
+            break;
+
+         case 'v': /* --verbose */
+            flFlags |= FL_VERBOSE;
             break;
 
          default:
