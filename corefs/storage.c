@@ -1,7 +1,7 @@
 /* storage.c -- Storage and cache management.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: storage.c,v 1.16 2001/12/28 19:21:02 eelco Exp $
+   $Id: storage.c,v 1.17 2002/11/22 09:49:55 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -497,7 +497,7 @@ static CoreResult openStorageFile(CryptedFile * pFile, bool fCreate,
    if (pFile->pVolume->cOpenStorageFiles >=
       pFile->pVolume->parms.cMaxOpenStorageFiles) {
       /* We have reached the maximum number of concurrently open
-         storage file.  Close the least recently used. */
+         storage files.  Close the least recently used. */
       cr = coreShrinkOpenStorageFiles(pFile->pVolume,
          pFile->pVolume->parms.cMaxOpenStorageFiles - 1);
       if (cr) return cr;
