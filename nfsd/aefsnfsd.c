@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.6 2000/12/27 18:45:29 eelco Exp $
+   $Id: aefsnfsd.c,v 1.7 2000/12/29 20:17:06 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -88,7 +88,7 @@ Bool fDebug = FALSE;
 Bool fTerminate = FALSE;
 
 
-/* Write a message to the log file. */
+/* Write a message to syslog. */
 static void logMsg(int level, char * pszMsg, ...)
 {
     va_list args;
@@ -105,6 +105,8 @@ static void logMsg(int level, char * pszMsg, ...)
 }
 
 
+/* Construct an NFS file handle from a file system identifier and a
+   file identifier. */
 static void encodeFH(nfs_fh * fh, fsid fs, CryptedFileID id)
 {
     assert((fs < MAX_FILESYSTEMS) && apFilesystems[fs]);
@@ -113,6 +115,8 @@ static void encodeFH(nfs_fh * fh, fsid fs, CryptedFileID id)
 }
 
 
+/* Deconstruct an NFS file handle into a file system identifier and a
+   file identifier. */
 static nfsstat decodeFH(nfs_fh * fh, fsid * pfs, CryptedFileID * pid)
 {
     *pid = ntohl(((uint32 *) fh->data) [0]);
@@ -124,6 +128,9 @@ static nfsstat decodeFH(nfs_fh * fh, fsid * pfs, CryptedFileID * pid)
 }
 
 
+/* Canonicalize a path: change backslashes into slashes, remove
+   redundant slashes (foo//bar -> foo/bar) and add a slash at the
+   end. */
 static void canonicalizePath(char * src, char * dst)
 {
     int inSep = 0;
@@ -146,6 +153,7 @@ static void canonicalizePath(char * src, char * dst)
 }
 
 
+/* Translate a core error code into an NFS error code. */
 static nfsstat core2nfsstat(CoreResult cr)
 {
     switch (cr) {
@@ -173,6 +181,9 @@ static nfsstat core2nfsstat(CoreResult cr)
 }
 
 
+/* Smash user and group IDs, i.e. replace the actual UID and GID of
+   the file by the ones specified when the file system was added,
+   unless they were -1. */
 static void smashUGID(fsid id, CryptedFileInfo * pInfo)
 {
     if (apFilesystems[id]->uid != -1)
@@ -182,6 +193,7 @@ static void smashUGID(fsid id, CryptedFileInfo * pInfo)
 }
 
 
+/* Store file attributes in a NFS fattr structure. */
 static nfsstat storeAttr(fattr * pAttr, fsid fs, CryptedFileID idFile)
 {
     CoreResult cr;
@@ -222,6 +234,7 @@ static nfsstat storeAttr(fattr * pAttr, fsid fs, CryptedFileID idFile)
 }
 
 
+/* Get the parent directory of the specified directory. */
 static nfsstat getParentDir(fsid fs, CryptedFileID idDir, 
     CryptedFileID * pidParent)
 {
@@ -248,6 +261,7 @@ typedef struct {
 } DirCacheEntry;
 
 
+/* Free a directory cache entry. */
 static void freeDirCacheEntry(DirCacheEntry * pEntry)
 {
     if (pEntry->pFirst) coreFreeDirEntries(pEntry->pFirst);
@@ -268,6 +282,9 @@ static int compareIDs(const void * p1, const void * p2)
 }
 
 
+/* Return a directory cache entry for the specified directory.  This
+   may invalidate all pointers into the directory cache that the
+   caller may have. */
 static nfsstat queryDirEntries(fsid fs, CryptedFileID idDir,
     DirCacheEntry * * ppEntry)
 {
@@ -276,6 +293,7 @@ static nfsstat queryDirEntries(fsid fs, CryptedFileID idDir,
     CryptedDirEntry * pCur;
     CoreResult cr;
     
+    /* Perhaps the directory is already in the cache? */
     for (i = 0; i < DIRCACHE_SIZE; i++)
         if (dirCache[i] && (dirCache[i]->fs == fs) && 
             (dirCache[i]->idDir == idDir)) {
@@ -289,6 +307,8 @@ static nfsstat queryDirEntries(fsid fs, CryptedFileID idDir,
             *ppEntry = pEntry;
             return NFS_OK;
         }
+
+    /* No.  Read the directory and add it to the cache. */
 
     pEntry = malloc(sizeof(DirCacheEntry)); /* !!! */
     if (!pEntry) return 12; /* ENOMEM */
@@ -321,7 +341,7 @@ static nfsstat queryDirEntries(fsid fs, CryptedFileID idDir,
          pCur = pCur->pNext, i++)
         pEntry->papSortedByID[i] = pCur;
 
-    qsort(pEntry->papSortedByID, pEntry->cEntries, 
+    qsort(pEntry->papSortedByID, pEntry->cEntries,
         sizeof(CryptedDirEntry *), compareIDs);
     
     if (dirCache[DIRCACHE_SIZE - 1])
@@ -336,7 +356,8 @@ static nfsstat queryDirEntries(fsid fs, CryptedFileID idDir,
 }
 
 
-/* Remove the cached directory contents. */
+/* Remove the cached contents of a directory.  Must be called when the
+   directory has changed. */
 static void dirtyDir(fsid fs, CryptedFileID idDir)
 {
     int i, j;
@@ -413,6 +434,9 @@ static int isInGroup(User * pUser, int gid)
 }
 
 
+/* Does the user have the required permission to a file, based on the
+   file info structure?  smashUGID() must have been called prior to
+   this. */
 static int havePerm(int what, User * pUser, CryptedFileInfo * pInfo)
 {
     return
@@ -425,6 +449,7 @@ static int havePerm(int what, User * pUser, CryptedFileInfo * pInfo)
 }
 
 
+/* Does the user have the required permission to a file? */
 static nfsstat havePerm2(int what, User * pUser, fsid fs,
     CryptedFileID idFile)
 
@@ -526,6 +551,7 @@ static nfsstat volumeDirty(fsid fs)
 }
 
 
+/* Create a socket and bind it to the loopback interface. */
 static int makeSocket(int protocol)
 {
     int s, res;
@@ -548,6 +574,8 @@ static int makeSocket(int protocol)
 }
 
 
+/* Create (and register) our RPC services on the given transport
+   protocol. */
 static int createAndRegister(int protocol)
 {
     SVCXPRT * transp;
@@ -603,6 +631,7 @@ Start the AEFS NFS server.\n\
       --help         display this help and exit\n\
       --version      output version information and exit\n\
   -d, --debug        don't demonize, print debug info\n\
+  -l, --lock         lock daemon memory (disable swapping)\n\
 ",
          pszProgramName);
    }
@@ -694,7 +723,7 @@ int main(int argc, char * * argv)
    
     pszProgramName = argv[0];
 
-    while ((c = getopt_long(argc, argv, "d", options, 0)) != EOF) {
+    while ((c = getopt_long(argc, argv, "dl", options, 0)) != EOF) {
         switch (c) {
             case 0:
                 break;
@@ -710,6 +739,10 @@ int main(int argc, char * * argv)
 
             case 'd': /* --debug */
                 fDebug = TRUE;
+                break;
+
+            case 'l': /* --lock */
+                sysLockMem();
                 break;
 
             default:
@@ -872,6 +905,7 @@ void * nfsproc_root_2_svc(void * arg, struct svc_req * rqstp)
 }
 
 
+/* Find a file in a directory by name. */
 static nfsstat lookup(fsid fs, CryptedFileID idDir, char * pszName, 
     User * pUser, CryptedFileID * pidFound)
 {
@@ -1170,6 +1204,8 @@ diropres * nfsproc_create_2_svc(createargs * args, struct svc_req * rqstp)
 }
 
 
+/* Remove an entry from a directory and delete the file pointed to by
+   that entry iff its reference count becomes zero. */
 static nfsstat removeFile(fsid fs, CryptedFileID idDir, 
     char * pszName, int fDir, User * pUser)
 {
@@ -1213,6 +1249,7 @@ static nfsstat removeFile(fsid fs, CryptedFileID idDir,
     /* Stamp the directory's mtime. */
     if (res = stampFile(fs, idDir)) return res;
 
+    /* Decrease reference count and delete if appropriate. */
     info.cRefs--;
     if (fDir || (info.cRefs == 0))
         cr = coreDeleteFile(GET_VOLUME(fs), idFile);
