@@ -1,4 +1,4 @@
-DEBUG=1
+DEBUG=0
 
 AEFS_VERSION = "\"AEFS 0.2\""
 
@@ -23,7 +23,7 @@ INCL = -I$(BASE)/corefs -I$(BASE)/ciphers -I$(BASE)/misc \
  -I$(BASE)/ifsdriver -I$(BASE)/system -I$(BASE)/system/$(SYSTEM) \
  -I$(BASE)/utils -I$(BASE)/ifsdaemon -I$(BASE)
 
-ifndef DEBUG
+ifneq ($(DEBUG),1)
 OPTFLAGS = @OPTFLAGS@
 endif
 SYSCFLAGS = @SYSCFLAGS@
@@ -34,7 +34,7 @@ SYSLDFLAGS = @SYSLDFLAGS@
 LDFLAGS = $(SYSLDFLAGS)
 SYSLIBS = @SYSLIBS@
 
-ifdef DEBUG
+ifeq ($(DEBUG),1)
 CFLAGS += -g
 LDFLAGS += -g
 endif
