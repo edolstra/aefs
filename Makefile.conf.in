@@ -1,0 +1,26 @@
+SYSTEM = @SYSTEM@
+SHELL = @SHELL@
+
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+
+bindir = @bindir@
+mandir = @mandir@
+
+INSTALL = @INSTALL@
+INSTALL_DIR = $(INSTALL) -d
+INSTALL_PROGRAM = @INSTALL_PROGRAM@ -s
+INSTALL_DATA = @INSTALL_DATA@
+
+CC = @CC@
+CP = @CP@
+RM = @RM@
+EXE = @EXEEXT@
+
+SYSINCL = @SYSINCL@
+
+_OPTFLAGS = @OPTFLAGS@
+SYSCFLAGS = @SYSCFLAGS@
+
+SYSLDFLAGS = @SYSLDFLAGS@
+SYSLIBS = @SYSLIBS@ @LIBS@
