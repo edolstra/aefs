@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.25 2001/11/22 16:18:20 eelco Exp $
+   $Id: aefsnfsd.c,v 1.26 2001/12/03 20:49:26 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1419,7 +1419,7 @@ nfsstat * nfsproc_rename_2_svc(renameargs * args, struct svc_req * rqstp)
     
     /* Stamp the mtimes of the directories. */
     if (res = stampFile(fs, idFrom)) return &res;
-    if (res = stampFile(fs, idTo)) return &res;
+    if ((idFrom != idTo) && (res = stampFile(fs, idTo))) return &res;
 
     res = volumeDirty(fs);
     if (res) return &res;
