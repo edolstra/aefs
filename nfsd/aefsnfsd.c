@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.16 2000/12/31 11:35:25 eelco Exp $
+   $Id: aefsnfsd.c,v 1.17 2001/02/13 16:41:10 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1735,7 +1735,7 @@ addfsres * aefsctrlproc_addfs_1_svc(addfsargs * args, struct svc_req * rqstp)
     res.cr = 0;
     
     if (authCaller(rqstp, &user)) {
-        res.stat = ADDFS_FAIL;
+        res.stat = ADDFS_PERM;
         return &res;
     }
         
