@@ -1,7 +1,7 @@
 /* loop.c -- Implements communication with the FUSE kernel module.
    Copyright (C) 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: loop.c,v 1.7 2001/12/31 16:17:58 eelco Exp $
+   $Id: loop.c,v 1.8 2002/02/16 18:33:13 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <time.h>
 
 #include "sysdep.h"
 #include "logging.h"
@@ -179,6 +180,11 @@ void processCommand()
     case FUSE_WRITE:
         res = do_write(in, (struct fuse_write_in *) inarg);
         sendReply(in, res, 0, 0);
+        break;
+
+    case FUSE_STATFS:
+        res = do_statfs(in, (struct fuse_statfs_out *) outbuf);
+        sendReply(in, res, outbuf, sizeof(struct fuse_statfs_out));
         break;
 
     default:

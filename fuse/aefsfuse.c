@@ -1,7 +1,7 @@
 /* aefsfuse.c -- FUSE front-end to AEFS.
    Copyright (C) 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsfuse.c,v 1.13 2001/12/31 16:17:58 eelco Exp $
+   $Id: aefsfuse.c,v 1.14 2002/02/16 18:33:12 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -26,10 +26,14 @@
 #include <errno.h>
 #include <string.h>
 
+#include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/vfs.h>
+
 #include "getopt.h"
 
-#include "sysdep.h"
-#include "logging.h"
 #include "ciphertable.h"
 #include "corefs.h"
 #include "coreutils.h"
@@ -440,7 +444,7 @@ int do_rename(struct fuse_in_header * in, struct fuse_rename_in * arg)
 
 int do_link(struct fuse_in_header * in, struct fuse_link_in * arg)
 {
-    return -ENOTSUP;
+    return -ENOTSUP; /* !!! */
 }
 
 
@@ -489,6 +493,31 @@ int do_write(struct fuse_in_header * in, struct fuse_write_in * arg)
 
     cr = stampFile(idFile);
     if (cr) return core2sys(cr);
+
+    return 0;
+}
+
+
+int do_statfs(struct fuse_in_header * in, struct fuse_statfs_out * out)
+{
+    int res;
+    struct statfs st;
+    unsigned long long cbTotal = 1 << 30, cbFree = cbTotal / 2;
+
+    logMsg(LOG_DEBUG, "statfs");
+
+    res = statfs(pSuperBlock->szBasePath, &st);
+    if (res != -1) {
+        cbTotal = st.f_bsize * st.f_blocks;
+        cbFree = st.f_bsize * st.f_bfree;
+    }
+    
+    out->st.block_size = PAYLOAD_SIZE;
+    out->st.blocks = cbTotal / PAYLOAD_SIZE;
+    out->st.blocks_free = cbFree / PAYLOAD_SIZE;
+    out->st.files = -1; /* !!! perhaps we should maintain this? */
+    out->st.files_free = st.f_ffree;
+    out->st.namelen = 1024; /* !!! arbitrary */
 
     return 0;
 }
