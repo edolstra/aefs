@@ -23,6 +23,9 @@ AC_SEARCH_LIBS(socket, socket)
 AC_SEARCH_LIBS(xdr_void, nsl rpc)
 AC_SEARCH_LIBS(syslog, syslog)
 
+AC_CHECK_HEADER(fuse.h, BUILD_FUSE=1, BUILD_FUSE=0)
+AC_SUBST(BUILD_FUSE)
+
 AC_C_INLINE
 
 AC_C_BIGENDIAN

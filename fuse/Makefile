@@ -3,7 +3,7 @@ include $(BASE)/Makefile.incl
 
 MANIFEST := Makefile
 
-ifeq ($(SYSTEM), linux)
+ifeq ($(BUILD_FUSE), 1)
 
 PROG = aefsfuse$(EXE)
 
