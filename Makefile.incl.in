@@ -1,7 +1,19 @@
-AEFS_VERSION = "\"AEFS 0.1\""
+DEBUG=1
+
+AEFS_VERSION = "\"AEFS 0.2\""
 
 SYSTEM = @SYSTEM@
 SHELL = @SHELL@
+
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+
+bindir = @bindir@
+mandir = @mandir@
+
+INSTALL = @INSTALL@
+INSTALL_DIR = $(INSTALL) -d
+INSTALL_PROGRAM = @INSTALL_PROGRAM@ -s
 
 DEFS = -DSYSTEM=$(SYSTEM) -DAEFS_VERSION=$(AEFS_VERSION)
 
@@ -10,9 +22,7 @@ INCL = -I$(BASE)/corefs -I$(BASE)/ciphers -I$(BASE)/misc \
  -I$(BASE)/ifsdriver -I$(BASE)/system -I$(BASE)/system/$(SYSTEM) \
  -I$(BASE)/utils -I$(BASE)/ifsdaemon -I$(BASE)
 
-ifdef DEBUG
-OPTFLAGS = -g
-else
+ifndef DEBUG
 OPTFLAGS = @OPTFLAGS@
 endif
 SYSCFLAGS = @SYSCFLAGS@
@@ -23,19 +33,40 @@ SYSLDFLAGS = @SYSLDFLAGS@
 LDFLAGS = $(SYSLDFLAGS)
 SYSLIBS = $(SYSLIBS)
 
+ifdef DEBUG
+CFLAGS += -g
+LDFLAGS += -g
+endif
+
 CC = @CC@
 CP = @CP@
 RM = @RM@
 EXE = @EXEEXT@
-INSTALLDIR = $(BASE)/bin
+
 
 %.d: %.c
-	$(CC) $(CFLAGS) $(CPPFLAGS) -MM -MG $< \
+	$(CC) $(CFLAGS) -MM -MG $< \
 		| sed "s/\($*\)\.o[ :]*/\1.o $@ : /g" > $@
+
+%.h: %.x
+	rpcgen -h $^ > $@
+
+%_xdr.c: %.x
+	rpcgen -c $^ > $@
+
+%_clnt.c: %.x
+	rpcgen -l $^ > $@
+
+%_svc.c: %.x
+	rpcgen -m $^ > $@
+
 
 default: all
 
-.PHONY: clean all
+$(BASE)/Makefile.incl: $(BASE)/Makefile.incl.in
+	(cd $(BASE) ; ./config.status)
+
+.PHONY: all clean install
 
 clean-default:
 	$(RM) *.d *.o *.s *.a *~ core

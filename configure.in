@@ -15,6 +15,7 @@ AC_CHECK_FUNCS(ftruncate)
 AC_CHECK_FUNCS(chsize)
 AC_CHECK_FUNCS(strcasecmp)
 AC_CHECK_FUNCS(stricmp)
+AC_CHECK_FUNCS(daemon)
 
 
 case $build_os in
