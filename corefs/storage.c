@@ -1047,11 +1047,8 @@ static CoreResult readSectors(CryptedFile * pFile,
 }
 
 
-/* Fetch sectors from the specified file.  IMPORTANT postcondition:
-   any sector in the cache may be deleted to make room for the new
-   sectors, so no pointer to a CryptedSector may be used across calls
-   to coreFetchSectors().  csExtent may not be larger than the maximum
-   cache size. */
+/* Fetch sectors from the specified file.  csExtent may not be larger
+   than the maximum cache size. */
 CoreResult coreFetchSectors(CryptedVolume * pVolume,
    CryptedFileID id, SectorNumber sStart, SectorNumber csExtent,
    int flFlags)
