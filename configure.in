@@ -17,6 +17,7 @@ AC_CHECK_FUNCS(stricmp)
 AC_CHECK_FUNCS(daemon)
 AC_CHECK_FUNCS(setfsuid)
 AC_CHECK_FUNCS(mlockall)
+AC_CHECK_FUNCS(chown)
 
 AC_SEARCH_LIBS(socket, socket)
 AC_SEARCH_LIBS(xdr_void, nsl rpc)

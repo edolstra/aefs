@@ -1,7 +1,7 @@
 /* aefsdump.c -- Off-line data extraction.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsdump.c,v 1.5 2001/03/04 22:54:19 eelco Exp $
+   $Id: aefsdump.c,v 1.6 2001/03/07 19:43:39 feep Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
+#include <sys/types.h>
 
 #include "getopt.h"
 #include "corefs.h"

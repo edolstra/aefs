@@ -1,7 +1,7 @@
 /* mkaefs.c -- AEFS file system creation program.
    Copyright (C) 1999, 2001 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: mkaefs.c,v 1.7 2001/03/06 14:22:03 eelco Exp $
+   $Id: mkaefs.c,v 1.8 2001/03/07 19:43:39 feep Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,8 +22,8 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
-#include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 

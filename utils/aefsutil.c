@@ -2,7 +2,7 @@
    directories from an AEFS file system.
    Copyright (C) 2001 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsutil.c,v 1.5 2001/03/06 15:10:32 eelco Exp $
+   $Id: aefsutil.c,v 1.6 2001/03/07 19:43:39 feep Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -258,7 +258,7 @@ static int copy(CryptedVolume * pVolume, CryptedFileID idFile,
 static int dump(CryptedVolume * pVolume, CryptedFileID idFrom, 
    char * pszFrom, char * pszTo, unsigned int flFlags)
 {
-   char szFull[PATH_MAX];
+   char szFull[_POSIX_PATH_MAX];
    CryptedDirEntry * pEntry, * pFirst, * pCur;
    CryptedFileID idFile;
    CryptedFileInfo info;
@@ -341,9 +341,11 @@ static int dump(CryptedVolume * pVolume, CryptedFileID idFrom,
       timebuf.actime = info.timeAccess;
       timebuf.modtime = info.timeWrite;
       utime(szFull, &timebuf);
+#ifdef HAVE_CHOWN      
       if (getuid() == 0) {
          chown(szFull, info.uid, info.gid);
       }
+#endif      
    }
 
    return res;
