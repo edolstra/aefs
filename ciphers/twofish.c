@@ -506,7 +506,7 @@ static CipherSize aTwofishSizes[] = {
 Cipher cipherTwofish =
 {
     "twofish",
-    "Twofish block cipher (alternative implementation)",
+    "Twofish block cipher",
     aTwofishSizes,
     twofishExpandKey,
     twofishFreeExpandedKey,

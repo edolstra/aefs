@@ -2,7 +2,7 @@ BASE = ..
 include $(BASE)/Makefile.incl
 
 SRCS = cipher.c ciphertable.c identity.c \
- twofish.c twofish2.c rijndael.c sha.c
+ twofish.c rijndael.c sha.c # twofish2.c 
 
 all: ciphers.a
 

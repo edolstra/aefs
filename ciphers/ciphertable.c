@@ -1,5 +1,5 @@
 /* ciphertable.c -- Table of known ciphers.  Add your own here.
-   Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@ Cipher * cipherTable[] =
    /* The first cipher is the default for mkaefs. */
    &cipherRijndael,
    &cipherTwofish,
-   &cipherTwofish2,
+/*    &cipherTwofish2, */
    &cipherIdentity,
    0 
 };
