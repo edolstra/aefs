@@ -1125,7 +1125,7 @@ static CoreResult writeBuffer(CryptedSector * pStart, int c,
 
 
 /* Flush the specified sectors to disk.  Dirty sectors are ignored.
-   It is advisable to sort the list of sectors on file and sector
+   It is advisable to sort the list of sectors by file and sector
    number, since adjacent sectors in the list are written in one write
    operation. */
 static CoreResult flushSectors(int cSectors,
