@@ -7,7 +7,7 @@
    depends on it being *precisely* 32 bits wide. */
 
 /* 
- * $Id: sha.h,v 1.1 2000/01/03 22:23:49 eelco Exp $
+ * $Id: sha.h,v 1.1.1.1 2000/01/03 22:23:49 eelco Exp $
  */
 
 /* The SHA block size and message digest sizes, in bytes */

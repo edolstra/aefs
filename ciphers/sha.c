@@ -9,7 +9,7 @@
  * Adapted to pike and some cleanup by Niels Möller.
  */
 
-/* $Id: sha.c,v 1.1 2000/01/03 22:23:49 eelco Exp $ */
+/* $Id: sha.c,v 1.1.1.1 2000/01/03 22:23:49 eelco Exp $ */
 
 /* SHA: NIST's Secure Hash Algorithm */
 
