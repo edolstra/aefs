@@ -108,9 +108,10 @@ static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
    CoreResult cr;
    CipherResult cr2;
    char szFileName[MAX_VOLUME_BASE_PATH_NAME + 128];
-   FILE * file;
-   char szLine[256], szName[256], szValue[256];
+   File * pFile;
+   char szFile[1025], * pszCur, * pszNext, szName[256], szValue[256];
    char szCipher[64] = "";
+   FilePos cbRead;
    int cbKey = 0;
    int cbBlock = 0;
    octet abKey[MAX_KEY_SIZE];
@@ -121,30 +122,47 @@ static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
       pSuperBlock->pszBasePath) >= sizeof(szFileName))
       return CORERC_INVALID_PARAMETER;
 
-   file = fopen(szFileName, "r");
-   if (!file) return CORERC_STORAGE;
+   pFile = sysOpenFile(szFileName,
+      SOF_READONLY | SOF_DENYNONE,
+      pParms->cred);
+   if (!pFile) return CORERC_STORAGE;
 
-   while (fgets(szLine, sizeof(szLine), file)) {
+   if (!sysReadFromFile(pFile, sizeof(szFile) - 1, 
+      (octet *) szFile, &cbRead))
+   {
+      sysCloseFile(pFile);
+      return CORERC_STORAGE;
+   }
+   szFile[cbRead] = 0;
 
-      if (sscanf(szLine, "%[^:]: %s\n", szName, szValue) != 2) continue;
+   sysCloseFile(pFile);
+   
+   pszCur = szFile;
+   while (*pszCur) {
 
-      if (strcmp(szName, "cipher") == 0) {
-         if (sscanf(szValue, "%63[^-]-%d-%d", szCipher,
-            &cbKey, &cbBlock) != 3)
-            continue;
-         cbBlock /= 8;
-         cbKey /= 8;
-      } else if (strcmp(szName, "use-cbc") == 0) {
-         if (strcmp(szValue, "1") == 0)
-            pParms->flCryptoFlags |= CCRYPT_USE_CBC;
-         else
-            pParms->flCryptoFlags &= ~CCRYPT_USE_CBC;
+      pszNext = pszCur;
+      while (*pszNext && *pszNext != '\r' && *pszNext != '\n') pszNext++;
+      if (*pszNext) *pszNext++ = 0;
+
+      if (sscanf(pszCur, "%100[^:]: %100s\n", szName, szValue) == 2) {
+         if (strcmp(szName, "cipher") == 0) {
+            if (sscanf(szValue, "%63[^-]-%d-%d", szCipher,
+               &cbKey, &cbBlock) == 3)
+            {
+               cbBlock /= 8;
+               cbKey /= 8;
+            }
+         } else if (strcmp(szName, "use-cbc") == 0) {
+            if (strcmp(szValue, "1") == 0)
+               pParms->flCryptoFlags |= CCRYPT_USE_CBC;
+            else
+               pParms->flCryptoFlags &= ~CCRYPT_USE_CBC;
+         }
       }
-      
+       
+      pszCur = pszNext;
    }
    
-   if (fclose(file) == EOF) return CORERC_STORAGE;
-
    /* Do we know the specified cipher? */
    while (*papCipher) {
       if (strcmp((*papCipher)->pszID, szCipher) == 0)
@@ -293,8 +311,8 @@ CoreResult coreReadSuperBlock(char * pszBasePath, char * pszKey,
 
 CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, int flags)
 {
-   char szFileName[MAX_VOLUME_BASE_PATH_NAME + 128];
-   FILE * file;
+   char szFileName[MAX_VOLUME_BASE_PATH_NAME + 128], szBuffer[1024];
+   File * pFile;
    CryptedSectorData sector;
    SuperBlock2OnDisk * pOnDisk =
       (SuperBlock2OnDisk *) &sector.payload;
@@ -308,32 +326,34 @@ CoreResult coreWriteSuperBlock(SuperBlock * pSuperBlock, int flags)
    if (!(flags & CWS_NOWRITE_SUPERBLOCK1)) {
       
       /* Write the unencrypted part of the superblock. */
+
+      if (snprintf(szBuffer, sizeof(szBuffer),
+         "cipher: %s-%d-%d\n"
+         "use-cbc: %d\n",
+         pSuperBlock->pKey->pCipher->pszID,
+         pSuperBlock->pKey->cbKey * 8,
+         pSuperBlock->pKey->cbBlock * 8,
+         pParms->flCryptoFlags & CCRYPT_USE_CBC) >= sizeof(szBuffer))
+         return CORERC_INVALID_PARAMETER;
       
       if (snprintf(szFileName, sizeof(szFileName), "%s" SUPERBLOCK1_NAME,
          pSuperBlock->pszBasePath) >= sizeof(szFileName))
          return CORERC_INVALID_PARAMETER;
 
-      file = fopen(szFileName, "w+");
-      if (!file) return CORERC_STORAGE;
-      
-      if (fprintf(file, "cipher: %s-%d-%d\n",
-         pSuperBlock->pKey->pCipher->pszID,
-         pSuperBlock->pKey->cbKey * 8,
-         pSuperBlock->pKey->cbBlock * 8) == EOF)
+      pFile = sysOpenFile(szFileName,
+         SOF_CREATE_IF_NEW | SOF_TRUNC_IF_EXISTS |
+         SOF_READWRITE | SOF_DENYALL,
+         pParms->cred);
+      if (!pFile) return CORERC_STORAGE;
+
+      if (!sysWriteToFile(pFile, strlen(szBuffer), 
+         (octet *) szBuffer, &cbWritten))
       {
-         fclose(file);
+         sysCloseFile(pFile);
          return CORERC_STORAGE;
       }
       
-      if (fprintf(file, "use-cbc: %d\n",
-         pParms->flCryptoFlags & CCRYPT_USE_CBC) == EOF)
-      {
-         fclose(file);
-         return CORERC_STORAGE;
-      }
-      
-      if (fclose(file) == EOF)
-         return CORERC_STORAGE;
+      sysCloseFile(pFile);
    }
 
    /* Write the encrypted part of the superblock. */
