@@ -6,16 +6,16 @@ PROGS = mkaefs.c aefsck.c aefsdump.c
 
 SRCS = $(PROGS) utilutils.c
 
-LIB = utilutils.o $(BASE)/misc/getopt.a \
+LIBS = utilutils.o $(BASE)/misc/getopt.a \
  $(BASE)/corefs/corefs.a $(BASE)/ciphers/ciphers.a \
  $(BASE)/system/$(SYSTEM)/sysdep.a 
 
 all: $(PROGS:.c=$(EXE))
 
-$(PROGS:.c=$(EXE)): $(LIB) 
+$(PROGS:.c=$(EXE)): $(LIBS) 
 
 %$(EXE): %.o 
-	$(CC) $(CFLAGS) $(LDFLAGS) $< $(LIB) $(SYSLIB) -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) $< $(LIBS) $(SYSLIBS) -o $@
 
 TIMES = 1000000 # blocks (= 16 MB for 128 bit ciphers)
 

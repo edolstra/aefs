@@ -2,7 +2,7 @@ BASE = .
 include $(BASE)/Makefile.incl
 
 SUBDIRS := misc system/$(SYSTEM) ciphers corefs utils nfsd
-ifeq ($(SYSTEM), "os2")
+ifeq ($(SYSTEM), os2)
 SUBDIRS += ifsdriver ifsdaemon ifsutils
 endif
 
@@ -11,7 +11,7 @@ all clean clean-stuff install depend:
 	  (cd $$subdir && $(MAKE) -w $@) || exit 1; \
 	done
 
-ifeq ($(SYSTEM), "os2")
+ifeq ($(SYSTEM), os2)
 all: docs
 
 docs: readme.txt readme.inf # readme.html

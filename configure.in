@@ -19,7 +19,7 @@ AC_CHECK_FUNCS(daemon)
 
 
 case $build_os in
-os2emx)
+os2_emx)
         SYSTEM=os2
         SHELL=sh.exe
         SYSCFLAGS=-Zmt
