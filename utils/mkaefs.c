@@ -1,7 +1,7 @@
 /* mkaefs.c -- AEFS file system creation program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: mkaefs.c,v 1.11 2001/11/22 16:18:20 eelco Exp $
+   $Id: mkaefs.c,v 1.12 2001/12/04 13:01:47 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -88,7 +88,8 @@ static int createISF(CryptedVolume * pVolume)
 
 
 static int initVolume(char * pszBasePath, octet * pabDataKey, 
-   Key * pDataKey, CryptedVolume * pVolume, char * pszPassPhrase)
+   Key * pDataKey, CryptedVolume * pVolume, char * pszPassPhrase,
+   bool fDataKey)
 {
    CoreResult cr;
    CryptedFileID idRootDir;
@@ -112,7 +113,7 @@ static int initVolume(char * pszBasePath, octet * pabDataKey,
    superblock.pKey = pDataKey;
    superblock.flFlags = 0;
    superblock.idRoot = idRootDir;
-   superblock.fEncryptedKey = true;
+   superblock.fEncryptedKey = fDataKey;
    strcpy(superblock.szLabel, "AEFS");
    time(&now);
    strftime(superblock.szDescription,
@@ -130,7 +131,7 @@ static int initVolume(char * pszBasePath, octet * pabDataKey,
    }
 
    /* Write the encrypted data key. */
-   if (1) {
+   if (fDataKey) {
       
       memcpy(superblock.abDataKey, pabDataKey, MAX_KEY_SIZE);
       cr = coreWriteDataKey(&superblock, pszPassPhrase);
@@ -152,7 +153,7 @@ static int initVolume(char * pszBasePath, octet * pabDataKey,
 
 
 static int createVolumeInPath(char * pszBasePath, 
-   char * pszCipher, char * pszKey, bool fUseCBC)
+   char * pszCipher, char * pszKey, bool fUseCBC, bool fDataKey)
 {
    CoreResult cr;
    CipherResult cr2;
@@ -243,8 +244,8 @@ static int createVolumeInPath(char * pszBasePath,
       data are the same (simpler that way; otherwise we would have
       to have two flags to specify the ciphers).
    */
-          
-   if (1) {
+
+   if (fDataKey) {
 
       /* Generate the data key. */
       sysGetRandomBits(cbKey * 8, abDataKey);
@@ -283,7 +284,8 @@ static int createVolumeInPath(char * pszBasePath,
 
    /* Initialize the volume (i.e. create a root directory and write
       the superblocks. */
-   res = initVolume(szBasePath, abDataKey, pDataKey, pVolume, pszKey);
+   res = initVolume(szBasePath, abDataKey, 
+      pDataKey, pVolume, pszKey, fDataKey);
    memset(abDataKey, 0, sizeof(abDataKey)); /* burn */
    
    /* Drop the volume, commit all writes. */
@@ -317,6 +319,8 @@ Create an AEFS file system in directory PATH.\n\
   -k, --key=KEY        use specified key, do not ask\n\
   -c, --cipher=CIPHER  use CIPHER (see list below)\n\
       --no-cbc         do not use CBC mode (only for debugging)\n\
+      --no-random-key  do not generate a random data key (compatible\n\
+                        with older versions of AEFS)\n\
       --help           display this help and exit\n\
       --version        output version information and exit\n\
 \n\
@@ -348,7 +352,7 @@ bits).  The first entry in the table is the default cipher.\n\
 
 int main(int argc, char * * argv)
 {
-   bool fUseCBC = true;
+   bool fUseCBC = true, fDataKey = true;
    int res;
    int c;
    char * pszKey = 0, * pszCipher = 0, * pszBasePath;
@@ -360,6 +364,7 @@ int main(int argc, char * * argv)
       { "key", required_argument, 0, 'k' },
       { "cipher", required_argument, 0, 'c' },
       { "no-cbc", no_argument, 0, 3 },
+      { "no-random-key", no_argument, 0, 4 },
       { 0, 0, 0, 0 } 
    };
 
@@ -395,6 +400,10 @@ int main(int argc, char * * argv)
             fUseCBC = false;
             break;
 
+         case 4: /* --no-random-key */
+            fDataKey = false;
+            break;
+
          default:
             printUsage(1);
       }
@@ -408,7 +417,8 @@ int main(int argc, char * * argv)
    pszBasePath = argv[optind++];
 
    /* Make the volume. */
-   res = createVolumeInPath(pszBasePath, pszCipher, pszKey, fUseCBC);
+   res = createVolumeInPath(pszBasePath, pszCipher, pszKey, 
+      fUseCBC, fDataKey);
    if (pszKey) memset(pszKey, 0, strlen(pszKey)); /* burn */
 
    return res;
