@@ -199,7 +199,7 @@
 
   will attach the volume created in the previous example to the drive
   letter X.  You can now access the encrypted data in þtt{c:\crypto}
-  trough drive X.  Any data you write to or read from drive X will be
+  through drive X.  Any data you write to or read from drive X will be
   encrypted and decrypted transparently by AEFS.
 
   When you are done using the encrypted volume, you can type 
@@ -776,4 +776,4 @@
   This software was written by Eelco Dolstra.  Send bug reports,
   patches, or other comments to þtt{<eelco@cs.uu.nl>}.
 
-  $Id: readme.src,v 1.10 2001/11/15 13:18:07 eelco Exp $
+  $Id: readme.src,v 1.11 2002/07/01 14:34:48 eelco Exp $
