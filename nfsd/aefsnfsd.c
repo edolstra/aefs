@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.11 2000/12/30 12:38:04 eelco Exp $
+   $Id: aefsnfsd.c,v 1.12 2000/12/30 21:15:31 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -166,7 +166,6 @@ static nfsstat core2nfsstat(CoreResult cr)
         case CORERC_INVALID_PARAMETER: abort();
         case CORERC_INVALID_NAME: return 22; /* EINVAL */
         case CORERC_BAD_CHECKSUM: return NFSERR_IO;
-        case CORERC_STORAGE: return NFSERR_IO;
         case CORERC_BAD_INFOSECTOR: return NFSERR_IO;
         case CORERC_NOT_DIRECTORY: return NFSERR_NOTDIR;
         case CORERC_BAD_DIRECTORY: return NFSERR_IO;
@@ -177,6 +176,7 @@ static nfsstat core2nfsstat(CoreResult cr)
         case CORERC_ISF_CORRUPT: return NFSERR_IO;
         case CORERC_ID_EXISTS: return NFSERR_IO;
         default:
+            if (IS_CORERC_SYS(cr)) return NFSERR_IO;
             fprintf(stderr, "unexpected corefs error %d\n", cr);
             return NFSERR_PERM;
     }
@@ -578,10 +578,11 @@ static int makeSocket(int protocol)
 
 /* Create (and register) our RPC services on the given transport
    protocol. */
-static SVCXPRT * createAndRegister(int protocol)
+static SVCXPRT * createAndRegister(int protocol, Bool fRegister)
 {
     SVCXPRT * transp;
     int s;
+    int reg = fRegister ? protocol : 0;
     
     s = makeSocket(protocol);
     if (s == -1) {
@@ -600,15 +601,15 @@ static SVCXPRT * createAndRegister(int protocol)
     }
 
     if (!svc_register(transp, NFS_PROGRAM, NFS_VERSION, 
-            nfs_program_2, 0) ||
+            nfs_program_2, reg) ||
         !svc_register(transp, MOUNTPROG, MOUNTVERS, 
-            mountprog_1, 0) ||
+            mountprog_1, reg) ||
         !svc_register(transp, AEFSCTRL_PROGRAM, AEFSCTRL_VERSION_1,
-            aefsctrl_program_1, 0)
+            aefsctrl_program_1, reg)
         )
     {
         fprintf(stderr,
-            "%s: unable to register service with portmapper\n",
+            "%s: unable to register services\n",
             pszProgramName);
         return 0;
     }
@@ -632,6 +633,7 @@ Start the AEFS NFS server.\n\
       --version      output version information and exit\n\
   -d, --debug        don't demonize, print debug info\n\
   -l, --lock         lock daemon memory (disable swapping)\n\
+  -r, --register     register with portmapper\n\
 ",
          pszProgramName);
    }
@@ -712,7 +714,8 @@ int main(int argc, char * * argv)
 {
     int i, c;
     SVCXPRT * udp, * tcp;
-    
+    Bool fRegister = FALSE;
+        
     struct option const options[] = {
         { "help", no_argument, 0, 1 },
         { "version", no_argument, 0, 2 },
@@ -724,7 +727,7 @@ int main(int argc, char * * argv)
    
     pszProgramName = argv[0];
 
-    while ((c = getopt_long(argc, argv, "dl", options, 0)) != EOF) {
+    while ((c = getopt_long(argc, argv, "dlr", options, 0)) != EOF) {
         switch (c) {
             case 0:
                 break;
@@ -744,6 +747,10 @@ int main(int argc, char * * argv)
 
             case 'l': /* --lock */
                 sysLockMem();
+                break;
+
+            case 'r': /* --register */
+                fRegister = TRUE;
                 break;
 
             default:
@@ -768,8 +775,8 @@ int main(int argc, char * * argv)
     (void) pmap_unset(MOUNTPROG, MOUNTVERS);
     (void) pmap_unset(AEFSCTRL_PROGRAM, AEFSCTRL_VERSION_1);
 
-    if (!(udp = createAndRegister(IPPROTO_UDP))) return 1;
-    if (!(tcp = createAndRegister(IPPROTO_TCP))) return 1;
+    if (!(udp = createAndRegister(IPPROTO_UDP, fRegister))) return 1;
+    if (!(tcp = createAndRegister(IPPROTO_TCP, fRegister))) return 1;
 
 #ifdef HAVE_DAEMON
     if (!fDebug) daemon(0, 0);
