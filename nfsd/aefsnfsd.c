@@ -1,3 +1,5 @@
+#include <unistd.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
@@ -5,6 +7,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <rpc/rpc.h>
+#include <syslog.h>
+
+#include "getopt.h"
 
 #include "sysdep.h"
 #include "ciphertable.h"
@@ -14,39 +19,107 @@
 
 #include "nfs_prot.h"
 #include "mount.h"
+#include "aefskey.h"
 
 
 #define NOTIMPL assert(0); return 0;
+
+#define MAX_FILESYSTEMS 1024
 
 
 
 void nfs_program_2(struct svc_req * rqstp, SVCXPRT * transp);
 void mountprog_1(struct svc_req * rqstp, SVCXPRT * transp);
 void nlm_prog_1(struct svc_req * rqstp, SVCXPRT * transp);
+void aefskey_program_1(struct svc_req * rqstp, SVCXPRT * transp);
 
 
-groupnode groupNode1;
-groupnode groupNode2;
-exportnode exportNode1;
-exports exportList;
+typedef unsigned int fsid;
 
-SuperBlock * pSuperBlock;
+typedef struct {
+        SuperBlock * pSuperBlock;
+        int uid, gid;
+        int cRefs;
+} Filesystem;
+
+
+Filesystem * apFilesystems[MAX_FILESYSTEMS];
+
+
+typedef struct {
+        int uid, gid;
+        int gids[NGRPS];
+} User;
+
+
+
+#define GET_SUPERBLOCK(fs) (apFilesystems[fs]->pSuperBlock)
+#define GET_VOLUME(fs) (apFilesystems[fs]->pSuperBlock->pVolume)
+
 
 char * pszProgramName;
 
 int voidthing;
 #define VOIDOBJ ((void *) &voidthing)
 
+Bool fDebug = FALSE;
 
-void encodeFH(nfs_fh * fh, CryptedFileID id)
+
+/* Write a message to the log file. */
+static void logMsg(int level, char * pszMsg, ...)
 {
-    * ((CryptedFileID *) fh->data) = id;
+    va_list args;
+    if ((level == LOG_DEBUG) && !fDebug) return;
+    va_start(args, pszMsg);
+    if (fDebug) {
+        vfprintf(stderr, pszMsg, args);
+        fprintf(stderr, "\n");
+        fflush(stderr);
+    } else {
+        vsyslog(level, pszMsg, args);
+    }
+    va_end(args);
 }
 
 
-void decodeFH(nfs_fh * fh, CryptedFileID * pid)
+void encodeFH(nfs_fh * fh, fsid fs, CryptedFileID id)
 {
-    *pid = * ((CryptedFileID *) fh->data);
+    assert((fs < MAX_FILESYSTEMS) && apFilesystems[fs]);
+    ((uint32 *) fh->data) [0] = htonl(id);
+    ((uint32 *) fh->data) [1] = htonl(fs);
+}
+
+
+nfsstat decodeFH(nfs_fh * fh, fsid * pfs, CryptedFileID * pid)
+{
+    *pid = ntohl(((uint32 *) fh->data) [0]);
+    *pfs = ntohl(((uint32 *) fh->data) [1]);
+    if ((*pfs >= MAX_FILESYSTEMS) || !apFilesystems[*pfs])
+        return NFSERR_STALE; /* actually, not stale but invalid */
+    else
+        return NFS_OK;
+}
+
+
+void canonicalizePath(char * src, char * dst)
+{
+    int inSep = 0;
+
+    while (*src) {
+        if ((*src == '/') || (*src == '\\')) {
+            if (!inSep) {
+                *dst++ = '/';
+                inSep = 1;
+            }
+        } else {
+            inSep = 0;
+            *dst++ = *src;
+        }
+        src++;
+    }
+
+    if (!inSep) *dst++ = '/';
+    *dst = 0;
 }
 
 
@@ -77,13 +150,24 @@ nfsstat core2nfsstat(CoreResult cr)
 }
 
 
-nfsstat storeAttr(fattr * pAttr, CryptedFileID idFile)
+void smashUGID(fsid id, CryptedFileInfo * pInfo)
+{
+    if (apFilesystems[id]->uid != -1)
+        pInfo->uid = apFilesystems[id]->uid;
+    if (apFilesystems[id]->gid != -1)
+        pInfo->gid = apFilesystems[id]->gid;
+}
+
+
+nfsstat storeAttr(fattr * pAttr, fsid fs, CryptedFileID idFile)
 {
     CoreResult cr;
     CryptedFileInfo info;
     
-    cr = coreQueryFileInfo(pSuperBlock->pVolume, idFile, &info);
+    cr = coreQueryFileInfo(GET_VOLUME(fs), idFile, &info);
     if (cr) return core2nfsstat(cr);
+
+    smashUGID(fs, &info);
 
     switch (info.flFlags & CFF_IFMT) {
         case CFF_IFREG: pAttr->type = NFREG; break;
@@ -96,8 +180,8 @@ nfsstat storeAttr(fattr * pAttr, CryptedFileID idFile)
 
     pAttr->mode = info.flFlags;
     pAttr->nlink = info.cRefs;
-    pAttr->uid = 500;
-    pAttr->gid = 100;
+    pAttr->uid = info.uid;
+    pAttr->gid = info.gid;
     pAttr->size = info.cbFileSize;
     pAttr->blocksize = SECTOR_SIZE;
     pAttr->rdev = 0;
@@ -115,14 +199,15 @@ nfsstat storeAttr(fattr * pAttr, CryptedFileID idFile)
 }
 
 
-nfsstat getParentDir(CryptedFileID idDir, CryptedFileID * pidParent)
+nfsstat getParentDir(fsid fs, CryptedFileID idDir, 
+    CryptedFileID * pidParent)
 {
     CoreResult cr;
     CryptedFileInfo info;
 
     *pidParent = 0;
     
-    cr = coreQueryFileInfo(pSuperBlock->pVolume, idDir, &info);
+    cr = coreQueryFileInfo(GET_VOLUME(fs), idDir, &info);
     if (cr) return core2nfsstat(cr);
 
     *pidParent = info.idParent;
@@ -132,6 +217,7 @@ nfsstat getParentDir(CryptedFileID idDir, CryptedFileID * pidParent)
 
 
 typedef struct {
+        fsid fs;
         CryptedFileID idDir;
         int cEntries;
         CryptedDirEntry * pFirst;
@@ -159,7 +245,7 @@ int compareIDs(const void * p1, const void * p2)
 }
 
 
-nfsstat queryDirEntries(CryptedFileID idDir,
+nfsstat queryDirEntries(fsid fs, CryptedFileID idDir,
     DirCacheEntry * * ppEntry)
 {
     int i, j;
@@ -168,7 +254,8 @@ nfsstat queryDirEntries(CryptedFileID idDir,
     CoreResult cr;
     
     for (i = 0; i < DIRCACHE_SIZE; i++)
-        if (dirCache[i] && (dirCache[i]->idDir == idDir)) {
+        if (dirCache[i] && (dirCache[i]->fs == fs) && 
+            (dirCache[i]->idDir == idDir)) {
             /* Move pEntry to the front of the MRU list. */
             pEntry = dirCache[i];
             for (j = i + 1; j < DIRCACHE_SIZE; j++)
@@ -183,11 +270,12 @@ nfsstat queryDirEntries(CryptedFileID idDir,
     pEntry = malloc(sizeof(DirCacheEntry)); /* !!! */
     if (!pEntry) return 12; /* ENOMEM */
 
+    pEntry->fs = fs;
     pEntry->idDir = idDir;
     pEntry->pFirst = 0;
     pEntry->papSortedByID = 0;
 
-    cr = coreQueryDirEntries(pSuperBlock->pVolume, idDir,
+    cr = coreQueryDirEntries(GET_VOLUME(fs), idDir,
         &pEntry->pFirst);
     if (cr) {
         freeDirCacheEntry(pEntry);
@@ -226,11 +314,12 @@ nfsstat queryDirEntries(CryptedFileID idDir,
 
 
 /* Remove the cached directory contents. */
-void dirtyDir(CryptedFileID idDir)
+void dirtyDir(fsid fs, CryptedFileID idDir)
 {
     int i, j;
     for (i = 0; i < DIRCACHE_SIZE; i++)
-        if (dirCache[i] && (dirCache[i]->idDir == idDir)) {
+        if (dirCache[i] && (dirCache[i]->fs == fs) && 
+            (dirCache[i]->idDir == idDir)) {
             freeDirCacheEntry(dirCache[i]);
             for (j = i + 1; j < DIRCACHE_SIZE; j++)
                 dirCache[j - 1] = dirCache[j];
@@ -239,21 +328,89 @@ void dirtyDir(CryptedFileID idDir)
 }
 
 
-nfsstat stampDir(CryptedFileID idDir)
+/* Stamp a file's mtime. */
+nfsstat stampFile(fsid fs, CryptedFileID idFile)
 {
     CoreResult cr;
     CryptedFileInfo info;
 
     /* Update the directory's last-written (mtime) timestamp. */
-    cr = coreQueryFileInfo(pSuperBlock->pVolume, idDir, &info);
+    cr = coreQueryFileInfo(GET_VOLUME(fs), idFile, &info);
     if (cr) return core2nfsstat(cr);
     
     info.timeWrite = time(0);
     
-    cr = coreSetFileInfo(pSuperBlock->pVolume, idDir, &info);
+    cr = coreSetFileInfo(GET_VOLUME(fs), idFile, &info);
     if (cr) return core2nfsstat(cr);
 
     return NFS_OK;
+}
+
+
+int authCaller(struct svc_req * rqstp, User * pUser)
+{
+    struct sockaddr_in * caller;
+    struct authunix_parms * cred;
+    int i;
+
+    caller = svc_getcaller(rqstp->rq_xprt);
+    if (!caller) return NFSERR_PERM;
+
+    /* The call should come from `localhost'. */
+    if (ntohl(caller->sin_addr.s_addr) != INADDR_LOOPBACK)
+        return NFSERR_PERM;
+    
+    /* The call should come from a priviledged port. */
+    if (ntohs(caller->sin_port) >= IPPORT_RESERVED)
+        return NFSERR_PERM;
+
+    /* The call should have Unix authentication info. */
+    if (rqstp->rq_cred.oa_flavor != AUTH_UNIX)
+        return NFSERR_PERM;
+
+    cred = (struct authunix_parms *) rqstp->rq_clntcred;
+    pUser->uid = cred->aup_uid;
+    pUser->gid = cred->aup_gid;
+    for (i = 0; i < NGRPS; i++)
+        pUser->gids[i] = cred->aup_gids[i];
+
+    return NFS_OK;
+}
+
+
+int isInGroup(User * pUser, int gid)
+{
+    int i;
+    if (gid == pUser->gid) return 1;
+    for (i = 0; i < NGRPS; i++)
+        if (gid == pUser->gids[i]) return 1;
+    return 0;
+}
+
+
+int havePerm(int what, User * pUser, CryptedFileInfo * pInfo)
+{
+    return
+        ((pInfo->uid == pUser->uid) && 
+            ((pInfo->flFlags & (what << 6)) == (what << 6))) ||
+        (isInGroup(pUser, pInfo->gid) && 
+            ((pInfo->flFlags & (what << 3)) == (what << 3))) ||
+        ((pInfo->flFlags & what) == what) ||
+        (pUser->uid == 0) /* root */;
+}
+
+
+nfsstat havePerm2(int what, User * pUser, fsid fs, CryptedFileID idFile)
+{
+    CoreResult cr;
+    CryptedFileInfo info;
+    
+    cr = coreQueryFileInfo(GET_VOLUME(fs), idFile, &info);
+    if (cr) return core2nfsstat(cr);
+
+    smashUGID(fs, &info);
+    
+    return havePerm(what, pUser, &info) ? NFS_OK : NFSERR_PERM;
 }
 
 
@@ -270,7 +427,7 @@ int makeSocket(int protocol)
         
     addr.sin_family = AF_INET;
     addr.sin_port = htons(2050);
-    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     memset(addr.sin_zero, 0, sizeof(addr.sin_zero));
     res = bind(s, (struct sockaddr *) &addr, sizeof(addr));
     if (res == -1) return -1;
@@ -300,9 +457,15 @@ int createAndRegister(int protocol)
         return -1;
     }
 
-    if (!svc_register(transp, NFS_PROGRAM, NFS_VERSION, nfs_program_2, 0) ||
-        !svc_register(transp, MOUNTPROG, MOUNTVERS, mountprog_1, 0) /* ||
-        !svc_register(transp, NLM_PROG, NLM_VERS, nlm_prog_1, protocol) */)
+    if (!svc_register(transp, NFS_PROGRAM, NFS_VERSION, 
+            nfs_program_2, 0) ||
+        !svc_register(transp, MOUNTPROG, MOUNTVERS, 
+            mountprog_1, 0) ||
+/*         !svc_register(transp, NLM_PROG, NLM_VERS,  */
+/*             nlm_prog_1, protocol) || */
+        !svc_register(transp, AEFSKEY_PROGRAM, AEFSKEY_VERSION_1,
+            aefskey_program_1, 0)
+        )
     {
         fprintf(stderr,
             "%s: unable to register service with portmapper\n",
@@ -315,31 +478,74 @@ int createAndRegister(int protocol)
 
 
 
+static void printUsage(int status)
+{
+   if (status)
+      fprintf(stderr,
+         "\nTry `%s --help' for more information.\n",
+         pszProgramName);
+   else {
+      printf("\
+Usage: %s [OPTION]... PATH\n\
+Start the AEFS NFS server.\n\
+\n\
+      --help         display this help and exit\n\
+      --version      output version information and exit\n\
+  -d, --debug        don't demonize, print debug info\n\
+",
+         pszProgramName);
+   }
+   exit(status);
+}
+
+
 int main(int argc, char * * argv)
 {
-    CoreResult cr;
-    CryptedVolumeParms vparms;
-    int i;
+    int i, c;
     
-    pszProgramName = argv[0];
+    struct option const options[] = {
+        { "help", no_argument, 0, 1 },
+        { "version", no_argument, 0, 2 },
+        { "debug", no_argument, 0, 'd' },
+        { 0, 0, 0, 0 } 
+    };      
+
+    /* Parse the arguments. */
    
+    pszProgramName = argv[0];
+
+    while ((c = getopt_long(argc, argv, "d", options, 0)) != EOF) {
+        switch (c) {
+            case 0:
+                break;
+
+            case 1: /* --help */
+                printUsage(0);
+                break;
+
+            case 2: /* --version */
+                printf("aefsnfsd - %s\n", AEFS_VERSION);
+                exit(0);
+                break;
+
+            case 'd': /* --debug */
+                fDebug = TRUE;
+                break;
+
+            default:
+                printUsage(1);
+        }
+    }
+
+    if (optind != argc) {
+        fprintf(stderr, "%s: missing or too many parameters\n", pszProgramName);
+        printUsage(1);
+    }
+
     sysInitPRNG();
 
-    coreSetDefVolumeParms(&vparms);
-    vparms.fReadOnly = FALSE;
-
-    cr = coreReadSuperBlock("/home/eelco/Dev/aefs/nfsd/test/", "",
-        cipherTable, &vparms, &pSuperBlock);
-    assert(!cr);
-
-    groupNode1.gr_name = "localhost";
-    groupNode1.gr_next = &groupNode2;
-    groupNode2.gr_name = "hagbard";
-    groupNode2.gr_next = 0;
-    exportNode1.ex_dir = "/";
-    exportNode1.ex_groups = &groupNode1;
-    exportNode1.ex_next = 0;
-    exportList = &exportNode1;
+    for (i = 0; i < MAX_FILESYSTEMS; i++)
+        apFilesystems[i] = 0;
 
     for (i = 0; i < DIRCACHE_SIZE; i++)
         dirCache[i] = 0;
@@ -347,10 +553,17 @@ int main(int argc, char * * argv)
     (void) pmap_unset(NFS_PROGRAM, NFS_VERSION);
     (void) pmap_unset(MOUNTPROG, MOUNTVERS);
 /*     (void) pmap_unset(NLM_PROG, NLM_VERS); */
+    (void) pmap_unset(AEFSKEY_PROGRAM, AEFSKEY_VERSION_1);
 
     if (createAndRegister(IPPROTO_UDP) == -1) return -1;
     if (createAndRegister(IPPROTO_TCP) == -1) return -1;
-    
+
+#ifdef HAVE_DAEMON
+    if (!fDebug) daemon(0, 0);
+#endif
+
+    if (!fDebug) openlog("aefsdmn", LOG_DAEMON, 0);
+
     svc_run();
     fprintf(stderr, "svc_run returned\n");
     
@@ -360,6 +573,7 @@ int main(int argc, char * * argv)
 
 void * nfsproc_null_2_svc(void * v, struct svc_req * rqstp)
 {
+    logMsg(LOG_DEBUG, "nfsproc_null");
     return VOIDOBJ;
 }
 
@@ -367,13 +581,19 @@ void * nfsproc_null_2_svc(void * v, struct svc_req * rqstp)
 attrstat * nfsproc_getattr_2_svc(nfs_fh * fh, struct svc_req * rqstp)
 {
     static attrstat res;
+    User user;
+    fsid fs;
     CryptedFileID idFile;
         
-    decodeFH(fh, &idFile);
+    logMsg(LOG_DEBUG, "nfsproc_getattr");
 
-    printf("getting attributes of file %ld\n", idFile);
-    
-    res.status = storeAttr(&res.attrstat_u.attributes, idFile);
+    res.status = authCaller(rqstp, &user);
+    if (res.status) return &res;
+
+    res.status = decodeFH(fh, &fs, &idFile);
+    if (res.status) return &res;
+
+    res.status = storeAttr(&res.attrstat_u.attributes, fs, idFile);
 
     return &res;
 }
@@ -382,17 +602,31 @@ attrstat * nfsproc_getattr_2_svc(nfs_fh * fh, struct svc_req * rqstp)
 attrstat * nfsproc_setattr_2_svc(sattrargs * args, struct svc_req * rqstp)
 {
     static attrstat res;
+    User user;
+    fsid fs;
     CryptedFileID idFile;
     CoreResult cr;
     CryptedFileInfo info;
         
-    decodeFH(&args->file, &idFile);
+    logMsg(LOG_DEBUG, "nfsproc_setattr");
 
-    printf("setting attributes of file %ld\n", idFile);
+    res.status = authCaller(rqstp, &user);
+    if (res.status) return &res;
 
-    cr = coreQueryFileInfo(pSuperBlock->pVolume, idFile, &info);
+    res.status = decodeFH(&args->file, &fs, &idFile);
+    if (res.status) return &res;
+
+    cr = coreQueryFileInfo(GET_VOLUME(fs), idFile, &info);
     if (cr) {
         res.status = core2nfsstat(cr);
+        return &res;
+    }
+
+    smashUGID(fs, &info);
+
+    /* Only root or the owner may change the attributes. */
+    if ((user.uid != 0) && (user.uid != info.uid)) {
+        res.status = NFSERR_PERM;
         return &res;
     }
 
@@ -400,11 +634,21 @@ attrstat * nfsproc_setattr_2_svc(sattrargs * args, struct svc_req * rqstp)
         info.flFlags = (info.flFlags & ~0777) |
             (args->attributes.mode & 0777);
 
-    if (args->attributes.uid != -1)
-        ;
+    if (args->attributes.uid != -1) {
+        /* Only root may change the owner. */
+        if (user.uid != 0) {
+            res.status = NFSERR_PERM;
+            return &res;
+        }
+        info.uid = args->attributes.uid;
+    }
     
     if (args->attributes.gid != -1)
-        ;
+        if (isInGroup(&user, args->attributes.gid)) {
+            res.status = NFSERR_PERM;
+            return &res;
+        } else
+            info.gid = args->attributes.gid;
     
     if (args->attributes.atime.seconds != -1)
         info.timeAccess = args->attributes.atime.seconds;
@@ -412,14 +656,14 @@ attrstat * nfsproc_setattr_2_svc(sattrargs * args, struct svc_req * rqstp)
     if (args->attributes.mtime.seconds != -1)
         info.timeWrite = args->attributes.mtime.seconds;
 
-    cr = coreSetFileInfo(pSuperBlock->pVolume, idFile, &info);
+    cr = coreSetFileInfo(GET_VOLUME(fs), idFile, &info);
     if (cr) {
         res.status = core2nfsstat(cr);
         return &res;
     }
     
     if (args->attributes.size != -1) {
-        cr = coreSetFileSize(pSuperBlock->pVolume, idFile,
+        cr = coreSetFileSize(GET_VOLUME(fs), idFile,
             args->attributes.size);
         if (cr) {
             res.status = core2nfsstat(cr);
@@ -427,9 +671,9 @@ attrstat * nfsproc_setattr_2_svc(sattrargs * args, struct svc_req * rqstp)
         }
     }
     
-    coreFlushVolume(pSuperBlock->pVolume); /* check??? */
+    coreFlushVolume(GET_VOLUME(fs)); /* check??? */
 
-    res.status = storeAttr(&res.attrstat_u.attributes, idFile);
+    res.status = storeAttr(&res.attrstat_u.attributes, fs, idFile);
    
     return &res;
 }
@@ -437,29 +681,41 @@ attrstat * nfsproc_setattr_2_svc(sattrargs * args, struct svc_req * rqstp)
 
 void * nfsproc_root_2_svc(void * arg, struct svc_req * rqstp)
 {
-    printf("root is obsolete\n");
+    logMsg(LOG_DEBUG, "nfsproc_root");
     return VOIDOBJ;
 }
 
 
-nfsstat lookup(CryptedFileID idDir, char * pszName, 
-    CryptedFileID * pidFound)
+nfsstat lookup(fsid fs, CryptedFileID idDir, char * pszName, 
+    User * pUser, CryptedFileID * pidFound)
 {
     DirCacheEntry * pEntry;
     CryptedDirEntry * pCur;
     nfsstat res;
+    CryptedFileInfo info;
+    CoreResult cr;
 
     *pidFound = 0;
+
+    cr = coreQueryFileInfo(GET_VOLUME(fs), idDir, &info);
+    if (cr) return core2nfsstat(cr);
+    
+    smashUGID(fs, &info);
+
+    if (!CFF_ISDIR(info.flFlags)) return NFSERR_NOTDIR;
+
+    /* Do we have lookup permission on the directory? */
+    if (!havePerm(1, pUser, &info)) return NFSERR_PERM;
         
     if (strcmp(pszName, ".") == 0) {
         *pidFound = idDir;
         return NFS_OK;
     } else if (strcmp(pszName, "..") == 0) {
-        res = getParentDir(idDir, pidFound);
+        res = getParentDir(fs, idDir, pidFound);
         return res ? res : NFS_OK;
     } else {
 
-        res = queryDirEntries(idDir, &pEntry);
+        res = queryDirEntries(fs, idDir, &pEntry);
         if (res) return res;
 
         for (pCur = pEntry->pFirst; pCur; pCur = pCur->pNext)
@@ -476,18 +732,24 @@ nfsstat lookup(CryptedFileID idDir, char * pszName,
 diropres * nfsproc_lookup_2_svc(diropargs * args, struct svc_req * rqstp)
 {
     static diropres res;
+    User user;
+    fsid fs;
     CryptedFileID idDir, idFound;
     
-    decodeFH(&args->dir, &idDir);
+    logMsg(LOG_DEBUG, "nfsproc_lookup");
 
-    printf("lookup file %s in dir %ld\n", args->name, idDir);
-
-    res.status = lookup(idDir, args->name, &idFound);
+    res.status = authCaller(rqstp, &user);
     if (res.status) return &res;
 
-    encodeFH(&res.diropres_u.diropres.file, idFound);
+    res.status = decodeFH(&args->dir, &fs, &idDir);
+    if (res.status) return &res;
+
+    res.status = lookup(fs, idDir, args->name, &user, &idFound);
+    if (res.status) return &res;
+
+    encodeFH(&res.diropres_u.diropres.file, fs, idFound);
     res.status = storeAttr(&res.diropres_u.diropres.attributes,
-        idFound);
+        fs, idFound);
 
     return &res;
 }
@@ -497,16 +759,18 @@ readlinkres * nfsproc_readlink_2_svc(nfs_fh * fh, struct svc_req * rqstp)
 {
     static readlinkres res;
     static char path[MAXPATHLEN];
+    fsid fs;
     CryptedFileID idLink;
     CryptedFileInfo info;
     CryptedFilePos cbRead;
     CoreResult cr;
 
-    decodeFH(fh, &idLink);
+    logMsg(LOG_DEBUG, "nfsproc_readlink");
 
-    printf("read link %ld\n", idLink);
+    res.status = decodeFH(fh, &fs, &idLink);
+    if (res.status) return &res;
 
-    cr = coreQueryFileInfo(pSuperBlock->pVolume, idLink, &info);
+    cr = coreQueryFileInfo(GET_VOLUME(fs), idLink, &info);
     if (cr) {
         res.status = core2nfsstat(cr);
         return &res;
@@ -522,7 +786,7 @@ readlinkres * nfsproc_readlink_2_svc(nfs_fh * fh, struct svc_req * rqstp)
         return &res;
     }
 
-    cr = coreReadFromFile(pSuperBlock->pVolume, idLink, 0,
+    cr = coreReadFromFile(GET_VOLUME(fs), idLink, 0,
         info.cbFileSize, (octet *) path, &cbRead);
     if (cr) {
         res.status = core2nfsstat(cr);
@@ -540,21 +804,30 @@ readres * nfsproc_read_2_svc(readargs * args, struct svc_req * rqstp)
 {
     static readres res;
     static octet abBuffer[NFS_MAXDATA];
+    User user;
+    fsid fs;
     CryptedFileID idFile;
     CoreResult cr;
     CryptedFilePos cbRead;
-    
-    decodeFH(&args->file, &idFile);
+        
+    logMsg(LOG_DEBUG, "nfsproc_read");
 
-    printf("read %d bytes at offset %d of file %ld\n", args->count,
-        args->offset, idFile);
+    res.status = authCaller(rqstp, &user);
+    if (res.status) return &res;
+
+    res.status = decodeFH(&args->file, &fs, &idFile);
+    if (res.status) return &res;
+
+    /* Do we have read permission on this file? */
+    res.status = havePerm2(4, &user, fs, idFile);
+    if (res.status) return &res;
 
     if (args->count > NFS_MAXDATA) {
         res.status = NFSERR_NXIO; /* !!! */
         return &res;
     }
     
-    cr = coreReadFromFile(pSuperBlock->pVolume, idFile, args->offset,
+    cr = coreReadFromFile(GET_VOLUME(fs), idFile, args->offset,
         args->count, abBuffer, &cbRead);
     if (cr) {
         res.status = core2nfsstat(cr);
@@ -564,7 +837,8 @@ readres * nfsproc_read_2_svc(readargs * args, struct svc_req * rqstp)
     res.readres_u.reply.data.data_len = cbRead;
     res.readres_u.reply.data.data_val = (char *) abBuffer;
 
-    res.status = storeAttr(&res.readres_u.reply.attributes, idFile);
+    res.status = storeAttr(&res.readres_u.reply.attributes, 
+        fs, idFile);
     
     return &res;
 }
@@ -572,7 +846,7 @@ readres * nfsproc_read_2_svc(readargs * args, struct svc_req * rqstp)
 
 void * nfsproc_writecache_2_svc(void * v, struct svc_req * rqstp)
 {
-    printf("writecache not implemented\n");
+    logMsg(LOG_DEBUG, "nfsproc_writecache");
     return VOIDOBJ;
 }
 
@@ -580,50 +854,71 @@ void * nfsproc_writecache_2_svc(void * v, struct svc_req * rqstp)
 attrstat * nfsproc_write_2_svc(writeargs * args, struct svc_req * rqstp)
 {
     static attrstat res;
+    User user;
+    fsid fs;
     CryptedFileID idFile;
     CoreResult cr;
     CryptedFilePos cbWritten;
     
-    decodeFH(&args->file, &idFile);
+    logMsg(LOG_DEBUG, "nfsproc_write");
 
-    printf("write %d bytes at offset %d of file %ld\n",
-        args->data.data_len, args->offset, idFile);
+    res.status = authCaller(rqstp, &user);
+    if (res.status) return &res;
 
-    cr = coreWriteToFile(pSuperBlock->pVolume, idFile, args->offset,
-        args->data.data_len, (octet *) args->data.data_val,
+    res.status = decodeFH(&args->file, &fs, &idFile);
+    if (res.status) return &res;
+
+    /* Do we have write permission on this file? */
+    res.status = havePerm2(2, &user, fs, idFile);
+    if (res.status) return &res;
+
+    cr = coreWriteToFile(GET_VOLUME(fs), idFile, args->offset,
+        args->data.data_len, (octet *) args->data.data_val, 
         &cbWritten);
     if (cr) {
         res.status = core2nfsstat(cr);
         return &res;
     }
 
-    /* !!! stamp mtime */
+    /* Stamp the mtime. */
+    res.status = stampFile(fs, idFile);
+    if (res.status) return &res;
 
-    coreFlushVolume(pSuperBlock->pVolume); /* check??? */
+    coreFlushVolume(GET_VOLUME(fs)); /* check??? */
 
-    res.status = storeAttr(&res.attrstat_u.attributes, idFile);
+    res.status = storeAttr(&res.attrstat_u.attributes, fs, idFile);
     
     return &res;
 }
 
 
-nfsstat createFile(diropargs * where, sattr * attrs, 
-    CryptedFileID * pidFile)
+nfsstat createFile(diropargs * where, sattr * attrs, User * pUser,
+    fsid * pfs, CryptedFileID * pidFile)
 {
-    CryptedFileInfo info;
+    CryptedFileInfo info, dirinfo;
+    fsid fs;
     CryptedFileID idDir, idFile;
     CoreResult cr;
+    nfsstat res;
 
     *pidFile = 0;
 
-    decodeFH(&where->dir, &idDir);
+    res = decodeFH(&where->dir, &fs, &idDir);
+    if (res) return res;
 
-    printf("creating file %s in %ld\n", where->name, idDir);
+    cr = coreQueryFileInfo(GET_VOLUME(fs), idDir, &dirinfo);
+    if (cr) return core2nfsstat(cr);
 
+    smashUGID(fs, &dirinfo);
+
+    /* Do we have write and search permission on the directory? */
+    if (!havePerm(1 | 2, pUser, &dirinfo)) return NFSERR_PERM;
+
+    /* Create the file. */
     memset(&info, 0, sizeof(info));
     info.flFlags = attrs->mode & 0377777;
     info.cRefs = 1;
-    info.cbFileSize = 0;
+    info.cbFileSize = (attrs->size) == -1 ? 0 : attrs->size;
     info.timeCreation = time(0);
     if (attrs->atime.seconds == -1)
       info.timeAccess = time(0);
@@ -634,19 +929,27 @@ nfsstat createFile(diropargs * where, sattr * attrs,
     else
       info.timeWrite = attrs->mtime.seconds;
     info.idParent = CFF_ISDIR(info.flFlags) ? idDir : 0;
-    cr = coreCreateBaseFile(pSuperBlock->pVolume, &info, &idFile);
+    info.uid = (attrs->uid == -1) ? pUser->uid : attrs->uid;
+    info.gid = (attrs->gid == -1) ? pUser->gid : attrs->gid;
+    cr = coreCreateBaseFile(GET_VOLUME(fs), &info, &idFile);
     if (cr) return core2nfsstat(cr);
 
-    cr = coreAddEntryToDir(pSuperBlock->pVolume, idDir, 
+    /* Add an entry for the newly created file to the directory. */
+    cr = coreAddEntryToDir(GET_VOLUME(fs), idDir, 
         where->name, idFile, 0);
     if (cr) {
-	coreDeleteFile(pSuperBlock->pVolume, idFile);
+	coreDeleteFile(GET_VOLUME(fs), idFile);
 	return core2nfsstat(cr);
     }
 
-    dirtyDir(idDir);
-    coreFlushVolume(pSuperBlock->pVolume); /* check??? */
+    dirtyDir(fs, idDir);
 
+    /* Stamp the directory's mtime. */
+    if (res = stampFile(fs, idDir)) return res;
+
+    coreFlushVolume(GET_VOLUME(fs)); /* check??? */
+
+    *pfs = fs;
     *pidFile = idFile;
     return NFS_OK;
 }
@@ -655,23 +958,32 @@ nfsstat createFile(diropargs * where, sattr * attrs,
 diropres * nfsproc_create_2_svc(createargs * args, struct svc_req * rqstp)
 {
     static diropres res;
+    User user;
+    fsid fs;
     CryptedFileID idFile;
+
+    logMsg(LOG_DEBUG, "nfsproc_create");
+
+    res.status = authCaller(rqstp, &user);
+    if (res.status) return &res;
 
     if (CFF_ISDIR(args->attributes.mode)) {
         res.status = NFSERR_ISDIR;
         return &res;
     }
 
-    res.status = createFile(&args->where, &args->attributes, &idFile);
+    res.status = createFile(&args->where, &args->attributes, 
+        &user, &fs, &idFile);
     if (res.status) return &res;
     
-    encodeFH(&res.diropres_u.diropres.file, idFile);
-    storeAttr(&res.diropres_u.diropres.attributes, idFile);
+    encodeFH(&res.diropres_u.diropres.file, fs, idFile);
+    storeAttr(&res.diropres_u.diropres.attributes, fs, idFile);
     return &res;
 }
 
 
-nfsstat removeFile(CryptedFileID idDir, char * pszName, int fDir)
+nfsstat removeFile(fsid fs, CryptedFileID idDir, 
+    char * pszName, int fDir, User * pUser)
 {
     nfsstat res;
     CryptedDirEntry * pFirstEntry;
@@ -679,17 +991,19 @@ nfsstat removeFile(CryptedFileID idDir, char * pszName, int fDir)
     CryptedFileInfo info;
     CoreResult cr;
 
-    res = lookup(idDir, pszName, &idFile);
+    res = lookup(fs, idDir, pszName, pUser, &idFile);
     if (res) return res;
 
-    cr = coreQueryFileInfo(pSuperBlock->pVolume, idFile, &info);
+    cr = coreQueryFileInfo(GET_VOLUME(fs), idFile, &info);
     if (cr) return core2nfsstat(cr);
+
+    smashUGID(fs, &info);
 
     if (fDir) {
 
         if (!CFF_ISDIR(info.flFlags)) return NFSERR_NOTDIR;
 
-        cr = coreQueryDirEntries(pSuperBlock->pVolume, 
+        cr = coreQueryDirEntries(GET_VOLUME(fs), 
             idFile, &pFirstEntry);
         if (cr || pFirstEntry) {
             coreFreeDirEntries(pFirstEntry);
@@ -699,19 +1013,26 @@ nfsstat removeFile(CryptedFileID idDir, char * pszName, int fDir)
     } else
         if (CFF_ISDIR(info.flFlags)) return NFSERR_ISDIR;
     
-    cr = coreMoveDirEntry(pSuperBlock->pVolume, 
-        pszName, idDir, 0, 0, 0);
+    /* Do we have write and search permission on the directory? */
+    res = havePerm2(1 | 2, pUser, fs, idDir);
+    if (res) return res;
+
+    cr = coreMoveDirEntry(GET_VOLUME(fs), pszName, idDir, 0, 0);
     if (cr) return core2nfsstat(cr);
+
+    dirtyDir(fs, idDir);
+
+    /* Stamp the directory's mtime. */
+    if (res = stampFile(fs, idDir)) return res;
 
     info.cRefs--;
     if (fDir || (info.cRefs == 0))
-        cr = coreDeleteFile(pSuperBlock->pVolume, idFile);
+        cr = coreDeleteFile(GET_VOLUME(fs), idFile);
     else
-        cr = coreSetFileInfo(pSuperBlock->pVolume, idFile, &info);
+        cr = coreSetFileInfo(GET_VOLUME(fs), idFile, &info);
     if (cr) res = core2nfsstat(cr);
 
-    dirtyDir(idDir);
-    coreFlushVolume(pSuperBlock->pVolume); /* check??? */
+    coreFlushVolume(GET_VOLUME(fs)); /* check??? */
 
     return NFS_OK;
 }
@@ -720,13 +1041,19 @@ nfsstat removeFile(CryptedFileID idDir, char * pszName, int fDir)
 nfsstat * nfsproc_remove_2_svc(diropargs * args, struct svc_req * rqstp)
 {
     static nfsstat res;
+    User user;
+    fsid fs;
     CryptedFileID idDir;
 
-    decodeFH(&args->dir, &idDir);
+    logMsg(LOG_DEBUG, "nfsproc_remove");
 
-    printf("remove file %s from dir %ld\n", args->name, idDir);
+    res = authCaller(rqstp, &user);
+    if (res) return &res;
 
-    res = removeFile(idDir, args->name, FALSE);
+    res = decodeFH(&args->dir, &fs, &idDir);
+    if (res) return &res;
+
+    res = removeFile(fs, idDir, args->name, FALSE, &user);
     return &res;
 }
 
@@ -734,24 +1061,47 @@ nfsstat * nfsproc_remove_2_svc(diropargs * args, struct svc_req * rqstp)
 nfsstat * nfsproc_rename_2_svc(renameargs * args, struct svc_req * rqstp)
 {
     static nfsstat res;
+    User user;
     CoreResult cr;
+    fsid fs, fs2;
     CryptedFileID idFrom, idTo;
 
-    decodeFH(&args->from.dir, &idFrom);
-    decodeFH(&args->to.dir, &idTo);
+    logMsg(LOG_DEBUG, "nfsproc_rename");
 
-    cr = coreMoveDirEntry(pSuperBlock->pVolume,
+    res = authCaller(rqstp, &user);
+    if (res) return &res;
+
+    res = decodeFH(&args->from.dir, &fs, &idFrom);
+    if (res) return &res;
+    res = decodeFH(&args->to.dir, &fs2, &idTo);
+    if (res) return &res;
+    if (fs != fs2) {
+        res = NFSERR_STALE; /* actually, not stale but invalid */
+        return &res;
+    }
+
+    /* Do we have write and search permission on both directories? */
+    res = havePerm2(1 | 2, &user, fs, idFrom);
+    if (res) return &res;
+    res = havePerm2(1 | 2, &user, fs, idTo);
+    if (res) return &res;
+
+    cr = coreMoveDirEntry(GET_VOLUME(fs),
         args->from.name, idFrom,
-        args->to.name, idTo,
-        0);
+        args->to.name, idTo);
     if (cr) {
         res = core2nfsstat(cr);
         return &res;
     }
     
-    dirtyDir(idFrom);
-    dirtyDir(idTo);
-    coreFlushVolume(pSuperBlock->pVolume); /* check??? */
+    dirtyDir(fs, idFrom);
+    dirtyDir(fs, idTo);
+
+    /* Stamp the mtimes of the directories. */
+    if (res = stampFile(fs, idFrom)) return &res;
+    if (res = stampFile(fs, idTo)) return &res;
+
+    coreFlushVolume(GET_VOLUME(fs)); /* check??? */
 
     res = NFS_OK;
     return &res;
@@ -761,81 +1111,111 @@ nfsstat * nfsproc_rename_2_svc(renameargs * args, struct svc_req * rqstp)
 nfsstat * nfsproc_link_2_svc(linkargs * args, struct svc_req * rqstp)
 {
     static nfsstat res;
+
+    logMsg(LOG_DEBUG, "nfsproc_link");
+
+    res = 95; /* ENOTSUP */
+    return &res;
+#if 0
+    static nfsstat res;
     CoreResult cr;
+    fsid fs, fs2;
     CryptedFileID idFile, idDir;
 
-    decodeFH(&args->from, &idFile);
-    decodeFH(&args->to.dir, &idDir);
+    res = decodeFH(&args->from, &fs, &idFile);
+    if (res) return &res;
+    res = decodeFH(&args->to.dir, &fs2, &idDir);
+    if (res) return &res;
+    if (fs != fs2) {
+        res = NFSERR_STALE; /* actually, not stale but invalid */
+        return &res;
+    }
     
-    cr = coreAddEntryToDir(pSuperBlock->pVolume,
+    cr = coreAddEntryToDir(GET_VOLUME(fs),
         idDir, args->to.name, idFile, 0);
     if (cr) {
         res = core2nfsstat(cr);
         return &res;
     }
 
-    dirtyDir(idDir);
-    coreFlushVolume(pSuperBlock->pVolume); /* check??? */
-    
-    res = NFS_OK;
-    return &res;
-}
-
-
-nfsstat * nfsproc_symlink_2_svc(symlinkargs * args, struct svc_req * rqstp)
-{
-    static nfsstat res;
-    res = 95; /* ENOTSUP */
-    return &res;
-#if 0
-    static nfsstat res;
-    CryptedFileID idLink;
-    CoreResult cr;
-    CryptedFilePos cbWritten;
-
-    if (!CFF_ISLNK(args->attributes.mode)) {
-        res = 22; /* EINVAL */
-        return &res;
-    }
-
-    args->attributes.mode &= ~07000;
-    args->attributes.mode |= 0777;
-
-    res = createFile(&args->from, &args->attributes, &idLink);
-    if (res) return &res;
-
     /* !!! inc ref count */
 
-    cr = coreWriteToFile(pSuperBlock->pVolume, idLink, 0,
-        strlen(args->to), (octet *) args->to, &cbWritten);
-    if (cr) {
-        res = core2nfsstat(cr);
-        return &res;
-    }
+    dirtyDir(fs, idDir);
+    coreFlushVolume(GET_VOLUME(fs)); /* check??? */
     
-    coreFlushVolume(pSuperBlock->pVolume); /* check??? */
-
     res = NFS_OK;
     return &res;
 #endif
 }
 
 
+nfsstat * nfsproc_symlink_2_svc(symlinkargs * args, struct svc_req * rqstp)
+{
+    static nfsstat res;
+    User user;
+    fsid fs;
+    CryptedFileID idLink;
+    CoreResult cr;
+    CryptedFilePos cbWritten;
+
+    logMsg(LOG_DEBUG, "nfsproc_symlink");
+
+    res = authCaller(rqstp, &user);
+    if (res) return &res;
+
+    /* We ignore the attributes given by the caller.  (Perhaps we
+       should check them first?) */
+
+    args->attributes.mode = 0777 | CFF_IFLNK;
+    args->attributes.uid = -1;
+    args->attributes.gid = -1;
+    args->attributes.size = 0;
+    args->attributes.atime.seconds = -1;
+    args->attributes.atime.useconds = -1;
+    args->attributes.mtime.seconds = -1;
+    args->attributes.mtime.useconds = -1;
+
+    res = createFile(&args->from, &args->attributes, 
+        &user, &fs, &idLink);
+    if (res) return &res;
+
+    cr = coreWriteToFile(GET_VOLUME(fs), idLink, 0,
+        strlen(args->to), (octet *) args->to, &cbWritten);
+    if (cr) {
+        res = core2nfsstat(cr);
+        return &res;
+    }
+    
+    coreFlushVolume(GET_VOLUME(fs)); /* check??? */
+
+    res = NFS_OK;
+    return &res;
+}
+
+
 diropres * nfsproc_mkdir_2_svc(createargs * args, struct svc_req * rqstp)
 {
     static diropres res;
+    User user;
+    fsid fs;
     CryptedFileID idNewDir;
+
+    logMsg(LOG_DEBUG, "nfsproc_mkdir");
+
+    res.status = authCaller(rqstp, &user);
+    if (res.status) return &res;
 
     if (!CFF_ISDIR(args->attributes.mode)) {
         res.status = NFSERR_NOTDIR;
         return &res;
     }
 
-    res.status = createFile(&args->where, &args->attributes, &idNewDir);
+    res.status = createFile(&args->where, &args->attributes, &user,
+        &fs, &idNewDir);
     if (res.status) return &res;
     
-    encodeFH(&res.diropres_u.diropres.file, idNewDir);
-    storeAttr(&res.diropres_u.diropres.attributes, idNewDir);
+    encodeFH(&res.diropres_u.diropres.file, fs, idNewDir);
+    storeAttr(&res.diropres_u.diropres.attributes, fs, idNewDir);
     return &res;
 }
 
@@ -843,18 +1223,28 @@ diropres * nfsproc_mkdir_2_svc(createargs * args, struct svc_req * rqstp)
 nfsstat * nfsproc_rmdir_2_svc(diropargs * args, struct svc_req * rqstp)
 {
     static nfsstat res;
+    User user;
+    fsid fs;
     CryptedFileID idDir;
 
-    decodeFH(&args->dir, &idDir);
+    logMsg(LOG_DEBUG, "nfsproc_rmdir");
 
-    printf("remove dir %s from dir %ld\n", args->name, idDir);
+    res = authCaller(rqstp, &user);
+    if (res) return &res;
 
-    res = removeFile(idDir, args->name, TRUE);
+    res = decodeFH(&args->dir, &fs, &idDir);
+    if (res) return &res;
+
+    res = removeFile(fs, idDir, args->name, TRUE, &user);
     return &res;
 }
 
 
 #define MAX_ENTRIES 512
+/* This has to fit in a *signed* 32-bit integer, or else many Linux
+   programs will choke!  By the way, using this magic cookie means
+   that you cannot have more than 2^31 files on a volume :-) */
+#define EOL_COOKIE ((uint32) 0x7fffffff)
 
 readdirres * nfsproc_readdir_2_svc(readdirargs * args, struct svc_req * rqstp)
 {
@@ -862,24 +1252,35 @@ readdirres * nfsproc_readdir_2_svc(readdirargs * args, struct svc_req * rqstp)
     static entry ent[MAX_ENTRIES];
     static char szName[NFS_MAXDATA];
     char * p = szName;
+    User user;
+    fsid fs;
     CryptedFileID idDir;
     DirCacheEntry * pEntry;
     uint32 cookie, entpos, iEntry;
     int size = 64;
     CryptedFileID idFile;
 
-    decodeFH(&args->dir, &idDir);
-    cookie = ntohl(* (uint32 *) args->cookie);
+    logMsg(LOG_DEBUG, "nfsproc_readdir, count=%d", args->count);
 
-    printf("reading directory %ld, cookie %d\n", idDir, cookie);
+    res.status = authCaller(rqstp, &user);
+    if (res.status) return &res;
+
+    res.status = decodeFH(&args->dir, &fs, &idDir);
+    if (res.status) return &res;
+
+    /* Do we have read permission on this directory? */
+    res.status = havePerm2(4, &user, fs, idDir);
+    if (res.status) return &res;
+
+    cookie = ntohl(* (uint32 *) args->cookie);
 
     if (args->count > NFS_MAXDATA) args->count = NFS_MAXDATA;
     
-    res.status = queryDirEntries(idDir, &pEntry);
+    res.status = queryDirEntries(fs, idDir, &pEntry);
     if (res.status) return &res;
 
     iEntry = 0;
-            
+
     for (entpos = 0;
          (entpos < MAX_ENTRIES) && (size < args->count);
          entpos++)
@@ -889,12 +1290,12 @@ readdirres * nfsproc_readdir_2_svc(readdirargs * args, struct svc_req * rqstp)
             strcpy(p, ".");
             cookie = 1;
         } else if (cookie == 1) {
-            res.status = getParentDir(idDir, &idFile);
+            res.status = getParentDir(fs, idDir, &idFile);
             if (res.status) return &res;
             if (!idFile) idFile = 1;
             strcpy(p, "..");
             cookie = pEntry->cEntries ?
-                pEntry->papSortedByID[0]->idFile : 0;
+                pEntry->papSortedByID[0]->idFile : EOL_COOKIE;
         } else {
             while ((iEntry < pEntry->cEntries) &&
                    (pEntry->papSortedByID[iEntry]->idFile < cookie)) 
@@ -907,11 +1308,10 @@ readdirres * nfsproc_readdir_2_svc(readdirargs * args, struct svc_req * rqstp)
             p[NFS_MAXNAMLEN] = 0;
             iEntry++;
             cookie = (iEntry < pEntry->cEntries) ? 
-                pEntry->papSortedByID[iEntry]->idFile : 0;
+                pEntry->papSortedByID[iEntry]->idFile : EOL_COOKIE;
         }
 
         if (entpos > 0) ent[entpos - 1].nextentry = ent + entpos;
-        printf("%s, %d\n", p, cookie);
         ent[entpos].fileid = idFile;
         ent[entpos].name = p;
         * (uint32 *) ent[entpos].cookie = htonl(cookie);
@@ -921,8 +1321,7 @@ readdirres * nfsproc_readdir_2_svc(readdirargs * args, struct svc_req * rqstp)
         if (cookie == 0) break;
     }
 
-    res.readdirres_u.reply.eof = cookie == 0;
-    printf("%d\n", res.readdirres_u.reply.eof);
+    res.readdirres_u.reply.eof = cookie == EOL_COOKIE;
     res.readdirres_u.reply.entries = entpos > 0 ? ent : 0;
     res.status = NFS_OK;
     return &res;
@@ -932,7 +1331,7 @@ readdirres * nfsproc_readdir_2_svc(readdirargs * args, struct svc_req * rqstp)
 statfsres * nfsproc_statfs_2_svc(nfs_fh * fh, struct svc_req * rqstp)
 {
     static statfsres res;
-    printf("returning fs status\n");
+    logMsg(LOG_DEBUG, "nfsproc_statfs");
     res.status = NFS_OK;
     res.statfsres_u.reply.tsize = 4096;
     res.statfsres_u.reply.bsize = SECTOR_SIZE;
@@ -945,6 +1344,7 @@ statfsres * nfsproc_statfs_2_svc(nfs_fh * fh, struct svc_req * rqstp)
 
 void * mountproc_null_1_svc(void * v, struct svc_req * rqstp)
 {
+    logMsg(LOG_DEBUG, "mountproc_null");
     return VOIDOBJ;
 }
 
@@ -952,51 +1352,201 @@ void * mountproc_null_1_svc(void * v, struct svc_req * rqstp)
 fhstatus * mountproc_mnt_1_svc(dirpath * path, struct svc_req * rqstp)
 {
     static fhstatus res;
-    printf("mounting %s\n", *path);
-    if (strcmp(*path, "/") != 0) {
-        res.fhs_status = NFSERR_NOENT;
-    } else {
-        res.fhs_status = NFS_OK;
-        encodeFH((nfs_fh *) res.fhstatus_u.fhs_fhandle,
-            pSuperBlock->idRoot);
+    User user;
+    char szCanon[MNTPATHLEN + 16];
+    int i;
+    Filesystem * pFS;
+
+    logMsg(LOG_DEBUG, "mountproc_mnt");
+
+    res.fhs_status = authCaller(rqstp, &user);
+    if (res.fhs_status) return &res;
+
+    canonicalizePath(*path, szCanon);
+    
+    for (i = 0; i < MAX_FILESYSTEMS; i++) {
+        pFS = apFilesystems[i];
+        if (pFS &&
+            (strcmp(szCanon, GET_SUPERBLOCK(i)->pszBasePath) == 0)) {
+            encodeFH((nfs_fh *) res.fhstatus_u.fhs_fhandle,
+                i, GET_SUPERBLOCK(i)->idRoot);
+            pFS->cRefs++;
+            res.fhs_status = NFS_OK;
+            return &res;
+        }
     }
+
+    res.fhs_status = NFSERR_NOENT;
     return &res;
 }
 
 
 mountlist * mountproc_dump_1_svc(void * v, struct svc_req * rqstp)
 {
-    NOTIMPL;
+    static mountlist res = 0;
+    logMsg(LOG_DEBUG, "mountproc_dump");
+    return &res;
 }
 
 
 void * mountproc_umnt_1_svc(dirpath * path, struct svc_req * rqstp)
 {
-    printf("umounting %s\n", *path);
-    return VOIDOBJ;
+    static fhstatus res;
+    User user;
+    char szCanon[MNTPATHLEN + 16];
+    int i;
+    Filesystem * pFS;
+
+    logMsg(LOG_DEBUG, "mountproc_umnt");
+
+    res.fhs_status = authCaller(rqstp, &user);
+    if (res.fhs_status) return &res;
+
+    canonicalizePath(*path, szCanon);
+    
+    for (i = 0; i < MAX_FILESYSTEMS; i++) {
+        pFS = apFilesystems[i];
+        if (pFS &&
+            (strcmp(szCanon, GET_SUPERBLOCK(i)->pszBasePath) == 0)) {
+            pFS->cRefs--;
+            /* !!! print error if cRefs < 0 */
+            if (pFS->cRefs <= 0) {
+                coreDropSuperBlock(GET_SUPERBLOCK(i));
+                free(pFS);
+                apFilesystems[i] = 0;
+            }
+            res.fhs_status = NFS_OK;
+            return &res;
+        }
+    }
+
+    res.fhs_status = NFSERR_NOENT;
+    return &res;
 }
 
 
 void * mountproc_umntall_1_svc(void * v, struct svc_req * rqstp)
 {
-    printf("umounting all\n");
+    logMsg(LOG_DEBUG, "mountproc_umntall");
     return VOIDOBJ;
 }
 
 
 exports * mountproc_export_1_svc(void * v, struct svc_req * rqstp)
 {
-    return &exportList;
+    static exports res;
+    static exportnode nodes[MAX_FILESYSTEMS];
+    static groupnode group = { "localhost", 0 };
+    exportnode * * prev = &res;
+    int i;
+    
+    logMsg(LOG_DEBUG, "mountproc_export");
+
+    for (i = 0; i < MAX_FILESYSTEMS; i++) {
+        if (apFilesystems[i]) {
+            *prev = &nodes[i];
+            nodes[i].ex_dir = GET_SUPERBLOCK(i)->pszBasePath;
+            nodes[i].ex_groups = &group;
+            prev = &nodes[i].ex_next;
+        }
+    }
+    
+    *prev = 0;
+    
+    return &res;
 }
 
 
 exports * mountproc_exportall_1_svc(void * v, struct svc_req * rqstp)
 {
-    return &exportList;
+    logMsg(LOG_DEBUG, "mountproc_exportall");
+    return mountproc_export_1_svc(v, rqstp);
 }
 
 
-/* nlm_testres * nlm_test_1(nlm_testargs * args, struct svc_req * rqstp) */
-/* { */
-/*     NOTIMPL; */
-/* } */
+void * aefskeyproc_null_1_svc(void * v, struct svc_req * rqstp)
+{
+    logMsg(LOG_DEBUG, "aefskeyproc_null");
+    return VOIDOBJ;
+}
+
+
+addfsres * aefskeyproc_addfs_1_svc(addfsargs * args, struct svc_req * rqstp)
+{
+    static addfsres res;
+    CryptedVolumeParms parms;
+    char szCanon[AEFSKEY_MAXPATHLEN + 16];
+    SuperBlock * pSuperBlock;
+    CoreResult cr;
+    int i;
+
+    logMsg(LOG_DEBUG, "aefskeyproc_addfs");
+
+    res.cr = 0;
+    
+    canonicalizePath(args->path, szCanon);
+
+    coreSetDefVolumeParms(&parms);
+    parms.fReadOnly = args->flags & AF_READONLY;
+    parms.cred.fEnforce = TRUE;
+    parms.cred.uid = args->stor_uid;
+    parms.cred.gid = args->stor_gid;
+    parms.cred.mode = args->stor_mode;
+
+    /* Perhaps we already have the key? */
+    for (i = 0; i < MAX_FILESYSTEMS; i++)
+        if (apFilesystems[i] &&
+            (strcmp(szCanon, GET_SUPERBLOCK(i)->pszBasePath) == 0)) {
+            res.stat = ADDFS_HAVE_KEY;
+            return &res;
+        }
+    
+    /* No, find a free slot in apFilesystems. */
+    for (i = 0; i < MAX_FILESYSTEMS; i++)
+        if (!apFilesystems[i]) break;
+    
+    if (i >= MAX_FILESYSTEMS) {
+        res.stat = ADDFS_MAX_FS;
+        return &res;
+    }
+
+    /* Read the superblock, initialize volume structures. */
+retry:
+    cr = coreReadSuperBlock(szCanon, args->key,
+        cipherTable, &parms, &pSuperBlock);
+    if (cr) {
+        if (pSuperBlock) coreDropSuperBlock(pSuperBlock);
+        if (!parms.fReadOnly) {
+            parms.fReadOnly = TRUE;
+            goto retry;
+        }
+        res.stat = ADDFS_CORE;
+        res.cr = cr;
+        return &res;
+    }
+
+    /* Is the volume dirty? */
+    if (pSuperBlock->flFlags & SBF_DIRTY) {
+/*         logMsg(L_WARN, "volume %s is dirty", szCanon); */
+        if (!(args->flags & AF_MOUNTDIRTY)) {
+            coreDropSuperBlock(pSuperBlock);
+            res.stat = ADDFS_DIRTY;
+            return &res;
+        }
+    }
+
+    apFilesystems[i] = malloc(sizeof(Filesystem));
+    if (!apFilesystems[i]) {
+        coreDropSuperBlock(pSuperBlock);
+        res.stat = ADDFS_FAIL;
+        return &res;
+    }
+
+    apFilesystems[i]->pSuperBlock = pSuperBlock;
+    apFilesystems[i]->uid = args->fs_uid;
+    apFilesystems[i]->gid = args->fs_gid;
+    apFilesystems[i]->cRefs = 0;
+
+    res.stat = ADDFS_OK;
+    return &res;
+}

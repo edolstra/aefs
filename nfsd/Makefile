@@ -1,11 +1,17 @@
 BASE = ..
 include $(BASE)/Makefile.incl
 
-OPEN_FILES_LIMIT = 512
+PROG1 = aefsnfsd$(EXE)
+PROG2 = aefsadd$(EXE)
 
-PROG = aefsnfsd$(EXE)
+all: $(PROG1) $(PROG2)
 
-SRCS = aefsnfsd.c nfs_prot_svc.c nfs_prot_xdr.c mount_svc.c mount_xdr.c
+SRCS1 = aefsnfsd.c \
+ nfs_prot_svc.c nfs_prot_xdr.c \
+ mount_svc.c mount_xdr.c \
+ aefskey_svc.c aefskey_xdr.c
+SRCS2 = aefsadd.c aefskey_clnt.c aefskey_xdr.c
+SRCS = $(SRCS1) $(SRCS2)
 
 LIB = $(BASE)/corefs/corefs.a $(BASE)/ciphers/ciphers.a \
  $(BASE)/misc/getopt.a \
@@ -13,33 +19,22 @@ LIB = $(BASE)/corefs/corefs.a $(BASE)/ciphers/ciphers.a \
 
 CFLAGS += -Wno-switch
 
-SYSLIB += 
+$(PROG1): $(SRCS1:.c=.o) $(LIB)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(SRCS1:.c=.o) $(LIB) $(SYSLIB) -o $@
 
-all: $(PROG)
-
-$(PROG): $(SRCS:.c=.o) $(LIB)
-	$(CC) $(CFLAGS) $(LDFLAGS) $(SRCS:.c=.o) $(LIB) $(SYSLIB) -o $@
-#	emxbind -a $@ "-h$(OPEN_FILES_LIMIT)"
-
-%.h: %.x
-	rpcgen -h $^ > $@
-
-%_xdr.c: %.x
-	rpcgen -c $^ > $@
-
-%_clnt.c: %.x
-	rpcgen -l $^ > $@
-
-%_svc.c: %.x
-	rpcgen -m $^ > $@
+$(PROG2): $(SRCS2:.c=.o) $(LIB)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(SRCS2:.c=.o) \
+         ../utils/utilutils.o $(LIB) $(SYSLIB) -o $@
 
 clean-extra:
-	$(RM) $(PROG)
+	$(RM) $(PROG1) $(PROG2)
 	$(RM) nfs_prot.h nfs_prot_clnt.c nfs_prot_svc.c nfs_prot_xdr.c
 	$(RM) mount.h mount_clnt.c mount_svc.c mount_xdr.c
+	$(RM) aefskey.h aefskey_clnt.c aefskey_svc.c aefskey_xdr.c
 
 install: all
-	$(CP) $(PROG) $(INSTALLDIR)
+	$(INSTALL_DIR) $(bindir)
+	$(INSTALL_PROGRAM) $(PROG1) $(PROG2) $(bindir)
 
 ifneq ($(MAKECMDGOALS),clean)
 include $(SRCS:.c=.d)
