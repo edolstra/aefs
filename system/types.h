@@ -1,7 +1,7 @@
 /* types.h -- Declares data types.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: types.h,v 1.2 2000/12/26 21:40:28 eelco Exp $
+   $Id: types.h,v 1.3 2000/12/30 21:19:40 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -50,7 +50,7 @@ typdef unsigned long uint32;
 
 /* Interpret the four bytes pointed to by p as a 32-bit unsigned
    integer encoded in little endian format. */
-static __inline__ uint32 bytesToInt32(octet * p)
+static inline uint32 bytesToInt32(octet * p)
 {
    unsigned int i;
    i = *p++;
@@ -62,7 +62,7 @@ static __inline__ uint32 bytesToInt32(octet * p)
 
 
 /* Encode the 32-bit unsigned integer i in little endian format. */
-static __inline__ void int32ToBytes(uint32 i,
+static inline void int32ToBytes(uint32 i,
    octet * p)
 {
    *p++ = i & 0xff; i >>= 8;
