@@ -1,7 +1,7 @@
 /* fileop.c -- File operations (move and delete).
-   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: fileop.c,v 1.7 2001/03/07 19:45:30 eelco Exp $
+   $Id: fileop.c,v 1.8 2001/09/23 13:30:13 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

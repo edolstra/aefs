@@ -1,7 +1,7 @@
 /* corefs.h -- Header file to the system-independent FS code.
-   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: corefs.h,v 1.8 2001/03/04 22:54:12 eelco Exp $
+   $Id: corefs.h,v 1.9 2001/09/23 13:30:11 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -308,7 +308,7 @@ typedef struct {
 
       octet cbFileSize[4];
       octet reserved1[4];
-      octet obsolete1[4];
+      octet obsolete1[4]; /* was csAllocated */
       octet reserved2[4];
       octet csSet[4];
       octet reserved3[4];

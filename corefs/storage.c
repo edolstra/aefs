@@ -1,7 +1,7 @@
 /* storage.c -- Storage and cache management.
-   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: storage.c,v 1.13 2001/03/04 22:54:12 eelco Exp $
+   $Id: storage.c,v 1.14 2001/09/23 13:30:11 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
-   Copyright (C) 1999, 2001 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsck.c,v 1.15 2001/08/01 12:43:30 eelco Exp $
+   $Id: aefsck.c,v 1.16 2001/09/23 13:30:24 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

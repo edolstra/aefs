@@ -1,3 +1,5 @@
+/* $Id: sha.c,v 1.3 2001/09/23 13:30:08 eelco Exp $ */
+
 /* sha.c - Implementation of the Secure Hash Algorithm
  *
  * Copyright (C) 1995, A.M. Kuchling
@@ -9,7 +11,7 @@
  * Adapted to pike and some cleanup by Niels Möller.
  */
 
-/* $Id: sha.c,v 1.2 2001/03/04 22:54:10 eelco Exp $ */
+/* $Id: sha.c,v 1.3 2001/09/23 13:30:08 eelco Exp $ */
 
 /* SHA: NIST's Secure Hash Algorithm */
 

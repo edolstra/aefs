@@ -1,5 +1,7 @@
 /* cipher.c -- Key creation and destruction.
-   Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
+
+   $Id: cipher.c,v 1.3 2001/09/23 13:30:08 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

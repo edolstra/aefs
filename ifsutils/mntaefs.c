@@ -1,7 +1,7 @@
 /* mntaefs.c -- AEFS mount program.
-   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: mntaefs.c,v 1.4 2000/12/31 11:35:24 eelco Exp $
+   $Id: mntaefs.c,v 1.5 2001/09/23 13:30:16 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

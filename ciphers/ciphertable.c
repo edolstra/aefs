@@ -1,5 +1,7 @@
 /* ciphertable.c -- Table of known ciphers.  Add your own here.
-   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
+
+   $Id: ciphertable.c,v 1.5 2001/09/23 13:30:08 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

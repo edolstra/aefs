@@ -1,3 +1,4 @@
+/* $Id: rijndael.c,v 1.4 2001/09/23 13:30:08 eelco Exp $ */
 
 /* This is an independent implementation of the encryption algorithm:   */
 /*                                                                      */

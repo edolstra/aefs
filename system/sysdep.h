@@ -1,8 +1,8 @@
 /* sysdep.h -- Interface to system-dependent stuff needed by the
    system-independent FS code.
-   Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: sysdep.h,v 1.10 2001/03/04 22:54:16 eelco Exp $
+   $Id: sysdep.h,v 1.11 2001/09/23 13:30:19 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

@@ -1,7 +1,7 @@
 /* aefsctrl.x -- Control protocol for the AEFS NFS server.
-   Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
+   Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsctrl.x,v 1.4 2000/12/31 01:09:25 eelco Exp $
+   $Id: aefsctrl.x,v 1.5 2001/09/23 13:30:18 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
