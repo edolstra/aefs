@@ -8,16 +8,58 @@
 
 þh1 Introduction
 
-  AEFS is a cryptographic file system for OS/2.  It allows transparent
-  access to encrypted files stored on any file system supported by
-  OS/2.  The user can encrypt data using a number of block cipher
-  algorithms (currently, Twofish and Rijndael).  It supports long file
-  names and extended attributes.  It's also reasonably fast.
+  AEFS is a cryptographic file system for OS/2 and Unix-like operating
+  systems.  It allows transparent access to encrypted files stored on
+  any file system -- it's not necessary to dedicate disk partitions.  
+  A number of block ciphers are currently supported (Rijndael and
+  Twofish).  Extended attributes are supported under OS/2.
 
 
 þh2 Changes in version 0.2
 
-  The following bugs were fixed:
+  There are a few improvements:
+
+þitemize
+
+þitem
+
+  AEFS now works under other (read: Unix-like) operating systems as
+  well.  I've implemented an NFS server frontend to AEFS, so in
+  principle any system that can mount NFS file systems can mount an
+  AEFS file system.  It has been tested on Linux and IRIX, and it at
+  least compiles on FreeBSD and Solaris.
+
+þitem
+
+  Autoconf configuration.
+
+þitem
+
+  Utilities like þtt{aefsck} should produce better error messages in
+  case of a low-level (corefs) error.
+
+þitem
+
+  Rijndael is the default cipher (instead of Twofish) now that it has
+  been selected as the AES.
+
+þitem
+
+  Syslog support.  The OS/2 daemon now logs to syslog instead of to a
+  file.
+
+þitem
+
+  Performance improvements in the OS/2 daemon with regard to directory
+  handling.
+
+þitem
+
+  Rijndael and Twofish now work on big-endian systems.
+
+þenditemize
+
+  I fixed the following bugs:
 
 þitemize
 
@@ -32,7 +74,7 @@
 
   Seeks relative to the end of the file didn't work properly because
   the FS_WRITE operation forgot to update the size field of the
-  kernel's sffsi data structure.  This causes e.g. gnutar to fail.
+  kernel's sffsi data structure.  This caused e.g. gnutar to fail.
 
 þitem
 
@@ -169,25 +211,27 @@
   Use the specified block cipher algorithm.  This is a specification
   of the form þsy{<algorithm>[-<keysize>[-<blocksize>]]} (if you omit
   the sizes, default values will be used); for example
-  þtt{twofish-128-128} (which happens to be the default).  The
+  þtt{rijndael-128-128} (which happens to be the default).  The
   following algorithms are currently available:
 
 þdescription
 
+þitem þtt{rijndael}
+
+  Rijndael is the Advanced Encryption Standard of the US National
+  Institute of Standards and Technology -- the successor to DES.
+  It has a 128 bits block size and supports key sizes of 128, 196, and
+  256 bits.  It's slightly faster (in this implementation) than
+  Twofish when a 128 bits key is used, but it's slower for
+  larger key sizes (because additional rounds are added).
+
 þitem þtt{twofish}
 
   Twofish is a very fast block cipher.  Its block size is 128 bits.
-  Its supported key sizes are 128, 196 and 256 bits.  Twofish is a
-  candidate for the Advanced Encryption Standard (AES).  See
+  Its supported key sizes are 128, 196 and 256 bits.  Twofish was a
+  candidate for the Advanced Encryption Standard (AES) which made it 
+  to the final round.  See
   þtt{http://www.counterpane.com/twofish.html} for more information.
-
-þitem þtt{rijndael}
-
-  Rijndael is also a AES candidate.  Like Twofish, it has a 128 bit
-  block size and supports (in this implementation) key sizes of 128,
-  196 and 256 bits.  With a key size of 128 bits it is slightly faster
-  (again, in this implementation) than Twofish, but is slower for
-  larger key sizes (because additional rounds are added).
 
 þitem þtt{none}
 
@@ -382,38 +426,16 @@
 
   You can change the options of a running daemon with þtt{aefsparm}.
   The syntax is the same.  The parameters given to þtt{aefsparm} are
-  sent verbatim to the daemon.  Error messages appear in the log file
-  (if there is one).
+  sent verbatim to the daemon.  Error messages are send to the syslog
+  service (if you have it running).
 
   The options are:
 
 þdescription
 
-þitem þsy{--logfile <filename>}
+þitem þsy{--debug}
 
-  Write log messages to the file specified by þsy{<filename>}.  By
-  default, messages are written to standard error (which is the nul
-  device if the daemon is started from þtt{CONFIG.SYS} or using
-  þtt{detach}).
-
-þitem þsy{--loglevel <n>}
-
-  Set the severity threshold of log messages.  Only messages with a
-  severity lower than or equal to the log level are actually written
-  to the log file.  The levels are:
-
-þdescription
-þitem 1
-  Fatal
-þitem 2
-  Evil (i.e. not fatal but worse than a `normal' error)
-þitem 3
-  Error
-þitem 4
-  Warning
-þitem 9
-  Debug
-þenddescription
+  Write debug messages to syslog.  This makes the daemon slow.
 
 þitem þsy{--cache <n>}
 
@@ -600,6 +622,76 @@
 
   To build the daemon and the support programs you need gcc or pgcc,
   available from various locations.
+
+  To regenerate the RPC code for the NFS server, you need a
+  þtt{rpcgen} that supports the þtt{-C} to generate ANSI C header
+  files.  I used the one from FreeBSD, which compiles trivially under
+  OS/2.
+
+
+þh1 Compiling and using the NFS server
+
+  You can now use AEFS under different operating systems than OS/2.
+  The program þtt{aefsnfsd} acts as an NFS frontend to your AEFS
+  file systems.  I'm too lazy to write proper documentation right now,
+  but here is a summary of how you can get it to work.
+
+  Compile AEFS along the usual lines (i.e. þtt{./configure; make; make
+  install}).
+
+  Then, as root, start the server:
+
+þexample
+  $ aefsdmn 
+þendexample
+
+  The daemon should disappear into to background.  Error messages
+  should appear in your system log.  Specify þtt{-d} to get debug
+  output on stdout in case something goes wrong.  The daemon listens
+  to TCP and UDP requests on port 843, and not port 2049, which is the
+  usual port for NFS.  This is because 2049 is not a privileged port,
+  so any user could bind to it and intercept your keys, and because
+  this way the daemon doesn't interfere with your regular NFS server.
+  It doesn't register itself with portmap unless you specify the
+  þtt{-r} flag.
+
+  Since the NFS protocol doesn't know anything about encryption keys,
+  another protocol is used to give those keys to the daemon.  This is
+  what the þtt{aefsadd} program does.  For example, to tell it the key
+  for the AEFS file system stored in þtt{/crypted/foo}, do:
+
+þexample
+  $ aefsadd /crypted/foo
+  key: blah blah... 
+þendexample
+
+  See þtt{aefsadd --help} for more details.
+
+  Now that the daemon knows the key, you can mount the file system:
+
+þexample
+  $ mount -t nfs -o port=843,mountport=843 localhost:/crypted/foo /mnt/foo
+þendexample
+
+  which will make the decrypted file system appear on þtt{/mnt/foo}.
+  The options to specify the server port are for Linux; they might be
+  different for other systems.  In fact, IRIX 5.3 doesn't allow this
+  at all; in such a case recompile with the port number set to 2049
+  (see þtt{nfsd/aefsctrl.h}).
+
+  File names that differ only in case are not allowed; must fix this.
+
+  Symbolic links are fully supported.  Hard links work in principle,
+  but are currently disabled in the NFS server due to bogosity issues
+  with the readdir call (that's the part of NFS that's most broken).
+
+  Unix permissions (UID, GID, etc.) are fully supported.  You cannot
+  make device nodes on an AEFS volume.
+
+  Make sure that NFS-mounted file systems are unmounted þem{before}
+  the daemon is killed in your shutdown sequence.  Otherwise, the
+  shutdown may hang (this is because the client might retry requests
+  indefinitely; to prevent this, do a soft mount, þtt{-o soft}).
 
 
 þh1 License
