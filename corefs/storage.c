@@ -1,7 +1,7 @@
 /* storage.c -- Storage and cache management.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: storage.c,v 1.15 2001/11/22 16:13:03 eelco Exp $
+   $Id: storage.c,v 1.16 2001/12/28 19:21:02 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -201,6 +201,12 @@ void coreSetDefVolumeParms(CryptedVolumeParms * pParms)
    pParms->csISFGrow = 64;
    pParms->dirtyCallBack = 0;
    pParms->pUserData = 0;
+   /* !!! this shouldn't be here */
+#ifdef SYSTEM_posix
+   pParms->nameComp = coreNameCompSens;
+#else
+   pParms->nameComp = coreNameCompInsens;
+#endif
 }
 
 

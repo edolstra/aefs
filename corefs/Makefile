@@ -4,10 +4,11 @@ include $(BASE)/Makefile.incl
 MANIFEST := Makefile \
  basefile.c corefs.h coreutils.c coreutils.h \
  directory.c ea.c infosector.c sector.c storage.c \
- superblock.c superblock.h
+ superblock.c superblock.h \
+ comparators.c comparators.h
 
 SRCS = sector.c storage.c infosector.c basefile.c \
- directory.c ea.c coreutils.c superblock.c
+ directory.c ea.c coreutils.c superblock.c comparators.c
 
 all: corefs.a 
 

@@ -1,7 +1,7 @@
 /* directory.c -- Directory access and modification.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: directory.c,v 1.3 2001/09/23 13:30:11 eelco Exp $
+   $Id: directory.c,v 1.4 2001/12/28 19:21:02 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,22 +23,21 @@
 #include "sysdep.h"
 
 
-CoreResult coreAllocDirEntry(unsigned int cbName, octet * pabName,
+CoreResult coreAllocDirEntry(octet * pszName,
    CryptedFileID idFile, unsigned int flFlags, 
    CryptedDirEntry * * ppEntry)
 {
+   int cbName = strlen(pszName);
    CryptedDirEntry * pEntry;
 
    pEntry = sysAllocSecureMem(sizeof(CryptedDirEntry) + cbName + 1);
    if (!pEntry) return CORERC_NOT_ENOUGH_MEMORY;
 
    pEntry->pNext = 0;
-   pEntry->cbName = cbName;
-   pEntry->pabName = sizeof(CryptedDirEntry) + (octet *) pEntry;
+   pEntry->pszName = sizeof(CryptedDirEntry) + (char *) pEntry;
    pEntry->idFile = idFile;
    pEntry->flFlags = flFlags;
-   memcpy(pEntry->pabName, pabName, cbName);
-   pEntry->pabName[cbName] = 0;
+   strcpy(pEntry->pszName, pszName);
 
    *ppEntry = pEntry;
 
@@ -62,7 +61,7 @@ static CoreResult decodeDir(CryptedFilePos cbDir,
    CoreResult cr;
    unsigned int flFlags;
    unsigned int cbName;
-   octet * pabName;
+   char * pszName, save;
    CryptedFileID idFile;
    
    while (cbDir && *pabDir) {
@@ -75,13 +74,15 @@ static CoreResult decodeDir(CryptedFilePos cbDir,
       idFile = bytesToInt32(pabDir);
       cbName = bytesToInt32(pabDir + 4);
       cbDir -= 8, pabDir += 8;
-      pabName = pabDir;
+      pszName = pabDir;
       if (cbDir < cbName) return CORERC_BAD_EAS;
       cbDir -= cbName, pabDir += cbName;
       
       /* Create a new directory entry structure. */
-      cr = coreAllocDirEntry(cbName, pabName, idFile, flFlags,
-         ppEntries);
+      save = pszName[cbName]; /* horrible hack */
+      pszName[cbName] = 0;
+      cr = coreAllocDirEntry(pszName, idFile, flFlags, ppEntries);
+      pszName[cbName] = save;
       if (cr) return cr;
       ppEntries = &(*ppEntries)->pNext;
    }
@@ -111,7 +112,8 @@ CoreResult coreQueryDirEntries(CryptedVolume * pVolume,
    if (!info.cbFileSize) return CORERC_OK;
    
    /* Allocate memory for the encoded directory data. */
-   pabBuffer = sysAllocSecureMem(info.cbFileSize);
+   /* Note: alloc extra byte for hack in decodeDir(). */
+   pabBuffer = sysAllocSecureMem(info.cbFileSize + 1);
    if (!pabBuffer)
       return CORERC_NOT_ENOUGH_MEMORY;
    
@@ -135,6 +137,7 @@ CoreResult coreSetDirEntries(CryptedVolume * pVolume,
    CryptedFilePos cbWritten;
    CryptedDirEntry * pEntry;
    octet * pabBuffer, * pabPos;
+   unsigned int cbName;
 
    if (!pEntries) return coreSetFileSize(pVolume, id, 0);
    
@@ -143,7 +146,7 @@ CoreResult coreSetDirEntries(CryptedVolume * pVolume,
    for (pEntry = pEntries;
         pEntry;
         pEntry = pEntry->pNext)
-      cbDirSize += 9 + pEntry->cbName;
+      cbDirSize += 9 + strlen(pEntry->pszName);
 
    /* Allocate memory. */
    pabBuffer = sysAllocSecureMem(cbDirSize);
@@ -155,11 +158,12 @@ CoreResult coreSetDirEntries(CryptedVolume * pVolume,
         pEntry;
         pEntry = pEntry->pNext)
    {
+      cbName = strlen(pEntry->pszName);
       *pabPos = pEntry->flFlags | CDF_NOT_EOL;
       int32ToBytes(pEntry->idFile, pabPos + 1);
-      int32ToBytes(pEntry->cbName, pabPos + 5);
-      memcpy(pabPos + 9, pEntry->pabName, pEntry->cbName);
-      pabPos += 9 + pEntry->cbName;
+      int32ToBytes(cbName, pabPos + 5);
+      memcpy(pabPos + 9, pEntry->pszName, cbName);
+      pabPos += 9 + cbName;
    }
 
    *pabPos = 0;

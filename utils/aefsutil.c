@@ -2,7 +2,7 @@
    directories from an AEFS file system.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsutil.c,v 1.11 2001/12/27 14:38:08 eelco Exp $
+   $Id: aefsutil.c,v 1.12 2001/12/28 19:21:03 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -85,8 +85,7 @@ int findPath(bool fTop, CryptedVolume * pVolume, CryptedFileID idStart,
 
       if (ppEntry && *pidFile == idStart) {
          coreFreeDirEntries(*ppEntry);
-         cr = coreAllocDirEntry(4, (octet *) "root", 
-            *pidFile, 0, ppEntry);
+         cr = coreAllocDirEntry("root", *pidFile, 0, ppEntry);
          assert(cr == CORERC_OK);
       }
 
@@ -99,8 +98,7 @@ int findPath(bool fTop, CryptedVolume * pVolume, CryptedFileID idStart,
       }
 
       if (ppEntry) {
-         cr = coreAllocDirEntry(strlen(pszPath), (octet *) pszPath, 
-            *pidFile, 0, ppEntry);
+         cr = coreAllocDirEntry(pszPath, *pidFile, 0, ppEntry);
          assert(cr == CORERC_OK);
       }
 
@@ -242,7 +240,7 @@ static int listDir(SuperBlock * pSuperBlock, CryptedFileID idFrom,
 
    if ((flFlags & FL_DIR) || !fIsDir) {
       res = showFile(pVolume, idDir, pszPrefix,
-         (char *) pDir->pabName, flFlags, pDir->flFlags);
+         pDir->pszName, flFlags, pDir->flFlags);
    } else {
 
       if (!(flFlags & FL_RECURSED))
@@ -258,11 +256,11 @@ static int listDir(SuperBlock * pSuperBlock, CryptedFileID idFrom,
       } else {
          for (pCur = pFirst; pCur; pCur = pCur->pNext) {
             res |= showFile(pVolume, pCur->idFile, pszPrefix,
-               (char *) pCur->pabName, flFlags, pCur->flFlags);
+               pCur->pszName, flFlags, pCur->flFlags);
 
             if (flFlags & FL_RECURSIVE) {
                if (snprintf(szFull, sizeof(szFull), "%s%s/",
-                      pszPrefix, (char *) pCur->pabName) > sizeof(szFull))
+                      pszPrefix, pCur->pszName) > sizeof(szFull))
                {
                   fprintf(stderr, "%s: path too long\n", pszProgramName);
                   continue;
@@ -340,7 +338,7 @@ static int dump(CryptedVolume * pVolume, CryptedFileID idFrom,
    }
 
    if (snprintf(szFull, sizeof(szFull), "%s/%s",
-      pszTo, (char *) pEntry->pabName) > sizeof(szFull))
+      pszTo, pEntry->pszName) > sizeof(szFull))
    {
       coreFreeDirEntries(pEntry);
       fprintf(stderr, "%s: path too long\n", pszProgramName);
@@ -367,7 +365,7 @@ static int dump(CryptedVolume * pVolume, CryptedFileID idFrom,
          return 1;
       } else {
          for (pCur = pFirst; pCur; pCur = pCur->pNext) {
-            res |= dump(pVolume, idFile, (char *) pCur->pabName,
+            res |= dump(pVolume, idFile, pCur->pszName,
                szFull, flFlags, false);
          }
       }

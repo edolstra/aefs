@@ -1,7 +1,7 @@
 /* coreutils.c -- System-independent FS helper code.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: coreutils.c,v 1.4 2001/09/23 13:30:11 eelco Exp $
+   $Id: coreutils.c,v 1.5 2001/12/28 19:21:02 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -27,10 +27,13 @@ CoreResult coreQueryIDFromPath(CryptedVolume * pVolume,
    CryptedDirEntry * * ppEntry)
 {
    CoreResult cr;
+   CoreNameComp comp = coreQueryVolumeParms(pVolume)->nameComp;
    char * pszPos;
    CryptedFileID id;
    CryptedDirEntry * pEntries, * pEntry;
    CryptedDirEntry * pClone = 0;
+   char save;
+   int c;
    
    *pid = 0;
    if (ppEntry) *ppEntry = 0;
@@ -43,7 +46,7 @@ CoreResult coreQueryIDFromPath(CryptedVolume * pVolume,
    id = idStartDir;
 
    if (ppEntry) {
-      cr = coreAllocDirEntry(0, 0, id, 0, &pClone);
+      cr = coreAllocDirEntry("", id, 0, &pClone);
       if (cr) return cr;
    }
    
@@ -73,11 +76,14 @@ CoreResult coreQueryIDFromPath(CryptedVolume * pVolume,
       for (pEntry = pEntries;
            pEntry;
            pEntry = pEntry->pNext)
-         /* !!! compareFileNames */
-         if ((strlen((char *) pEntry->pabName) == pszPos - pszPath) &&
-             (strnicmp((char *) pEntry->pabName, pszPath,
-                pszPos - pszPath) == 0)) 
-            break;
+      {
+         /* hack */
+         save = *pszPos;
+         *pszPos = 0;
+         c = comp(pEntry->pszName, pszPath);
+         *pszPos = save;
+         if (c == 0) break;
+      }
 
       if (!pEntry) {
          coreFreeDirEntries(pEntries);
@@ -85,7 +91,7 @@ CoreResult coreQueryIDFromPath(CryptedVolume * pVolume,
       }
 
       if (ppEntry) {
-         cr = coreAllocDirEntry(pEntry->cbName, pEntry->pabName,
+         cr = coreAllocDirEntry(pEntry->pszName,
             pEntry->idFile, pEntry->flFlags, &pClone);
          if (cr) {
             coreFreeDirEntries(pEntries);
@@ -129,8 +135,9 @@ CoreResult coreDeleteFile(CryptedVolume * pVolume, CryptedFileID id)
 }
 
 
-static CoreResult addToList(char * pszName, CryptedFileID idFile, 
-   unsigned int flFlags, CryptedDirEntry * * ppEntries)
+static CoreResult addToList(CoreNameComp comp, char * pszName,
+   CryptedFileID idFile, unsigned int flFlags, 
+   CryptedDirEntry * * ppEntries)
 {
    CoreResult cr;
    CryptedDirEntry * * ppCur = ppEntries, * pCur = *ppEntries, * pNew;
@@ -138,7 +145,7 @@ static CoreResult addToList(char * pszName, CryptedFileID idFile,
 
    /* Find the insertion point. */
    while (pCur) {
-      c = stricmp((char *) pCur->pabName, pszName);
+      c = comp(pCur->pszName, pszName);
       if (c == 0) return CORERC_FILE_EXISTS;
       if (c > 0) break;
       ppCur = &pCur->pNext;
@@ -146,8 +153,7 @@ static CoreResult addToList(char * pszName, CryptedFileID idFile,
    }
 
    /* Create new entry, insert it in the list. */
-   cr = coreAllocDirEntry(strlen(pszName), (octet *) pszName,
-      idFile, flFlags, &pNew);
+   cr = coreAllocDirEntry(pszName, idFile, flFlags, &pNew);
    if (cr) return cr;
    pNew->pNext = pCur;
    *ppCur = pNew;
@@ -156,12 +162,12 @@ static CoreResult addToList(char * pszName, CryptedFileID idFile,
 }
 
 
-static CryptedDirEntry * removeFromList(char * pszName,
-   CryptedDirEntry * * ppEntries)
+static CryptedDirEntry * removeFromList(CoreNameComp comp, 
+   char * pszName, CryptedDirEntry * * ppEntries)
 {
    CryptedDirEntry * * ppCur = ppEntries, * pCur = *ppEntries;
    while (pCur) {
-      if (stricmp((char *) pCur->pabName, pszName) == 0) {
+      if (comp(pCur->pszName, pszName) == 0) {
          *ppCur = pCur->pNext;
          pCur->pNext = 0;
          return pCur;
@@ -177,6 +183,7 @@ CoreResult coreAddEntryToDir(CryptedVolume * pVolume, CryptedFileID id,
    char * pszName, CryptedFileID idFile, unsigned int flFlags)
 {
    CoreResult cr;
+   CoreNameComp comp = coreQueryVolumeParms(pVolume)->nameComp;
    CryptedDirEntry * pEntries;
    
    /* Query the contents of the directory. */
@@ -187,7 +194,7 @@ CoreResult coreAddEntryToDir(CryptedVolume * pVolume, CryptedFileID id,
    }
 
    /* Add the entry to the list. */
-   cr = addToList(pszName, idFile, flFlags, &pEntries);
+   cr = addToList(comp, pszName, idFile, flFlags, &pEntries);
    if (cr) {
       coreFreeDirEntries(pEntries);
       return cr;
@@ -210,6 +217,7 @@ CoreResult coreMoveDirEntry(
    CryptedFileID idDstDir)
 {
    CoreResult cr;
+   CoreNameComp comp = coreQueryVolumeParms(pVolume)->nameComp;
    CryptedDirEntry * pSrcEntries, * pEntry;
    CryptedFileID idFile;
    CryptedFileInfo info;
@@ -222,7 +230,7 @@ CoreResult coreMoveDirEntry(
    }
 
    /* Remove the file from the source directory. */
-   pEntry = removeFromList(pszSrcName, &pSrcEntries);
+   pEntry = removeFromList(comp, pszSrcName, &pSrcEntries);
    if (!pEntry) {
       coreFreeDirEntries(pSrcEntries);
       return CORERC_FILE_NOT_FOUND;
@@ -232,7 +240,7 @@ CoreResult coreMoveDirEntry(
 
       if (idSrcDir == idDstDir)
          /* Source is the same as the target (simple rename). */
-         cr = addToList(pszDstName, pEntry->idFile, 
+         cr = addToList(comp, pszDstName, pEntry->idFile, 
             pEntry->flFlags, &pSrcEntries);
       else
          /* Source and target differ. */

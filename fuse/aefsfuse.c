@@ -1,7 +1,7 @@
 /* aefsfuse.c -- FUSE front-end to AEFS.
    Copyright (C) 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsfuse.c,v 1.11 2001/12/26 21:49:58 eelco Exp $
+   $Id: aefsfuse.c,v 1.12 2001/12/28 19:21:03 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -241,7 +241,7 @@ int do_getdir(struct fuse_in_header * in, struct fuse_getdir_out * out)
     if (cr) return core2sys(cr);
 
     for (pCur = pFirst; pCur; pCur = pCur->pNext) {
-        filler(out->fd, pCur->idFile, (char *) pCur->pabName);
+        filler(out->fd, pCur->idFile, pCur->pszName);
     }
 
     coreFreeDirEntries(pFirst); /* !!! */

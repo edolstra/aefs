@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsck.c,v 1.20 2001/12/27 14:37:04 eelco Exp $
+   $Id: aefsck.c,v 1.21 2001/12/28 19:21:03 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -297,8 +297,7 @@ static char * printFileName2(State * pState, CryptedFileID id,
             for (pEntry = fsip->pChildren; pEntry;
                  pEntry = pEntry->pNext)
                if (pEntry->idFile == fsi->id) {
-                  sprintf(strchr(p, 0), "/%s",
-                     (char *) pEntry->pabName);
+                  sprintf(strchr(p, 0), "/%s", pEntry->pszName);
                   fFound = true;
                   break;
                }
@@ -1314,8 +1313,7 @@ static int checkNonDirFiles(State * pState)
 static int isBadEntry(State * pState, FSItem * fsi,
    CryptedDirEntry * pEntry)
 {
-   unsigned char * p, * pszName =
-      (unsigned char *) pEntry->pabName;
+   char * p, * pszName = pEntry->pszName;
    bool fEmpty = true;
    bool fWhite = false;
    bool fBad = false;
@@ -1346,7 +1344,7 @@ static int dirEntryComparator(const void * x1, const void * x2)
 {
    CryptedDirEntry * p1 = * (CryptedDirEntry * *) x1;
    CryptedDirEntry * p2 = * (CryptedDirEntry * *) x2;
-   return stricmp((char *) p1->pabName, (char *) p2->pabName);
+   return stricmp(p1->pszName, p2->pszName);
 }
 
 
@@ -1398,7 +1396,7 @@ static int checkDirEntryNamesInDir(State * pState, FSItem * fsi)
       } else {
          fsi->flags |= FSI_REWRITEDIR;
          printf("%s: duplicate file name `%s'\n",
-            printFileName(pState, fsi->id), (char *) pCur->pabName);
+            printFileName(pState, fsi->id), pCur->pszName);
          coreFreeDirEntries(pCur);
          cChildren--;
       }
@@ -1447,7 +1445,7 @@ static int followDirEntries(State * pState, FSItem * fsi)
          printf(
             "%s: entry `%s' (id %08lx) does not exist",
             printFileName(pState, fsi->id),
-            (char *) pCur->pabName, pCur->idFile);
+            pCur->pszName, pCur->idFile);
          if (pState->flags & FSCK_FIX) {
             printf(", removing from directory\n");
             fRemove = true;
@@ -1458,7 +1456,7 @@ static int followDirEntries(State * pState, FSItem * fsi)
          printf(
             "%s: entry `%s' (id %08lx) references an EA file",
             printFileName(pState, fsi->id),
-            (char *) pCur->pabName, pCur->idFile);
+            pCur->pszName, pCur->idFile);
          if (pState->flags & FSCK_FIX) {
             printf(", removing from directory\n");
             fRemove = true;
@@ -1484,7 +1482,7 @@ static int followDirEntries(State * pState, FSItem * fsi)
             "%s: child directory `%s' (id %08lx) references "
             "another parent ",
             printFileName(pState, fsi->id),
-            (char *) pCur->pabName, pCur->idFile);
+            pCur->pszName, pCur->idFile);
          printf("(%s)",
             printFileName(pState, fsic->info.idParent));
          if (pState->flags & FSCK_FIX) {

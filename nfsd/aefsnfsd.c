@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.27 2001/12/24 19:29:50 eelco Exp $
+   $Id: aefsnfsd.c,v 1.28 2001/12/28 19:21:03 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -944,7 +944,7 @@ static nfsstat lookup(fsid fs, CryptedFileID idDir, char * pszName,
         if (res) return res;
 
         for (pCur = pEntry->pFirst; pCur; pCur = pCur->pNext)
-            if (strcmp(pszName, (char *) pCur->pabName) == 0) {
+            if (strcmp(pszName, pCur->pszName) == 0) {
                 *pidFound = pCur->idFile;
                 return NFS_OK;
             }
@@ -1607,8 +1607,7 @@ readdirres * nfsproc_readdir_2_svc(readdirargs * args, struct svc_req * rqstp)
                 iEntry++;
             if (iEntry >= pEntry->cEntries) break;
             idFile = pEntry->papSortedByID[iEntry]->idFile;
-            strncpy(p, (char *)
-                pEntry->papSortedByID[iEntry]->pabName,
+            strncpy(p, pEntry->papSortedByID[iEntry]->pszName, 
                 NFS_MAXNAMLEN);
             p[NFS_MAXNAMLEN] = 0;
             iEntry++;

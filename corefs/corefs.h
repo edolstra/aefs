@@ -1,7 +1,7 @@
 /* corefs.h -- Header file to the system-independent FS code.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: corefs.h,v 1.10 2001/12/24 19:26:55 eelco Exp $
+   $Id: corefs.h,v 1.11 2001/12/28 19:21:02 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,6 +22,8 @@
 
 #include "sysdep.h"
 #include "cipher.h"
+
+#include "comparators.h"
 
 
 typedef struct _CryptedVolume CryptedVolume;
@@ -106,6 +108,7 @@ typedef struct {
       unsigned int csISFGrow; /* > 0 */
       void (* dirtyCallBack)(CryptedVolume * pVolume, bool fDirty);
       void * pUserData;
+      CoreNameComp nameComp;
 } CryptedVolumeParms;
 
 typedef struct {
@@ -367,14 +370,16 @@ typedef struct _CryptedDirEntry CryptedDirEntry;
 
 struct _CryptedDirEntry {
       CryptedDirEntry * pNext;
-      unsigned int cbName;
-      octet * pabName; /* zero terminated (not incl. in cbName) */
+      octet * pszName;
       CryptedFileID idFile;
       unsigned int flFlags;
 };
 
 /* The on-disk structure of directory entries is: a flag byte, the
    file ID, the length of the file name (4 bytes), and the file name.
+   The file name may not contain a null byte.  Other than that, the
+   corefs places no discipline on file names (they may be encoded in 
+   ASCII or UTF-8, for example).
    The list of entries is zero-terminated.  A zero-length directory
    file denotes an empty directory. */
 
@@ -383,7 +388,7 @@ struct _CryptedDirEntry {
 #define CDF_HIDDEN            2  
 
 
-CoreResult coreAllocDirEntry(unsigned int cbName, octet * pabName,
+CoreResult coreAllocDirEntry(octet * pszName,
    CryptedFileID idFile, unsigned int flFlags, 
    CryptedDirEntry * * ppEntry);
 
