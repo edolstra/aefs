@@ -48,7 +48,7 @@ APIRET deleteFile(VolData * pVolData, char * pszFullName)
       return ERROR_ACCESS_DENIED;
 
    /* Remove the file from its parent directory. */
-   cr = coreMoveDirEntry(pVolume, szName, idDir, 0, 0, 0);
+   cr = coreMoveDirEntry(pVolume, szName, idDir, 0, 0);
    if (cr) return coreResultToOS2(cr);
 
    /* Lower the file's reference count.  If it dropped to zero, delete
@@ -79,25 +79,6 @@ APIRET fsDelete(ServerData * pServerData, struct delete * pdelete)
    logMsg(L_DBG, "FS_DELETE, szName=%s", pdelete->szName);
 
    return deleteFile(pVolData, pdelete->szName);
-}
-
-
-static APIRET setParent(CryptedVolume * pVolume,
-   CryptedFileID idFile, CryptedFileID idParent)
-{
-   CoreResult cr;
-   CryptedFileInfo info;
-   
-   /* Get file info. */
-   cr = coreQueryFileInfo(pVolume, idFile, &info);
-   if (cr) return coreResultToOS2(cr);
-
-   if (!CFF_ISDIR(info.flFlags)) return NO_ERROR;
-
-   /* Change the parent field. */
-   info.idParent = idParent;
-
-   return coreResultToOS2(coreSetFileInfo(pVolume, idFile, &info));
 }
 
 
@@ -141,12 +122,6 @@ APIRET fsMove(ServerData * pServerData, struct move * pmove)
    
    /* Perform the move operation. */
    cr = coreMoveDirEntry(pVolume, szSrcName,
-      idSrcDir, szDstName, idDstDir, &pEntry);
-   if (cr) return coreResultToOS2(cr);
-
-   /* If the file we just moved was a directory, we must update its
-      idParent field. */
-   rc = setParent(pVolume, pEntry->idFile, idDstDir);
-   coreFreeDirEntries(pEntry);
-   return rc;
+      idSrcDir, szDstName, idDstDir);
+   return coreResultToOS2(cr);
 }

@@ -194,7 +194,7 @@ APIRET fsRmDir(ServerData * pServerData, struct rmdir * prmdir)
    /* The directory is empty, so we can proceed with the deletion. */
 
    /* Remove the directory from its parent directory. */
-   cr = coreMoveDirEntry(pVolume, szName, idDir, 0, 0, 0);
+   cr = coreMoveDirEntry(pVolume, szName, idDir, 0, 0);
    if (cr) return coreResultToOS2(cr);
 
    /* Delete the directory. */
