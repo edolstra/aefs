@@ -1,7 +1,7 @@
 /* superblock.c -- Superblock code.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: superblock.c,v 1.14 2002/01/14 22:01:14 eelco Exp $
+   $Id: superblock.c,v 1.15 2002/01/21 19:43:02 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -183,6 +183,8 @@ static CoreResult readSuperBlock1(SuperBlock * pSuperBlock,
    unsigned int cbKey = 0, cbBlock = 0;
    Key * pPassKey;
 
+   pSuperBlock->fEncryptedKey = false;
+
    /* Read the unencrypted superblock. */
    sprintf(szFileName, "%s" SUPERBLOCK1_NAME, pSuperBlock->szBasePath);
 
@@ -355,7 +357,10 @@ CoreResult coreReadSuperBlock(char * pszBasePath, char * pszPassPhrase,
    pSuperBlock = sysAllocSecureMem(sizeof(SuperBlock));
    if (!pSuperBlock) return CORERC_NOT_ENOUGH_MEMORY;
 
+   memset(pSuperBlock, 0, sizeof(SuperBlock));
    strcpy(pSuperBlock->szBasePath, pszBasePath);
+   pSuperBlock->pVolume = 0;
+   pSuperBlock->pDataKey = 0;
    pSuperBlock->pSB2File = 0;
 
    if (cr = readSuperBlock1(pSuperBlock, pszPassPhrase, pParms, papCipher)) {
@@ -369,6 +374,7 @@ CoreResult coreReadSuperBlock(char * pszBasePath, char * pszPassPhrase,
    crread2 = readSuperBlock2(pSuperBlock, pParms);
 
    if (cr = createVolume(pSuperBlock, pParms)) {
+      if (pSuperBlock->pSB2File) sysCloseFile(pSuperBlock->pSB2File);
       sysFreeSecureMem(pSuperBlock);
       return cr;
    }
