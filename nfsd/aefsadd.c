@@ -1,7 +1,7 @@
 /* aefsadd.c -- Utility to add file systems to the AEFS NFS server.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsadd.c,v 1.5 2000/12/29 22:03:53 eelco Exp $
+   $Id: aefsadd.c,v 1.6 2000/12/29 23:25:15 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -99,7 +99,7 @@ static int parseUGID(char * param, uid_t * puid, gid_t * pgid)
     struct group * gr;
     int d;
 
-    p = malloc(strlen(p) + 1);
+    p = malloc(strlen(param) + 1);
     assert(p);
     strcpy(p, param);
     
