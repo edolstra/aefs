@@ -57,6 +57,13 @@
 
   Rijndael and Twofish now work on big-endian systems.
 
+þitem
+
+  Storage files are now locked when they are being accessed.  Notably,
+  the superblock is locked for the entire time that the file system is
+  being used.  This prevents e.g. þtt{aefsck} from messing with a file
+  system that is currently mounted.
+
 þenditemize
 
   I fixed the following bugs:
@@ -113,7 +120,7 @@
 þh2 Overview
 
   To create an AEFS volume using the default block cipher algorithm
-  (Twofish, with a 128-bit key size), type
+  (Rijndael, with a 128-bit key size), type
 
 þexample
   mkaefs <path>
@@ -218,12 +225,13 @@
 
 þitem þtt{rijndael}
 
-  Rijndael is the Advanced Encryption Standard of the US National
+  Rijndael is the (proposed) Advanced Encryption Standard of the US National
   Institute of Standards and Technology -- the successor to DES.
   It has a 128 bits block size and supports key sizes of 128, 196, and
   256 bits.  It's slightly faster (in this implementation) than
   Twofish when a 128 bits key is used, but it's slower for
   larger key sizes (because additional rounds are added).
+  See þtt{http://csrc.nist.gov/encryption/aes/} for more information.
 
 þitem þtt{twofish}
 
@@ -302,11 +310,6 @@
 
 þenddescription
 
-  þem{Warning:} the file system should not be attached to a drive
-  letter while þtt{aefsdmn} is run!  Otherwise inconsistencies between
-  the cache of þtt{aefsdmn} and the actual contents of the file system
-  may arise; the result can't be pretty.
-
   þem{Warning:} AEFS has not been tested widely.  Since þtt{aefsck}
   traverses the entire file system, if it has a bug, it might end up
   trashing the entire file system.  So you may want to make a backup
@@ -321,6 +324,9 @@
   letter.  The syntax is:
 
   þsy{mntaefs <option>* <drive-letter>: <path>}
+
+  The error code 25 is returned as a general indicator that an I/O
+  error occured.
 
   The options are:
 
@@ -624,7 +630,7 @@
   available from various locations.
 
   To regenerate the RPC code for the NFS server, you need a
-  þtt{rpcgen} that supports the þtt{-C} to generate ANSI C header
+  þtt{rpcgen} that supports the þtt{-C} flag to generate ANSI C header
   files.  I used the one from FreeBSD, which compiles trivially under
   OS/2.
 
@@ -653,7 +659,8 @@
   so any user could bind to it and intercept your keys, and because
   this way the daemon doesn't interfere with your regular NFS server.
   It doesn't register itself with portmap unless you specify the
-  þtt{-r} flag.
+  þtt{-r} flag.  The daemon can be cleanly shut down by sending it
+  a TERM or INT signal.
 
   Since the NFS protocol doesn't know anything about encryption keys,
   another protocol is used to give those keys to the daemon.  This is
@@ -679,14 +686,15 @@
   at all; in such a case recompile with the port number set to 2049
   (see þtt{nfsd/aefsctrl.h}).
 
-  File names that differ only in case are not allowed; must fix this.
+  File names in the same directory that differ only in case are not
+  allowed; must fix this.
 
   Symbolic links are fully supported.  Hard links work in principle,
   but are currently disabled in the NFS server due to bogosity issues
-  with the readdir call (that's the part of NFS that's most broken).
+  with the readdir call (that's the part of NFSv2 that's most broken).
 
   Unix permissions (UID, GID, etc.) are fully supported.  You cannot
-  make device nodes on an AEFS volume.
+  make device nodes, fifos, or sockets on an AEFS volume.
 
   Make sure that NFS-mounted file systems are unmounted þem{before}
   the daemon is killed in your shutdown sequence.  Otherwise, the
@@ -724,7 +732,7 @@
 þendindent
 
   The use or export of this software may be restricted by law.  Before
-  you do either make sure that you know what is allowed.
+  you do either make sure that you know what is allowed in your country.
 
 
 þh1 Author
