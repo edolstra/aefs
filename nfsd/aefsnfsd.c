@@ -1,7 +1,7 @@
 /* aefsnfsd.c -- NFS server front-end to AEFS.
    Copyright (C) 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsnfsd.c,v 1.4 2000/12/26 19:45:09 eelco Exp $
+   $Id: aefsnfsd.c,v 1.5 2000/12/26 21:37:45 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <rpc/rpc.h>
@@ -83,6 +84,8 @@ int voidthing;
 #define VOIDOBJ ((void *) &voidthing)
 
 Bool fDebug = FALSE;
+
+Bool fTerminate = FALSE;
 
 
 /* Write a message to the log file. */
@@ -465,7 +468,7 @@ static void dirtyCallBack(CryptedVolume * pVolume, Bool fDirty)
 }
 
 
-/* Flush all dirty data, clear the dirty bit. */
+/* Flush all dirty data on a volume, clear the dirty bit. */
 static nfsstat commitVolume(fsid fs)
 {
     CoreResult cr;
@@ -502,6 +505,16 @@ static nfsstat commitVolume(fsid fs)
 }
 
 
+/* Commit all volumes. */
+static void commitAll()
+{
+    int i;
+    for (i = 0; i < MAX_FILESYSTEMS; i++)
+        if (apFilesystems[i] && apFilesystems[i]->fLazyWrite)
+            commitVolume(i);
+}
+
+
 /* Should be called when the volume has changed.  If lazy writing is
    enabled, flush all dirty data.  Otherwise, do nothing. */
 static nfsstat volumeDirty(fsid fs)
@@ -510,69 +523,6 @@ static nfsstat volumeDirty(fsid fs)
         return commitVolume(fs);
     else
         return NFS_OK;
-}
-
-
-/* Lazy writer thread.  Periodically commit volumes to the underlying
-   storage. */
-static void lazyWriter()
-{
-    struct sockaddr_in addr;
-    struct timeval time;
-    int socket;
-    CLIENT * clnt;
-    void * res;
-
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(2050);
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    memset(addr.sin_zero, 0, sizeof(addr.sin_zero));
-
-    time.tv_sec = 0;
-    time.tv_usec = 500 * 1000;
-
-    socket = RPC_ANYSOCK;
-    clnt = clnttcp_create(&addr, NFS_PROGRAM, NFS_VERSION,
-        &socket, 0, 0);
-    if (!clnt) {
-        clnt_pcreateerror("lazy writer cannot connect to aefsnfsd");
-        return;
-    }
-
-    clnt->cl_auth = authunix_create_default();
-
-    while (1) {
-        
-        res = aefsctrlproc_flush_1(0, clnt);
-        if (!res) clnt_perror(clnt, "error calling nfsproc_flush");
-        
-        sleep(5);
-    }
-}
-
-
-/* Start the lazy writer thread or process. */
-static int startLazyWriter()
-{
-    pid_t child;
-
-    child = fork();
-
-    if (!child) { /* The child goes here. */
-        logMsg(LOG_DEBUG, "lazy writer started");
-        lazyWriter();
-        _exit(1);
-    }
-
-    /* The parent goes here. */
-
-    if (child == -1) {
-        logMsg(LOG_ALERT, "error starting lazy writer process: %s",
-            strerror(errno));
-        return 1;
-    }
-    
-    return 0;
 }
 
 
@@ -660,6 +610,75 @@ Start the AEFS NFS server.\n\
 }
 
 
+/* Called when a TERM or INT signal occurs.  Tell the main loop in
+   run() to exit.  Note that this assumes that signal() will return
+   with a EINTR error.  If that's not the behaviour on the current
+   system, we have to wait until the next time-out. */
+static void sigHandler(int signo)
+{
+    fTerminate = TRUE;
+}
+
+
+/* Process RPC requests.  This is what svc_run() does, but we
+   implement our own loop so that we can do lazy writing. */
+static int run()
+{
+    fd_set readfds;
+    struct timeval timeout;
+    int err = 0, max, res, i;
+    time_t maxAge = 5, timeFlush = time(0), timeCur;
+    struct sigaction act, oldact1, oldact2;
+
+    act.sa_handler = sigHandler;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = 0;
+
+    if ((sigaction(SIGTERM, &act, &oldact1) == -1) ||
+        (sigaction(SIGINT, &act, &oldact2) == -1)) {
+        logMsg(LOG_ALERT, "cannot install signal handlers: %s",
+            strerror(errno));
+        return 1;
+    }
+
+    while (!fTerminate) {
+        readfds = svc_fdset;
+        for (i = max = 0; i < FD_SETSIZE; i++)
+            if (FD_ISSET(i, &readfds)) max = i;
+        
+        /* Lazy writer.  Should we flush now?  Determine the time-out
+           for select(). */
+        timeCur = time(0);
+        if (timeCur > timeFlush + maxAge) {
+            logMsg(LOG_DEBUG, "flushing everything");
+            commitAll();
+            timeFlush = timeCur;
+            timeout.tv_sec = maxAge;
+        } else
+            timeout.tv_sec = timeFlush + maxAge - timeCur;
+        timeout.tv_usec = 0;
+
+        /* Sleep until we get some input, or until we should flush. */
+        res = select(max + 1, &readfds, 0, 0, &timeout);
+        if (res == -1 && errno != EINTR) {
+            logMsg(LOG_ALERT, "error from select: %s",
+                strerror(errno));
+            err = 1;
+            break;
+        }
+
+        if (res > 0) {
+            svc_getreqset(&readfds);
+        }
+    }
+
+    sigaction(SIGTERM, &oldact1, 0);
+    sigaction(SIGINT, &oldact2, 0);
+
+    return err;
+}
+
+
 int main(int argc, char * * argv)
 {
     int i, c;
@@ -723,18 +742,17 @@ int main(int argc, char * * argv)
     if (!fDebug) daemon(0, 0);
 #endif
     
-    /* Start the lazy writer *after* we have daemonized, so it will
-       be a daemon as well. */
-    if (startLazyWriter()) return 1;
-
     if (!fDebug) openlog("aefsdmn", LOG_DAEMON, 0);
 
     logMsg(LOG_INFO, "aefsdmn started");
 
-    svc_run();
-    fprintf(stderr, "svc_run returned\n");
-    
-    return 1;
+    run();
+
+    logMsg(LOG_INFO, "aefsdmn stopping, flushing everything...");
+    commitAll();
+    logMsg(LOG_INFO, "aefsdmn stopped");
+
+    return 0;
 }
 
 
@@ -1733,17 +1751,9 @@ retry:
 
 void * aefsctrlproc_flush_1_svc(void * v, struct svc_req * rqstp)
 {
-    int i;
     User user;
-
     logMsg(LOG_DEBUG, "nfsproc_flush");
-
-    /* Should we authenticate the caller? (=> DoS attacks) */
-/*     if (authCaller(rqstp, &user)) return VOIDOBJ; */
-
-    for (i = 0; i < MAX_FILESYSTEMS; i++)
-        if (apFilesystems[i] && apFilesystems[i]->fLazyWrite)
-            commitVolume(i);
-    
+    if (authCaller(rqstp, &user)) return VOIDOBJ;
+    commitAll();
     return VOIDOBJ;
 }
