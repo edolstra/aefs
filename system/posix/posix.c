@@ -1,7 +1,7 @@
 /* posix.c -- Posix-specific low-level code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: posix.c,v 1.10 2000/12/31 11:35:35 eelco Exp $
+   $Id: posix.c,v 1.11 2001/03/04 21:24:54 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -119,7 +119,6 @@ SysResult sysOpenFile(char * pszName, int flFlags, Cred cred,
    int f = makeUnixFlags(flFlags);
    int pmode = S_IREAD | S_IWRITE;
    File * pFile;
-   struct stat st;
    int euid = 0, egid = 0;
    SysResult sr;
 
@@ -244,11 +243,6 @@ SysResult sysCreateFile(char * pszName, int flFlags,
    }
    pFile->h = h;
 
-   if (sr = sysSetFileSize(pFile, cbInitialSize)) {
-      sysCloseFile(pFile);
-      return sr;
-   }
-
    *ppFile = pFile;
    return SYS_OK;
 }
@@ -296,13 +290,10 @@ SysResult sysWriteToFile(File * pFile, FilePos cbLength,
 
 SysResult sysSetFileSize(File * pFile, FilePos cbSize)
 {
-#if HAVE_CHSIZE
-   if (chsize(pFile->h, cbSize) == -1) return unix2sys();
-#elif HAVE_FTRUNCATE
+   struct stat s;
+   if (fstat(pFile->h, &s) == -1) return unix2sys();
+   if (cbSize >= s.st_size) return SYS_OK; /* don't grow files */
    if (ftruncate(pFile->h, cbSize) == -1) return unix2sys();
-#else
-#error Cannot set file size!
-#endif
    return SYS_OK;
 }
 
