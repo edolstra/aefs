@@ -5,7 +5,7 @@
 
 #ifndef HAVE_SNPRINTF
 
-int snprintf(char * str, size_t size, const char * format, ...)
+int snprintf(char * str, int size, const char * format, ...)
 {
     char buf[16384];
     va_list va;

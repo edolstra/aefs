@@ -2,7 +2,7 @@
    system-independent FS code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: sysdep.h,v 1.7 2000/12/30 21:21:02 eelco Exp $
+   $Id: sysdep.h,v 1.8 2000/12/30 23:55:59 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -100,7 +100,7 @@ void sysGetRandomBits(int bits, octet * dst);
 #endif
 
 #ifndef HAVE_SNPRINTF
-int snprintf(char * str, size_t size, const char * format, ...);
+int snprintf(char * str, int size, const char * format, ...);
 #endif
 
 #endif /* !_SYSDEP_H */
