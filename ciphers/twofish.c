@@ -38,25 +38,35 @@ Mean:          378 cycles =    67.8 mbits/sec
 
 */
 
-#include "std_defs.h"
 #include "sysdep.h"
+#include "cipher.h"
 
-#define Q_TABLES
-#define M_TABLE
-#define MK_TABLE
-#define ONE_STEP
+typedef uint8  u1byte; /* an 8 bit unsigned character type */
+typedef uint32 u4byte; /* a 32 bit unsigned integer type   */
+
+#define rotr(x,n)   (((x) >> ((int)(n))) | ((x) << (32 - (int)(n))))
+#define rotl(x,n)   (((x) << ((int)(n))) | ((x) >> (32 - (int)(n))))
+
+#define byte(x,n)   ((u1byte)((x) >> (8 * n)))
+
+#ifdef WORDS_BIGENDIAN
+static inline u4byte swap(u4byte x)
+{
+    return 
+        (x >> 24) |
+        ((x >> 8) & (0x0000ff00)) |
+        ((x << 8) & (0x00ff0000)) |
+        (x << 24);
+}
+#else
+#define swap(x) (x)
+#endif
 
 typedef struct {
         u4byte  k_len;
         u4byte  l_key[40];
         u4byte  s_key[4];
-#ifdef  MK_TABLE
-#ifdef  ONE_STEP
         u4byte  mk_tab[4][256];
-#else
-        u1byte  sb[4][256];
-#endif
-#endif      
 } KeyData;
 
 /* finite field arithmetic for GF(2**8) with the modular    */
@@ -105,8 +115,6 @@ u1byte qp(const u4byte n, const u1byte x)
     return (b4 << 4) | a4;
 }
 
-#ifdef  Q_TABLES
-
 static u4byte  qt_gen = 0;
 static u1byte  q_tab[2][256];
 
@@ -121,14 +129,6 @@ static void gen_qtab(void)
         q(1,i) = qp(1, (u1byte)i);
     }
 }
-
-#else
-
-#define q(n,x)  qp(n, x)
-
-#endif
-
-#ifdef  M_TABLE
 
 static u4byte  mt_gen = 0;
 static u4byte  m_tab[4][256];
@@ -150,48 +150,8 @@ static void gen_mtab(void)
 
 #define mds(n,x)    m_tab[n][x]
 
-#else
-
-#define fm_00   ffm_01
-#define fm_10   ffm_5b
-#define fm_20   ffm_ef
-#define fm_30   ffm_ef
-#define q_0(x)  q(1,x)
-
-#define fm_01   ffm_ef
-#define fm_11   ffm_ef
-#define fm_21   ffm_5b
-#define fm_31   ffm_01
-#define q_1(x)  q(0,x)
-
-#define fm_02   ffm_5b
-#define fm_12   ffm_ef
-#define fm_22   ffm_01
-#define fm_32   ffm_ef
-#define q_2(x)  q(1,x)
-
-#define fm_03   ffm_5b
-#define fm_13   ffm_01
-#define fm_23   ffm_ef
-#define fm_33   ffm_5b
-#define q_3(x)  q(0,x)
-
-#define f_0(n,x)    ((u4byte)fm_0##n(x))
-#define f_1(n,x)    ((u4byte)fm_1##n(x) << 8)
-#define f_2(n,x)    ((u4byte)fm_2##n(x) << 16)
-#define f_3(n,x)    ((u4byte)fm_3##n(x) << 24)
-
-#define mds(n,x)    f_0(n,q_##n(x)) ^ f_1(n,q_##n(x)) ^ f_2(n,q_##n(x)) ^ f_3(n,q_##n(x))
-
-#endif
-
 static u4byte h_fun(int k_len, const u4byte x, const u4byte key[])
 {   u4byte  b0, b1, b2, b3;
-
-#ifndef M_TABLE
-    u4byte  m5b_b0, m5b_b1, m5b_b2, m5b_b3;
-    u4byte  mef_b0, mef_b1, mef_b2, mef_b3;
-#endif
 
     b0 = byte(x, 0); b1 = byte(x, 1); b2 = byte(x, 2); b3 = byte(x, 3);
 
@@ -210,24 +170,9 @@ static u4byte h_fun(int k_len, const u4byte x, const u4byte key[])
             b2 = q(1,q(0,b2) ^ byte(key[1],2)) ^ byte(key[0],2);
             b3 = q(1,q(1,b3) ^ byte(key[1],3)) ^ byte(key[0],3);
     }
-#ifdef  M_TABLE
 
     return  mds(0, b0) ^ mds(1, b1) ^ mds(2, b2) ^ mds(3, b3);
-
-#else
-
-    b0 = q(1, b0); b1 = q(0, b1); b2 = q(1, b2); b3 = q(0, b3);
-    m5b_b0 = ffm_5b(b0); m5b_b1 = ffm_5b(b1); m5b_b2 = ffm_5b(b2); m5b_b3 = ffm_5b(b3);
-    mef_b0 = ffm_ef(b0); mef_b1 = ffm_ef(b1); mef_b2 = ffm_ef(b2); mef_b3 = ffm_ef(b3);
-    b0 ^= mef_b1 ^ m5b_b2 ^ m5b_b3; b3 ^= m5b_b0 ^ mef_b1 ^ mef_b2;
-    b2 ^= mef_b0 ^ m5b_b1 ^ mef_b3; b1 ^= mef_b0 ^ mef_b2 ^ m5b_b3;
-
-    return b0 | (b3 << 8) | (b2 << 16) | (b1 << 24);
-
-#endif
 }
-
-#ifdef  MK_TABLE
 
 #define q20(x)  q(0,q(0,x) ^ byte(key->s_key[1],0)) ^ byte(key->s_key[0],0)
 #define q21(x)  q(0,q(1,x) ^ byte(key->s_key[1],1)) ^ byte(key->s_key[0],1)
@@ -253,61 +198,32 @@ void static gen_mk_tab(KeyData * key)
     case 2: for(i = 0; i < 256; ++i)
             {
                 by = (u1byte)i;
-#ifdef ONE_STEP
                 key->mk_tab[0][i] = mds(0, q20(by)); key->mk_tab[1][i] = mds(1, q21(by));
                 key->mk_tab[2][i] = mds(2, q22(by)); key->mk_tab[3][i] = mds(3, q23(by));
-#else
-                key->sb[0][i] = q20(by); key->sb[1][i] = q21(by); 
-                key->sb[2][i] = q22(by); key->sb[3][i] = q23(by);
-#endif
             }
             break;
     
     case 3: for(i = 0; i < 256; ++i)
             {
                 by = (u1byte)i;
-#ifdef ONE_STEP
                 key->mk_tab[0][i] = mds(0, q30(by)); key->mk_tab[1][i] = mds(1, q31(by));
                 key->mk_tab[2][i] = mds(2, q32(by)); key->mk_tab[3][i] = mds(3, q33(by));
-#else
-                key->sb[0][i] = q30(by); key->sb[1][i] = q31(by); 
-                key->sb[2][i] = q32(by); key->sb[3][i] = q33(by);
-#endif
             }
             break;
     
     case 4: for(i = 0; i < 256; ++i)
             {
                 by = (u1byte)i;
-#ifdef ONE_STEP
                 key->mk_tab[0][i] = mds(0, q40(by)); key->mk_tab[1][i] = mds(1, q41(by));
                 key->mk_tab[2][i] = mds(2, q42(by)); key->mk_tab[3][i] = mds(3, q43(by));
-#else
-                key->sb[0][i] = q40(by); key->sb[1][i] = q41(by); 
-                key->sb[2][i] = q42(by); key->sb[3][i] = q43(by);
-#endif
             }
     }
 }
 
-#  ifdef ONE_STEP
 #    define g0_fun(x) ( key->mk_tab[0][byte(x,0)] ^ key->mk_tab[1][byte(x,1)] \
                       ^ key->mk_tab[2][byte(x,2)] ^ key->mk_tab[3][byte(x,3)] )
 #    define g1_fun(x) ( key->mk_tab[0][byte(x,3)] ^ key->mk_tab[1][byte(x,0)] \
                       ^ key->mk_tab[2][byte(x,1)] ^ key->mk_tab[3][byte(x,2)] )
-#  else
-#    define g0_fun(x) ( mds(0, key->sb[0][byte(x,0)]) ^ mds(1, key->sb[1][byte(x,1)]) \
-                      ^ mds(2, key->sb[2][byte(x,2)]) ^ mds(3, key->sb[3][byte(x,3)]) )
-#    define g1_fun(x) ( mds(0, key->sb[0][byte(x,3)]) ^ mds(1, key->sb[1][byte(x,0)]) \
-                      ^ mds(2, key->sb[2][byte(x,1)]) ^ mds(3, key->sb[3][byte(x,2)]) )
-#  endif
-
-#else
-
-#define g0_fun(x)   h_fun(key->k_len,x,key->s_key)
-#define g1_fun(x)   h_fun(key->k_len,rotl(x,8),key->s_key)
-
-#endif
 
 /* The (12,8) Reed Soloman code has the generator polynomial
 
@@ -375,26 +291,22 @@ static void set_key(KeyData * key, const u4byte in_key[],
     const u4byte key_len)
 {   u4byte  i, a, b, me_key[4], mo_key[4];
 
-#ifdef Q_TABLES
     if(!qt_gen)
     {
         gen_qtab(); qt_gen = 1;
     }
-#endif
 
-#ifdef M_TABLE
     if(!mt_gen)
     {
         gen_mtab(); mt_gen = 1;
     }
-#endif
 
     key->k_len = key_len / 64;   /* 2, 3 or 4 */
 
     for(i = 0; i < key->k_len; ++i)
     {
-        a = in_key[i + i];     me_key[i] = a;
-        b = in_key[i + i + 1]; mo_key[i] = b;
+        a = swap(in_key[i + i]);     me_key[i] = a;
+        b = swap(in_key[i + i + 1]); mo_key[i] = b;
         key->s_key[key->k_len - i - 1] = mds_rem(a, b);
     }
 
@@ -407,9 +319,7 @@ static void set_key(KeyData * key, const u4byte in_key[],
         key->l_key[i + 1] = rotl(a + 2 * b, 9);
     }
 
-#ifdef MK_TABLE
     gen_mk_tab(key);
-#endif
 }
 
 /* encrypt a block of text  */
@@ -426,18 +336,18 @@ static void twofishEncryptBlock(Key * pKey, octet * pabBlock)
 {   u4byte  t0, t1, blk[4];
     KeyData * key = pKey->pExpandedKey;
 
-    blk[0] = 0[(u4byte *) pabBlock] ^ key->l_key[0];
-    blk[1] = 1[(u4byte *) pabBlock] ^ key->l_key[1];
-    blk[2] = 2[(u4byte *) pabBlock] ^ key->l_key[2];
-    blk[3] = 3[(u4byte *) pabBlock] ^ key->l_key[3];
+    blk[0] = swap(0[(u4byte *) pabBlock]) ^ key->l_key[0];
+    blk[1] = swap(1[(u4byte *) pabBlock]) ^ key->l_key[1];
+    blk[2] = swap(2[(u4byte *) pabBlock]) ^ key->l_key[2];
+    blk[3] = swap(3[(u4byte *) pabBlock]) ^ key->l_key[3];
 
     f_rnd(0); f_rnd(1); f_rnd(2); f_rnd(3);
     f_rnd(4); f_rnd(5); f_rnd(6); f_rnd(7);
 
-    0[(u4byte *) pabBlock] = blk[2] ^ key->l_key[4];
-    1[(u4byte *) pabBlock] = blk[3] ^ key->l_key[5];
-    2[(u4byte *) pabBlock] = blk[0] ^ key->l_key[6];
-    3[(u4byte *) pabBlock] = blk[1] ^ key->l_key[7]; 
+    0[(u4byte *) pabBlock] = swap(blk[2] ^ key->l_key[4]);
+    1[(u4byte *) pabBlock] = swap(blk[3] ^ key->l_key[5]);
+    2[(u4byte *) pabBlock] = swap(blk[0] ^ key->l_key[6]);
+    3[(u4byte *) pabBlock] = swap(blk[1] ^ key->l_key[7]); 
 }
 
 /* decrypt a block of text  */
@@ -454,18 +364,18 @@ static void twofishDecryptBlock(Key * pKey, octet * pabBlock)
 {   u4byte  t0, t1, blk[4];
     KeyData * key = pKey->pExpandedKey;
 
-    blk[0] = 0[(u4byte *) pabBlock] ^ key->l_key[4];
-    blk[1] = 1[(u4byte *) pabBlock] ^ key->l_key[5];
-    blk[2] = 2[(u4byte *) pabBlock] ^ key->l_key[6];
-    blk[3] = 3[(u4byte *) pabBlock] ^ key->l_key[7];
+    blk[0] = swap(0[(u4byte *) pabBlock]) ^ key->l_key[4];
+    blk[1] = swap(1[(u4byte *) pabBlock]) ^ key->l_key[5];
+    blk[2] = swap(2[(u4byte *) pabBlock]) ^ key->l_key[6];
+    blk[3] = swap(3[(u4byte *) pabBlock]) ^ key->l_key[7];
 
     i_rnd(7); i_rnd(6); i_rnd(5); i_rnd(4);
     i_rnd(3); i_rnd(2); i_rnd(1); i_rnd(0);
 
-    0[(u4byte *) pabBlock] = blk[2] ^ key->l_key[0];
-    1[(u4byte *) pabBlock] = blk[3] ^ key->l_key[1];
-    2[(u4byte *) pabBlock] = blk[0] ^ key->l_key[2];
-    3[(u4byte *) pabBlock] = blk[1] ^ key->l_key[3]; 
+    0[(u4byte *) pabBlock] = swap(blk[2] ^ key->l_key[0]);
+    1[(u4byte *) pabBlock] = swap(blk[3] ^ key->l_key[1]);
+    2[(u4byte *) pabBlock] = swap(blk[0] ^ key->l_key[2]);
+    3[(u4byte *) pabBlock] = swap(blk[1] ^ key->l_key[3]); 
 }
 
 

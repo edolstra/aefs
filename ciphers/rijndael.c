@@ -37,8 +37,16 @@ Mean:          500 cycles =    51.2 mbits/sec
 
 */
 
-#include "std_defs.h"
 #include "sysdep.h"
+#include "cipher.h"
+
+typedef uint8  u1byte; /* an 8 bit unsigned character type */
+typedef uint32 u4byte; /* a 32 bit unsigned integer type   */
+
+#define rotr(x,n)   (((x) >> ((int)(n))) | ((x) << (32 - (int)(n))))
+#define rotl(x,n)   (((x) << ((int)(n))) | ((x) >> (32 - (int)(n))))
+
+#define byte(x,n)   ((u1byte)((x) >> (8 * n)))
 
 #define LARGE_TABLES
 
