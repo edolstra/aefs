@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsck.c,v 1.9 2000/12/30 21:26:22 eelco Exp $
+   $Id: aefsck.c,v 1.10 2000/12/31 11:06:18 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -669,7 +669,7 @@ static int checkFreeList(State * pState)
       }
 
       if (pState->pFreeList[idNextFree] == 'I') {
-         printf("isf: free list entry %08lx is an info sector\n",
+         printf("isf: free list entry %08lx should be an info sector\n",
             idNextFree);
          return AEFSCK_ERRORFOUND;
       }
