@@ -25,7 +25,7 @@
 #include <errno.h>
 
 #include <signal.h>
-#include <io.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -357,6 +357,8 @@ static int addFiles(State * pState)
    int res = 0, bad, i;
    DIR * dir;
    struct dirent * dirent;
+   struct stat st;
+   char szName[MAX_VOLUME_BASE_PATH_NAME + 16];
    CryptedFileID id;
    FSItem * fsi;
    
@@ -402,7 +404,13 @@ static int addFiles(State * pState)
       if (id == INFOSECTORFILE_ID) continue;
 
       if (!(fsi = addFile(pState, id))) return res | AEFSCK_FAIL;
-      fsi->cbStorageSize = dirent->d_size;
+      makeStorageName(pState, id, szName);
+      if (stat(szName, &st)) {
+         printf("filesystem: statting %s: %s\n",
+            dirent->d_name, strerror(errno));
+	 return res | AEFSCK_FAIL;
+      }
+      fsi->cbStorageSize = st.st_size;
    }
 
    closedir(dir);
@@ -1940,9 +1948,7 @@ static int checkFS2(int flags, char * pszBasePath, char * pszKey)
       strcat(szBasePath, "/");
 
    coreSetDefVolumeParms(&parms);
-   if (!(flags & FSCK_FIX))
-      parms.flOpenFlags = (parms.flOpenFlags & ~SOF_RWMASK) |
-         SOF_READONLY;
+   if (!(flags & FSCK_FIX)) parms.fReadOnly = TRUE;
    
    cr = coreReadSuperBlock(szBasePath, pszKey, cipherTable, &parms,
       &state.pSuperBlock);
@@ -1987,12 +1993,16 @@ static int checkFS(int flags, char * pszBasePath, char * pszKey)
    sigaddset(&iact.sa_mask, SIGINT);
    sigaction(SIGINT, &iact, &oact_int);
    
+#ifdef SIGBREAK   
    sigaddset(&iact.sa_mask, SIGBREAK);
    sigaction(SIGBREAK, &iact, &oact_break);
+#endif   
 
    res = checkFS2(flags, pszBasePath, pszKey);
 
+#ifdef SIGBREAK
    sigaction(SIGBREAK, &oact_break, 0);
+#endif   
    sigaction(SIGINT, &oact_int, 0);
 
    return res;
