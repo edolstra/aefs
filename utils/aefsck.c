@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: aefsck.c,v 1.11 2000/12/31 11:35:37 eelco Exp $
+   $Id: aefsck.c,v 1.12 2001/03/04 21:50:08 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -513,9 +513,8 @@ static void makeDefaultFileInfo(State * pState, FSItem * fsi)
    memset(&fsi->info, 0, sizeof(fsi->info));
    fsi->info.flFlags = CFF_IFREG | CFF_IRUSR | CFF_IWUSR;
    fsi->info.cRefs = 0;
-   fsi->info.csAllocated = fsi->info.csSet =
-      fsi->cbStorageSize / SECTOR_SIZE;
-   fsi->info.cbFileSize = fsi->info.csAllocated * PAYLOAD_SIZE;
+   fsi->info.csSet = fsi->cbStorageSize / SECTOR_SIZE;
+   fsi->info.cbFileSize = fsi->info.csSet * PAYLOAD_SIZE;
    fsi->info.timeCreation = fsi->info.timeAccess =
       fsi->info.timeWrite = time(0);
    fsi->info.idParent = 0;
@@ -529,21 +528,14 @@ static int createInfoSector(State * pState, FSItem * fsi)
    int res = 0;
    CoreResult cr;
    
-   if (fsi->id >= pState->csISFSize) {
-      cr = coreSetFileAllocation(pState->pVolume,
-         INFOSECTORFILE_ID, fsi->id + 1);
-      if (cr) {
-         printf("isf: cannot resize: %s\n", core2str(cr));
-         return res | AEFSCK_ABORT;
-      }
-      pState->csISFSize = fsi->id + 1;
-   }
-
    cr = coreSetFileInfo(pState->pVolume, fsi->id, &fsi->info);
    if (cr) {
       printf("isf: cannot resize: %s\n", core2str(cr));
       return res | AEFSCK_ABORT;
    }
+
+   if (fsi->id >= pState->csISFSize) 
+      pState->csISFSize = fsi->id + 1;
 
    pState->fRewriteFreeList = true;
 
@@ -564,7 +556,10 @@ static int checkInfoSector(State * pState, FSItem * fsi)
          printf(", creating with default values\n");
          res |= createInfoSector(pState, fsi);
          if (STOP(res)) return res;
-      } else printf("\n");
+      } else {
+          printf("\n");
+          return res;
+      }
    }
 
 /*    coreFetchSectors(pState->pVolume, INFOSECTORFILE_ID, */
@@ -806,11 +801,10 @@ retry:
    /* Is the storage file size a multiple of the sector size? */
    if (st.st_size % SECTOR_SIZE != 0) {
       res |= AEFSCK_ERRORFOUND;
-      
       printf("isf: invalid size");
       if (pState->flags & FSCK_FIX) {
          printf(", truncating\n");
-         cr = coreSetFileAllocation(pState->pVolume,
+         cr = coreSuggestFileAllocation(pState->pVolume,
             INFOSECTORFILE_ID, st.st_size / SECTOR_SIZE);
          if (cr) {
             printf("isf: cannot truncate: %s\n", core2str(cr));
@@ -818,7 +812,6 @@ retry:
          }
          goto retry;
       } else printf("\n");
-      
    }
 
    /* The ISF header will be checked when we walk the free list. */
@@ -1086,77 +1079,47 @@ static int checkFileInfo(State * pState, FSItem * fsi)
 {
    int res = 0;
    CoreResult cr;
-   SectorNumber csAlloc;
-   
-   if (fsi->info.csAllocated * SECTOR_SIZE != fsi->cbStorageSize) {
-      res |= AEFSCK_ERRORFOUND;
-      
-      printf("%s: stored allocation (%ld) does not match storage file size (%d)",
-         printFileName(pState, fsi->id), 
-         fsi->info.csAllocated * SECTOR_SIZE, fsi->cbStorageSize);
-      if (pState->flags & FSCK_FIX) {
-         printf(", resetting\n");
-         fsi->info.csAllocated = fsi->cbStorageSize / SECTOR_SIZE;
-         res |= writeFileInfo(pState, fsi);
-         if (STOP(res)) return res;
-      } else printf("\n");
-      
-      if (fsi->cbStorageSize % SECTOR_SIZE) {
-         printf("%s: storage file size is not a multiple of %d",
-            printFileName(pState, fsi->id), SECTOR_SIZE);
-         if (pState->flags & FSCK_FIX) {
-            printf(", truncating\n");
-            cr = coreSetFileAllocation(pState->pVolume, fsi->id,
-               fsi->cbStorageSize / SECTOR_SIZE);
-            if (cr) {
-               printf("%s: cannot truncate\n",
-                  printFileName(pState, fsi->id));
-               return res | AEFSCK_ABORT;
-            } else
-               fsi->cbStorageSize =
-                  (fsi->cbStorageSize / SECTOR_SIZE) * SECTOR_SIZE;
-         } else printf("\n");
-      }
-   }
+   SectorNumber csMaxSet, csSet;
 
-   if (fsi->info.csSet > fsi->info.csAllocated) {
-      res |= AEFSCK_ERRORFOUND;
-      printf("%s: initialization (%ld) > allocation (%ld)",
-         printFileName(pState, fsi->id),
-         fsi->info.csSet, fsi->info.csAllocated);
-      if (pState->flags & FSCK_FIX) {
-         printf(", resetting\n");
-         fsi->info.csSet = fsi->info.csAllocated;
-         res |= writeFileInfo(pState, fsi);
-         if (STOP(res)) return res;
-      } else printf("\n");
-   }
-
-   csAlloc = fsi->info.cbFileSize ?
+   /* Clamp csSet to the maxima, which depend on the storage file size
+      and the actual file size. */
+   csMaxSet = fsi->info.cbFileSize ?
       (fsi->info.cbFileSize - 1) / PAYLOAD_SIZE + 1 : 0;
-   if (csAlloc != fsi->info.csAllocated) {
+
+   csSet = fsi->info.csSet;
+   if (csSet > fsi->cbStorageSize / SECTOR_SIZE)
+       csSet = fsi->cbStorageSize / SECTOR_SIZE;
+   if (csSet > csMaxSet)
+       csSet = csMaxSet;
+
+   if (fsi->info.csSet != csSet) {
       res |= AEFSCK_ERRORFOUND;
-      printf("%s: allocation (%ld) does not match file size (%ld)",
+      printf("%s: initialization too large (%ld), should be %ld",
          printFileName(pState, fsi->id),
-         fsi->info.csAllocated * PAYLOAD_SIZE,
-         csAlloc * PAYLOAD_SIZE);
+         fsi->info.csSet, csSet);
       if (pState->flags & FSCK_FIX) {
-         printf(", reallocating\n");
-         /* This will force the allocation to be shrunk or grown to
-            the right number of sectors. */
-         cr = coreSetFileSize(pState->pVolume, fsi->id,
-            fsi->info.cbFileSize);
+         printf(", resetting\n");
+         fsi->info.csSet = csSet;
+         res |= writeFileInfo(pState, fsi);
+         if (STOP(res)) return res;
+      } else printf("\n");
+   }
+
+   assert(fsi->info.csSet * SECTOR_SIZE <= fsi->cbStorageSize);
+   if (fsi->info.csSet * SECTOR_SIZE < fsi->cbStorageSize) {
+      printf("%s: (not an error) storage file size is %d, but %ld required",
+         printFileName(pState, fsi->id),
+         fsi->cbStorageSize, fsi->info.csSet * SECTOR_SIZE);
+      if (pState->flags & FSCK_FIX) {
+         printf(", truncating\n");
+         cr = coreSuggestFileAllocation(pState->pVolume, fsi->id,
+            fsi->info.csSet);
          if (cr) {
-            printf("%s: cannot set size: %s\n", 
+            printf("%s: cannot truncate: %s\n",
                printFileName(pState, fsi->id), core2str(cr));
             return res | AEFSCK_ABORT;
          }
-         cr = coreQueryFileInfo(pState->pVolume, fsi->id, &fsi->info);
-         if (cr) {
-            printf("%s: cannot read file info: %s\n", 
-               printFileName(pState, fsi->id), core2str(cr));
-            return res | AEFSCK_ABORT;
-         }
+         fsi->cbStorageSize = fsi->info.csSet * SECTOR_SIZE;
       } else printf("\n");
    }
 
@@ -1987,7 +1950,9 @@ static int checkFS(int flags, char * pszBasePath, char * pszKey)
 {
    struct sigaction iact;
    struct sigaction oact_int;
+#ifdef SIGBREAK   
    struct sigaction oact_break;
+#endif   
    int res;
 
    iact.sa_handler = breakHandler;
