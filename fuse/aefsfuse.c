@@ -83,9 +83,11 @@ static int core2sys(CoreResult cr)
 }
 
 
-static void storeAttr(CryptedFileInfo * info, struct fuse_attr * attr)
+static void storeAttr(CryptedFileID idFile, CryptedFileInfo * info,
+    struct fuse_attr * attr)
 {
     memset(attr, 0, sizeof(struct fuse_attr));
+    attr->ino = idFile;
     attr->mode = info->flFlags;
     attr->nlink = info->cRefs;
     attr->uid = getuid();
@@ -97,6 +99,7 @@ static void storeAttr(CryptedFileInfo * info, struct fuse_attr * attr)
     attr->atime = info->timeAccess;
     attr->mtime = info->timeWrite;
     attr->ctime = info->timeAccess; /* !!! */
+    attr->atimensec = attr->mtimensec = attr->ctimensec = 0;
 }
 
 
@@ -131,7 +134,7 @@ static void fillEntryOut(struct fuse_entry_out * out,
     out->entry_valid_nsec = 0;
     out->attr_valid = 1; /* sec */
     out->attr_valid_nsec = 0;
-    storeAttr(info, attr);
+    storeAttr(idFile, info, attr);
 }
 
 
@@ -199,7 +202,7 @@ int do_setattr(struct fuse_in_header * in, struct fuse_setattr_in * arg,
 	if (cr) return core2sys(cr);
     }
 
-    storeAttr(&info, &out->attr);
+    storeAttr(idFile, &info, &out->attr);
 
     return 0;
 }
@@ -216,7 +219,7 @@ int do_getattr(struct fuse_in_header * in, struct fuse_attr_out * out)
     cr = coreQueryFileInfo(pVolume, idFile, &info);
     if (cr) return core2sys(cr);
 
-    storeAttr(&info, &out->attr);
+    storeAttr(idFile, &info, &out->attr);
 
     return 0;
 }
