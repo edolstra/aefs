@@ -1,7 +1,7 @@
 /* posix.c -- Posix-specific low-level code.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: posix.c,v 1.12 2001/09/23 13:30:23 eelco Exp $
+   $Id: posix.c,v 1.13 2001/12/23 00:42:50 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -269,11 +269,16 @@ SysResult sysReadFromFile(File * pFile, FilePos cbLength,
    octet * pabBuffer, FilePos * pcbRead)
 {
    int r;
-   r = read(pFile->h, pabBuffer, cbLength);
-   if (r == -1) return unix2sys();
-   *pcbRead = r;
+   *pcbRead = 0;
+   while (cbLength) {
+      r = read(pFile->h, pabBuffer, cbLength);
+      if (r == -1 && errno != EINTR) return unix2sys();
+      if (r == 0) break;
+      pabBuffer += r;
+      cbLength -= r;
+      *pcbRead += r;
+   }
    return SYS_OK;
-
 }
 
 
@@ -281,9 +286,14 @@ SysResult sysWriteToFile(File * pFile, FilePos cbLength,
    octet * pabBuffer, FilePos * pcbWritten)
 {
    int r;
-   r = write(pFile->h, pabBuffer, cbLength);
-   if (r == -1) return unix2sys();
-   *pcbWritten = r;
+   *pcbWritten = 0;
+   while (cbLength) {
+      r = write(pFile->h, pabBuffer, cbLength);
+      if (r == -1 && errno != EINTR) return unix2sys();
+      pabBuffer += r;
+      cbLength -= r;
+      *pcbWritten += r;
+   }
    return SYS_OK;
 }
 
