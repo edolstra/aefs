@@ -1,7 +1,7 @@
 /* corefs.h -- Header file to the system-independent FS code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: corefs.h,v 1.6 2000/12/31 11:35:18 eelco Exp $
+   $Id: corefs.h,v 1.7 2001/03/04 21:45:26 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -146,7 +146,7 @@ CoreResult coreDestroyFile(CryptedVolume * pVolume, CryptedFileID id);
 
 CoreResult coreFlushFile(CryptedVolume * pVolume, CryptedFileID id);
 
-CoreResult coreSetFileAllocation(CryptedVolume * pVolume,
+CoreResult coreSuggestFileAllocation(CryptedVolume * pVolume,
    CryptedFileID id, SectorNumber csAllocate);
 
 
@@ -277,14 +277,7 @@ typedef struct {
       
       int cRefs; /* reference count */
 
-      /* Global invariants:
-         cbFileSize <= csAllocated * PAYLOAD_SIZE
-         cbFileSize >= (csAllocated - 1) * PAYLOAD_SIZE + 1
-         cbFileSize >= 0
-         csSet <= csAllocated
-      */
       CryptedFilePos cbFileSize;
-      SectorNumber csAllocated; /* ignored */
       SectorNumber csSet; /* ignored */
 
       CoreTime timeCreation;
@@ -315,7 +308,7 @@ typedef struct {
 
       octet cbFileSize[4];
       octet reserved1[4];
-      octet csAllocated[4];
+      octet obsolete1[4];
       octet reserved2[4];
       octet csSet[4];
       octet reserved3[4];

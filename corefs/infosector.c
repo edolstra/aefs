@@ -1,6 +1,8 @@
 /* infosector.c -- Maintains the info sector file (ISF).
    Copyright (C) 1999 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
+   $Id: infosector.c,v 1.2 2001/03/04 21:45:26 eelco Exp $
+
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; either version 2, or (at your option)
@@ -79,7 +81,7 @@ CoreResult coreAllocID(CryptedVolume * pVolume, CryptedFileID * pid)
       /* Grow the ISF by csISFGrow sectors. */
       csGrow = coreQueryVolumeParms(pVolume)->csISFGrow;
       assert(csGrow >= 1);
-      cr = coreSetFileAllocation(pVolume, INFOSECTORFILE_ID, csSize + csGrow);
+      cr = coreSuggestFileAllocation(pVolume, INFOSECTORFILE_ID, csSize + csGrow);
       if (cr) return cr;
 
       /* Add the {2..csISFGrow}th new sectors to the free list. */

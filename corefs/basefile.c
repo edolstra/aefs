@@ -1,7 +1,7 @@
 /* basefile.c -- File I/O.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: basefile.c,v 1.5 2000/12/31 11:35:18 eelco Exp $
+   $Id: basefile.c,v 1.6 2001/03/04 21:45:26 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -56,7 +56,6 @@ CoreResult coreCreateBaseFile(CryptedVolume * pVolume,
    }
 
    /* Initialize the info sector. */
-   pInfo->csAllocated = cSectors;
    pInfo->csSet = 0;
    pInfo->cbEAs = 0;
    pInfo->idEAFile = 0;
@@ -108,7 +107,6 @@ CoreResult coreQueryFileInfo(CryptedVolume * pVolume,
    pInfo->flFlags = bytesToInt32(infoOnDisk.flFlags);
    pInfo->cRefs = bytesToInt32(infoOnDisk.cRefs);
    pInfo->cbFileSize = bytesToInt32(infoOnDisk.cbFileSize);
-   pInfo->csAllocated = bytesToInt32(infoOnDisk.csAllocated);
    pInfo->csSet = bytesToInt32(infoOnDisk.csSet);
    pInfo->timeCreation = bytesToInt32(infoOnDisk.timeCreation);
    pInfo->timeAccess = bytesToInt32(infoOnDisk.timeAccess);
@@ -142,7 +140,6 @@ CoreResult coreSetFileInfo(CryptedVolume * pVolume,
    int32ToBytes(pInfo->flFlags, infoOnDisk.flFlags);
    int32ToBytes(pInfo->cRefs, infoOnDisk.cRefs);
    int32ToBytes(pInfo->cbFileSize, infoOnDisk.cbFileSize);
-   int32ToBytes(pInfo->csAllocated, infoOnDisk.csAllocated);
    int32ToBytes(pInfo->csSet, infoOnDisk.csSet);
    int32ToBytes(pInfo->timeCreation, infoOnDisk.timeCreation);
    int32ToBytes(pInfo->timeAccess, infoOnDisk.timeAccess);
@@ -364,7 +361,6 @@ CoreResult coreSetFileSize(CryptedVolume * pVolume, CryptedFileID id,
    CoreResult cr;
    CryptedFileInfo info;
    SectorNumber cSectors;
-   bool fChanged = false;
    octet zero[PAYLOAD_SIZE];
    CryptedFilePos cbOldSize;
    int offset;
@@ -376,42 +372,34 @@ CoreResult coreSetFileSize(CryptedVolume * pVolume, CryptedFileID id,
    if (cr) return cr;
    cbOldSize = info.cbFileSize;
 
+   if (info.cbFileSize == cbFileSize) return CORERC_OK;
+
    /* Change the file size. */
-   if (info.cbFileSize != cbFileSize) {
-      info.cbFileSize = cbFileSize;
-      fChanged = true;
-   }
-   
-   /* Reset the number of allocated sectors. */
+   info.cbFileSize = cbFileSize;
+
+   /* How many sectors do we need? */
    cSectors = fileSizeToAllocation(cbFileSize);
-   if (info.csAllocated != cSectors) {
-      cr = coreSetFileAllocation(pVolume, id, cSectors);
+
+   /* If the file shrinks, we might have to reduce csSet. */
+   if (info.csSet > cSectors) info.csSet = cSectors;
+
+   /* Truncate or grow the allocation of the file if needed. */
+   cr = coreSuggestFileAllocation(pVolume, id, cSectors);
+   if (cr) return cr;
+
+   /* Update the file info. */
+   cr = coreSetFileInfo(pVolume, id, &info);
+   if (cr) return cr;
+
+   /* Kill old data in the last set sector.  Otherwise, if the
+      file grows later on, old data might re-appear. */
+   if ((info.cbFileSize < cbOldSize) &&
+       (info.cbFileSize < info.csSet * PAYLOAD_SIZE)) {
+      offset = info.cbFileSize % PAYLOAD_SIZE;
+      memset(zero, 0, PAYLOAD_SIZE - offset);
+      cr = coreSetSectorData(pVolume, id, info.csSet - 1,
+         offset, PAYLOAD_SIZE - offset, 0, zero);
       if (cr) return cr;
-      info.csAllocated = cSectors;
-      fChanged = true;
-   }
-   
-   /* Update the number of initialized sectors. */
-   if (info.csSet > info.csAllocated) {
-      info.csSet = info.csAllocated;
-      fChanged = true;
-   }
-
-   if (fChanged) {
-
-      cr = coreSetFileInfo(pVolume, id, &info);
-      if (cr) return cr;
-
-      /* Kill old data in the last set sector.  Otherwise, if they
-         file grows later on, old data might re-appear. */
-      if ((info.cbFileSize < cbOldSize) &&
-          (info.cbFileSize < info.csSet * PAYLOAD_SIZE)) {
-         offset = info.cbFileSize % PAYLOAD_SIZE;
-         memset(zero, 0, PAYLOAD_SIZE - offset);
-         cr = coreSetSectorData(pVolume, id, info.csSet - 1,
-            offset, PAYLOAD_SIZE - offset, 0, zero);
-         if (cr) return cr;
-      }
    }
 
    return CORERC_OK;

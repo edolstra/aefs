@@ -1,7 +1,7 @@
 /* storage.c -- Storage and cache management.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: storage.c,v 1.11 2000/12/31 11:35:18 eelco Exp $
+   $Id: storage.c,v 1.12 2001/03/04 21:45:26 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -626,7 +626,8 @@ static CoreResult dropFile(CryptedFile * pFile)
 
 /* Create a file with the given ID and initial size. The content of
    the allocated sectors is undefined (and reading them will give a
-   CRC error with high probability). */
+   CRC error with high probability).  The initial size is advisory
+   only (see coreSuggestFileSize). */
 CoreResult coreCreateFile(CryptedVolume * pVolume,
    CryptedFileID id, SectorNumber csPreallocate)
 {
@@ -712,9 +713,11 @@ CoreResult coreFlushFile(CryptedVolume * pVolume, CryptedFileID id)
 }
 
 
-/* Change the size of the storage file to be able to contain the
-   specified number of sectors. */
-CoreResult coreSetFileAllocation(CryptedVolume * pVolume,
+/* Suggest that the size of the storage file be increased or decreased
+   to the specified number of sectors.  This can be used to improve
+   performance and reduce fragmentation on certain systems (like
+   OS/2). */
+CoreResult coreSuggestFileAllocation(CryptedVolume * pVolume,
    CryptedFileID id, SectorNumber csAllocate)
 {
    CoreResult cr;
@@ -732,7 +735,9 @@ CoreResult coreSetFileAllocation(CryptedVolume * pVolume,
    cr = openStorageFile(pFile, false, 0);
    if (cr) return cr;
 
-   /* Set the new file size. */
+   /* Set the new file size.  The semantics of sysSetFileSize() do not
+      guarantee that growing a file will work (and it doesn't, in
+      general, on POSIX).  */
    cbNewSize = SECTOR_SIZE * (CryptedFilePos) csAllocate;
    return sys2core(sysSetFileSize(pFile->pStorageFile, cbNewSize));
 }
