@@ -5,25 +5,32 @@ MANIFEST := Makefile
 
 ifeq ($(BUILD_FUSE), 1)
 
-PROG = aefsfuse$(EXE)
+PROG1 = aefsfuse$(EXE)
+PROG2 = mntaefsfuse$(EXE)
 
-all: $(PROG)
+all: $(PROG1) $(PROG2)
 
-SRCS = aefsfuse.c loop.c
+SRCS1 = aefsfuse.c loop.c
+SRCS2 = mntaefsfuse.c
+SRCS = $(SRCS1) $(SRCS2)
 
 LIBS = $(BASE)/corefs/corefs.a $(BASE)/ciphers/ciphers.a \
  $(BASE)/system/$(SYSTEM)/sysdep.a $(BASE)/misc/misc.a \
  $(BASE)/utils/utilutils.o
 
-$(PROG): $(SRCS:.c=.o) $(LIBS)
-	$(CC) $(CFLAGS) $(LDFLAGS) $(SRCS:.c=.o) $(LIBS) $(SYSLIBS) -o $@
+$(PROG1): $(SRCS1:.c=.o) $(LIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(SRCS1:.c=.o) $(LIBS) $(SYSLIBS) -o $@
+
+$(PROG2): $(SRCS2:.c=.o) $(LIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(SRCS2:.c=.o) $(LIBS) $(SYSLIBS) -o $@
 
 clean-extra:
-	$(RM) $(PROG)
+	$(RM) $(PROG1) $(PROG2)
 
 install: all
 	$(INSTALL_DIR) $(bindir)
-	$(INSTALL_PROGRAM) $(PROG) $(bindir)
+	$(INSTALL_PROGRAM) $(PROG1) $(bindir)
+	$(INSTALL_PROGRAM) $(PROG2) $(bindir)
 
 ifneq ($(MAKECMDGOALS),clean)
 include $(SRCS:.c=.d)

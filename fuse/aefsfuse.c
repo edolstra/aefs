@@ -1,3 +1,22 @@
+/* aefsfuse.c -- FUSE front-end to AEFS.
+   Copyright (C) 2001 Eelco Dolstra (eelco@cs.uu.nl).
+
+   $Id: aefsfuse.c,v 1.11 2001/12/26 21:49:58 eelco Exp $
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2, or (at your option)
+   any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software Foundation,
+   Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -18,6 +37,7 @@
 #include "utilutils.h"
 
 #include "aefsfuse.h"
+#include "aefsfuseint.h"
 
 
 char * pszProgramName;
@@ -409,6 +429,31 @@ int do_write(struct fuse_in_header * in, struct fuse_write_in * arg)
 }
 
 
+/* Called by corefs whenever it marks a sector as dirty. */
+static void dirtyCallBack(CryptedVolume * pVolume, bool fDirty)
+{
+    CoreResult cr;
+    
+    logMsg(LOG_DEBUG, "dirtyCallBack, fDirty=%d", fDirty);
+
+    if (fDirty) { /* the volume now has dirty sectors */
+
+        if (!(pSuperBlock->flFlags & SBF_DIRTY)) {
+            pSuperBlock->flFlags |= SBF_DIRTY;
+            cr = coreWriteSuperBlock(pSuperBlock,
+                CWS_NOWRITE_SUPERBLOCK1);
+            if (cr)
+                logMsg(LOG_ERR, "error setting dirty flag, cr=%d", cr);
+        }
+
+    } else { /* the volume now has no dirty sectors */
+        /* Do nothing.  The superblock's dirty flag is periodically
+           cleared by the lazy writer or by volumeDirty(). */
+    }
+
+}
+
+
 /* Flush all dirty data on a volume, clear the dirty bit. */
 void commitVolume()
 {
@@ -437,56 +482,59 @@ void commitVolume()
 }
 
 
-#define FUSE_UMOUNT_CMD_ENV  "_FUSE_UNMOUNT_CMD"
-
-static char *unmount_cmd;
-
-static void cleanup()
+static int readBuf(int fd, void * buf, int size)
 {
-    close(0);
-/*     system(unmount_cmd); */
+    int r;
+    while (size) {
+        r = read(fd, buf, size);
+        if (r == -1 && errno != EINTR) return -1;
+        if (r == 0) return -1;
+        buf += r;
+        size -= r;
+    }
+    return 0;
 }
 
 
-int main(int argc, char * * argv)
+static FuseMountParams params;
+static int fdFrom, fdTo;
+
+
+static void writeResult(CoreResult cr)
 {
+    if (write(fdTo, &cr, sizeof(cr)) != sizeof(cr)) {
+        logMsg(LOG_ERR, "cannot write result: %s",
+            strerror(errno));
+    }
+}
+
+
+/* Return true iff somebody unmounted us. */
+static bool run(void)
+{
+    bool fUnmounted;
     CryptedVolumeParms parms;
     CoreResult cr;
-    char szPassPhrase[1024], * pszPassPhrase = 0;
-    char szBasePath[MAX_VOLUME_BASE_PATH_NAME];
 
-    fDebug = true;
-
-    /* !!! check */
-    strcpy(szBasePath, argv[1]);
-    strcat(szBasePath, "/");
-
-    unmount_cmd = getenv(FUSE_UMOUNT_CMD_ENV);
-    logMsg(LOG_DEBUG, "unmount_cmd: `%s'", unmount_cmd);
-
-    if (!dupFuseFD()) return 1;
-
-    sysInitPRNG();
-
-    coreSetDefVolumeParms(&parms);
-
-    /* Ask the user to enter the passphrase, if it wasn't specified
-       with "-k". */
-    if (!pszPassPhrase) {
-        pszPassPhrase = szPassPhrase;
-        if (readPhrase("passphrase: ", sizeof(szPassPhrase), szPassPhrase)) {
-            fprintf(stderr, "%s: error reading passphrase\n", pszProgramName);
-            return 1;
-        }
+    /* Move the fuse file descriptor away from 0.  Must be done prior
+       to daemonizing. */
+    if (!dupFuseFD()) {
+        writeResult(CORERC_SYS + SYS_UNKNOWN);
+        return false;
     }
 
+    /* Daemonize. */
     if (!fDebug) daemon(0, 0);
     
+    coreSetDefVolumeParms(&parms);
+    parms.fReadOnly = params.fReadOnly;
+    parms.dirtyCallBack = dirtyCallBack;
+
     /* Read the superblock, initialize volume structures.  Note: we
        cannot call daemon() after coreReadSuperBlock(), since daemon()
        works by forking and children do not inherit file locks. */
 retry:
-    cr = coreReadSuperBlock(szBasePath, pszPassPhrase,
+    cr = coreReadSuperBlock(params.szBasePath, params.szPassPhrase,
         cipherTable, &parms, &pSuperBlock);
     if (cr) {
         if (pSuperBlock) coreDropSuperBlock(pSuperBlock);
@@ -496,16 +544,56 @@ retry:
         }
 	logMsg(LOG_ERR, "%s: unable to read superblock: %s", 
 	    pszProgramName, core2str(cr));
-        return 1;
+        writeResult(cr);
+        return false;
     }
+
+    writeResult(CORERC_OK);
     
     pVolume = pSuperBlock->pVolume;
 
-    runLoop();
+    fUnmounted = runLoop();
 
-    cleanup();
-
+    commitVolume();
     coreDropSuperBlock(pSuperBlock);
+
+    return fUnmounted;
+}
+
+
+int main(int argc, char * * argv)
+{
+    char * pszEnv, * pszUnmount;
+
+    pszProgramName = argv[0];
+    sysInitPRNG();
+
+    /* Get the file descriptors used to communicate with mntaefsfuse. */
+    pszEnv = getenv("AEFS_FD");
+    if (!pszEnv) {
+        fprintf(stderr, "%s: must be run by mntaefsfuse\n", 
+            pszProgramName);
+        return 1;
+    }
+    if (sscanf(pszEnv, "%d %d", &fdFrom, &fdTo) != 2) abort();
+
+    /* Read the parameters. */
+    if (readBuf(fdFrom, &params, sizeof(params))) abort();
+    close(fdFrom);
+    logMsg(LOG_DEBUG, "mounting AEFS volume at %s", params.szBasePath);
+
+    fDebug = params.fDebug;
+
+    /* Get the unmounting command. */
+    pszUnmount = getenv("_FUSE_UNMOUNT_CMD");
+
+    /* Do actual work, then unmount unless somebody else did. */
+    if (!run()) {
+        logMsg(LOG_DEBUG, "unmounting using: %s", pszUnmount);
+        system(pszUnmount);
+    }
+
+    memset(&params, 0, sizeof(params)); /* burn */
 
     return 0;
 }

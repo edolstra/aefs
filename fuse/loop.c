@@ -1,3 +1,22 @@
+/* loop.c -- Implements communication with the FUSE kernel module.
+   Copyright (C) 2001 Eelco Dolstra (eelco@cs.uu.nl).
+
+   $Id: loop.c,v 1.6 2001/12/26 21:49:58 eelco Exp $
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2, or (at your option)
+   any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software Foundation,
+   Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -174,12 +193,14 @@ void processCommand()
 static bool fTerminate = false;
 
 
-void runLoop()
+/* Return true iff somebody unmounted us. */
+bool runLoop()
 {
     fd_set readfds;
     struct timeval timeout;
     int res;
     time_t maxAge = 5, timeFlush = time(0), timeCur;
+    bool fUnmounted = false;
 
     while (!fTerminate) {
 
@@ -208,7 +229,8 @@ void runLoop()
 	    buflen = read(fdFuse, buf, sizeof(buf));
 	    if (buflen == -1) {
 		logMsg(LOG_ERR, "error reading fuse device: %s", strerror(errno));
-		break;
+		fUnmounted = true;
+                break;
 	    }
 	    if ((size_t) buflen < sizeof(struct fuse_in_header)) {
 		logMsg(LOG_ERR, "short read on fuse device");
@@ -217,6 +239,8 @@ void runLoop()
 	    processCommand();
 	}
     }
+
+    return fUnmounted;
 }
 
 
@@ -225,13 +249,13 @@ bool dupFuseFD()
     int fd, fd2;
     fd = dup(fdFuse);
     if (fd == -1) {
-	fprintf(stderr, "cannot dup fuse fd: %s", strerror(errno));
+	logMsg(LOG_ERR, "cannot dup fuse fd: %s", strerror(errno));
 	return false;
     }
     if (fdFuse < 3) {
 	fd2 = open("/dev/null", O_RDONLY);
 	if (fd == -1) {
-	    fprintf(stderr, "cannot dup /dev/null: %s", strerror(errno));
+	    logMsg(LOG_ERR, "cannot dup /dev/null: %s", strerror(errno));
 	    return false;
 	}
 	dup2(fd2, fdFuse);
@@ -239,5 +263,6 @@ bool dupFuseFD()
     } else
 	close(fdFuse);
     fdFuse = fd;
+    logMsg(LOG_DEBUG, "fuse fd moved to %d", fdFuse);
     return true;
 }
