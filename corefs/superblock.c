@@ -1,7 +1,7 @@
 /* superblock.c -- Superblock code.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: superblock.c,v 1.12 2001/12/06 16:08:17 eelco Exp $
+   $Id: superblock.c,v 1.13 2001/12/28 19:31:11 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@
 #include "sha.h"
 
 
+#if 0
 void printKey(const char * what, unsigned int cbKey, octet * pabKey)
 {
    int i;
@@ -36,6 +37,7 @@ void printKey(const char * what, unsigned int cbKey, octet * pabKey)
       printf("%02x", (int) pabKey[i]);
    printf("\n");
 }
+#endif
 
 
 static CoreResult cipherResultToCore(CipherResult cr)

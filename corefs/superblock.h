@@ -1,7 +1,7 @@
 /* superblock.h -- Header file to the standard superblock code.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: superblock.h,v 1.7 2001/12/26 17:37:44 eelco Exp $
+   $Id: superblock.h,v 1.8 2001/12/28 19:31:11 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -99,6 +99,13 @@ CoreResult coreWriteDataKey(SuperBlock * pSuperBlock,
    char * pszPassPhrase);
 
 CoreResult coreDropSuperBlock(SuperBlock * pSuperBlock);
+
+
+#if 0
+void printKey(const char * what, unsigned int cbKey, octet * pabKey)
+#else
+#define printKey(x, y, z) ;
+#endif
 
 
 #endif /* !_SUPERBLOCK_H */
