@@ -1,7 +1,7 @@
 /* posix.c -- Posix-specific low-level code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: posix.c,v 1.5 2000/12/29 22:04:29 eelco Exp $
+   $Id: posix.c,v 1.6 2000/12/30 00:43:45 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -38,6 +38,9 @@
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
+#ifndef O_SYNC
+#define O_SYNC 0
+#endif
 
 
 struct _File {
@@ -64,27 +67,37 @@ static Bool lock(int h, int flFlags)
 }
 
 
+static int makeUnixFlags(int flFlags)
+{
+   int f = O_BINARY;
+
+   switch (flFlags & SOF_RWMASK) {
+      case SOF_READONLY:  f |= O_RDONLY; break;
+      case SOF_WRITEONLY: f |= O_WRONLY; break;
+      case SOF_READWRITE: f |= O_RDWR;   break;
+      default: return -1;
+   }
+   
+   if (flFlags & SOF_WRITE_THROUGH) f |= O_SYNC;
+
+   return f;
+}
+
+
 File * sysOpenFile(char * pszName, int flFlags, Cred cred)
 {
    int h;
-   int f = O_BINARY;
+   int f = makeUnixFlags(flFlags);
    int pmode = S_IREAD | S_IWRITE;
    File * pFile;
    struct stat st;
    int euid, egid;
 
+   if (f == -1) return 0;
+
    if (flFlags & SOF_TRUNC_IF_EXISTS) f |= O_TRUNC;
    if (flFlags & SOF_CREATE_IF_NEW) f |= O_CREAT;
    
-   switch (flFlags & SOF_RWMASK) {
-      case SOF_READONLY:  f |= O_RDONLY; break;
-      case SOF_WRITEONLY: f |= O_WRONLY; break;
-      case SOF_READWRITE: f |= O_RDWR;   break;
-      default: return 0;
-   }
-   
-   if (flFlags & SOF_WRITE_THROUGH) f |= O_SYNC;
-
 #ifdef HAVE_SETFSUID
    if (cred.fEnforce) {
       euid = geteuid(); egid = getegid();
@@ -136,10 +149,13 @@ File * sysCreateFile(char * pszName, int flFlags,
    FilePos cbInitialSize, Cred cred)
 {
    int h;
-   int f = O_BINARY | O_CREAT | O_EXCL;
+   int f = makeUnixFlags(flFlags);
    int pmode = S_IREAD | S_IWRITE;
    File * pFile;
    int euid, egid;
+
+   if (f == -1) return 0;
+   f |= O_BINARY | O_CREAT | O_EXCL;
 
    switch (flFlags & SOF_RWMASK) {
       case SOF_READONLY:  f |= O_RDONLY; break;
