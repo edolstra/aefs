@@ -20,11 +20,83 @@ struct _File {
 };
 
 
-File * sysOpenFile(char * pszName, int flFlags,
-   FilePos cbInitialSize)
+static Bool lock(int h, int flFlags)
+{
+   struct flock fl;
+   switch (flFlags & SOF_SHMASK) {
+      case SOF_DENYALL: fl.l_type = F_WRLCK; break;
+      case SOF_DENYWRITE: fl.l_type = F_RDLCK; break;
+      case SOF_DENYNONE: return TRUE;
+      default: return FALSE;
+   }
+   fl.l_whence = SEEK_SET;
+   fl.l_start = 0;
+   fl.l_len = 0; /* eof */
+   fl.l_pid = 0; /* ??? */
+   if (fcntl(h, F_SETLK, &fl) == -1)
+      return FALSE;
+   return TRUE;
+}
+
+
+File * sysOpenFile(char * pszName, int flFlags, Cred cred)
 {
    int h;
    int f = O_BINARY;
+   int pmode = S_IREAD | S_IWRITE;
+   File * pFile;
+   struct stat st;
+
+   if (flFlags & SOF_TRUNC_IF_EXISTS) f |= O_TRUNC;
+   if (flFlags & SOF_CREATE_IF_NEW) f |= O_CREAT;
+   
+   switch (flFlags & SOF_RWMASK) {
+      case SOF_READONLY:  f |= O_RDONLY; break;
+      case SOF_WRITEONLY: f |= O_WRONLY; break;
+      case SOF_READWRITE: f |= O_RDWR;   break;
+      default: return 0;
+   }
+   
+   if (flFlags & SOF_WRITE_THROUGH) f |= O_SYNC;
+
+   h = open(pszName, f, pmode);
+   if (h == -1) return 0;
+
+   /* Check that we have permission to access this file.  We have to
+      do this *after* opening the file to prevent someone from
+      exploiting the time window between stat() and open(). */
+   if (cred.fEnforce) {
+      if (fstat(h, &st)) {
+         close(h);
+         return 0;
+      }
+      if ((cred.uid != st.st_uid) || (cred.gid != st.st_gid)) {
+         close(h);
+         return 0;
+      }
+   }
+
+   if (!lock(h, flFlags)) {
+      close(h);
+      return 0;
+   }
+
+   pFile = malloc(sizeof(File));
+   if (!pFile) {
+      close(h);
+      return 0;
+   }
+   pFile->h = h;
+
+   return pFile;
+}
+
+
+File * sysCreateFile(char * pszName, int flFlags,
+   FilePos cbInitialSize, Cred cred)
+{
+   int h;
+   int f = O_BINARY | O_CREAT | O_EXCL;
    int pmode = S_IREAD | S_IWRITE;
    File * pFile;
 
@@ -37,25 +109,26 @@ File * sysOpenFile(char * pszName, int flFlags,
    
    if (flFlags & SOF_WRITE_THROUGH) f |= O_SYNC;
 
-   if (sysFileExists(pszName)) {
+   if (cred.fEnforce) umask(0077);
 
-      switch (flFlags & SOF_EXMASK) {
-         case SOF_FAIL_IF_EXISTS: f |= O_EXCL; return 0;
-         case SOF_OPEN_IF_EXISTS: break;
-         case SOF_REPLACE_IF_EXISTS:
-            if (!sysDeleteFile(pszName, TRUE)) return 0;
-            f |= O_CREAT;
-            break;
-         default: return 0;
-      }
-
-   } else {
-      if ((flFlags & SOF_NXMASK) != SOF_CREATE_IF_NEW) return 0;
-      f |= O_CREAT;
-   }
-   
    h = open(pszName, f, pmode);
    if (h == -1) return 0;
+
+   if (cred.fEnforce) {
+      if (fchown(h, cred.uid, cred.gid)) {
+         close(h);
+         return 0;
+      }
+      if (fchmod(h, cred.mode)) {
+         close(h);
+         return 0;
+      }
+   }
+
+   if (!lock(h, flFlags)) {
+      close(h);
+      return 0;
+   }
 
    pFile = malloc(sizeof(File));
    if (!pFile) {
@@ -64,12 +137,10 @@ File * sysOpenFile(char * pszName, int flFlags,
    }
    pFile->h = h;
 
-   if (f & O_CREAT)
-      if (!sysSetFileSize(pFile, cbInitialSize)) {
-         close(h);
-         free(pFile);
-         return 0;
-      }
+   if (!sysSetFileSize(pFile, cbInitialSize)) {
+      sysCloseFile(pFile);
+      return 0;
+   }
 
    return pFile;
 }
@@ -132,8 +203,9 @@ Bool sysQueryFileSize(File * pFile, FilePos * pcbSize)
 }
 
 
-Bool sysDeleteFile(char * pszName, Bool fFastDelete)
+Bool sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred)
 {
+   /* !!! check permissions */
    return !remove(pszName);
 }
 

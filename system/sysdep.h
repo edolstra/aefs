@@ -35,10 +35,9 @@ typedef long FilePos;
 #define SOF_READWRITE          0x0002
 
 #define SOF_SHMASK             0x00f0
-#define SOF_DENYREADWRITE      0x0010
+#define SOF_DENYALL            0x0010
 #define SOF_DENYWRITE          0x0020
-#define SOF_DENYREAD           0x0030
-#define SOF_DENYNONE           0x0040
+#define SOF_DENYNONE           0x0000
 
 #define SOF_LCMASK             0x0f00 
 #define SOF_NO_LOCALITY        0x0000
@@ -49,17 +48,13 @@ typedef long FilePos;
 #define SOF_NO_CACHE           0x1000
 #define SOF_WRITE_THROUGH      0x4000
 
-#define SOF_EXMASK             0x000f0000 
-#define SOF_FAIL_IF_EXISTS     0x00000000
-#define SOF_OPEN_IF_EXISTS     0x00010000
-#define SOF_REPLACE_IF_EXISTS  0x00020000
-#define SOF_NXMASK             0x00f00000 
-#define SOF_FAIL_IF_NEW        0x00000000
-#define SOF_CREATE_IF_NEW      0x00100000  
+#define SOF_TRUNC_IF_EXISTS    0x10000
+#define SOF_CREATE_IF_NEW      0x20000
 
 
-File * sysOpenFile(char * pszName, int flFlags,
-   FilePos cbInitialSize);
+File * sysOpenFile(char * pszName, int flFlags, Cred cred);
+File * sysCreateFile(char * pszName, int flFlags, 
+    FilePos cbInitialSize, Cred cred);
 Bool sysCloseFile(File * pFile);
 Bool sysSetFilePos(File * pFile, FilePos ibNewPos);
 Bool sysReadFromFile(File * pFile, FilePos cbLength,
@@ -68,7 +63,7 @@ Bool sysWriteToFile(File * pFile, FilePos cbLength,
    octet * pabBuffer, FilePos * pcbWritten);
 Bool sysSetFileSize(File * pFile, FilePos cbSize);
 Bool sysQueryFileSize(File * pFile, FilePos * pcbSize);
-Bool sysDeleteFile(char * pszName, Bool fFastDelete);
+Bool sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred);
 Bool sysFileExists(char * pszName);
 
 void * sysAllocSecureMem(int cbSize);

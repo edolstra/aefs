@@ -18,6 +18,8 @@
 #ifndef _SYSSPEC_H
 #define _SYSSPEC_H
 
+#include <sys/types.h>
+
 
 /* Override these to match your system. */
 
@@ -36,6 +38,14 @@ typedef unsigned char octet;
 
 
 #define IS_PATH_SEPARATOR(c) ((c) == '/')
+
+
+typedef struct {
+      int fEnforce;
+      uid_t uid;
+      gid_t gid;
+      mode_t mode;
+} Cred;
 
 
 #endif

@@ -44,4 +44,8 @@ extern int cSecureAlloced;
 extern int cSecureFreed;
 
 
+typedef struct {
+} Cred;
+
+
 #endif
