@@ -63,8 +63,8 @@ static int aefs_getattr(const char * path, struct stat * stbuf)
 
     stbuf->st_mode = info.flFlags;
     stbuf->st_nlink = info.cRefs;
-    stbuf->st_uid = info.uid;
-    stbuf->st_gid = info.gid;
+    stbuf->st_uid = getuid();
+    stbuf->st_gid = getgid();
     stbuf->st_size = info.cbFileSize;
     stbuf->st_blksize = SECTOR_SIZE;
     stbuf->st_rdev = 0;
@@ -178,13 +178,33 @@ static int aefs_utime(const char * path, struct utimbuf * buf)
 
 static int aefs_open(const char * path, int flags)
 {
-    return -ENOTSUP;
+    CoreResult cr;
+    CryptedFileID idFile;
+
+    fprintf(stderr, "open %s\n", path);
+
+    cr = coreQueryIDFromPath(pVolume, pSuperBlock->idRoot, path, &idFile, 0);
+    if (cr) return core2sys(cr);
+
+    return 0;
 }
 
 
 static int aefs_read(const char * path, char * buf, size_t size, off_t offset)
 {
-    return -ENOTSUP;
+    CoreResult cr;
+    CryptedFileID idFile;
+    CryptedFilePos cbRead;
+
+    fprintf(stderr, "read %s %ld %d\n", path, offset, size);
+
+    cr = coreQueryIDFromPath(pVolume, pSuperBlock->idRoot, path, &idFile, 0);
+    if (cr) return core2sys(cr);
+
+    cr = coreReadFromFile(pVolume, idFile, offset, size, buf, &cbRead);
+    if (cr) return core2sys(cr);
+
+    return cbRead;
 }
 
 
@@ -272,7 +292,7 @@ int main(int argc, char * * argv)
 
     /* Read the superblock, initialize volume structures. */
 retry:
-    cr = coreReadSuperBlock("/home/eelco/encrypted/", "kwik",
+    cr = coreReadSuperBlock("", "",
         cipherTable, &parms, &pSuperBlock);
     if (cr) {
         if (pSuperBlock) coreDropSuperBlock(pSuperBlock);
