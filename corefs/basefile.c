@@ -194,8 +194,8 @@ CoreResult coreReadFromFile(CryptedVolume * pVolume, CryptedFileID id,
    offset = fpStart % PAYLOAD_SIZE;
 
    /* Read the data. */
-   while (cbLength && (sCurrent < info.csSet))
-   {
+   while (cbLength && (sCurrent < info.csSet)) {
+
       /* Fetch at most csIOGranularity sectors. */
       csExtent = (offset + cbLength - 1) / PAYLOAD_SIZE + 1;
       if (sCurrent + csExtent > info.csSet)
