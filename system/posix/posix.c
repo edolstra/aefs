@@ -1,7 +1,7 @@
 /* posix.c -- Posix-specific low-level code.
    Copyright (C) 1999, 2000 Eelco Dolstra (edolstra@students.cs.uu.nl).
 
-   $Id: posix.c,v 1.6 2000/12/30 00:43:45 eelco Exp $
+   $Id: posix.c,v 1.7 2000/12/30 15:18:11 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -91,7 +91,7 @@ File * sysOpenFile(char * pszName, int flFlags, Cred cred)
    int pmode = S_IREAD | S_IWRITE;
    File * pFile;
    struct stat st;
-   int euid, egid;
+   int euid = 0, egid = 0;
 
    if (f == -1) return 0;
 
@@ -152,7 +152,7 @@ File * sysCreateFile(char * pszName, int flFlags,
    int f = makeUnixFlags(flFlags);
    int pmode = S_IREAD | S_IWRITE;
    File * pFile;
-   int euid, egid;
+   int euid = 0, egid = 0;
 
    if (f == -1) return 0;
    f |= O_BINARY | O_CREAT | O_EXCL;
@@ -277,7 +277,7 @@ Bool sysQueryFileSize(File * pFile, FilePos * pcbSize)
 Bool sysDeleteFile(char * pszName, Bool fFastDelete, Cred cred)
 {
    Bool res;
-   int euid, egid;
+   int euid = 0, egid = 0;
 
 #ifdef HAVE_SETFSUID
    if (cred.fEnforce) {
