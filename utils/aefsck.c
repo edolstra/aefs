@@ -1,7 +1,7 @@
 /* aefsck.c -- AEFS file system check and repair program.
    Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: aefsck.c,v 1.21 2001/12/28 19:21:03 eelco Exp $
+   $Id: aefsck.c,v 1.22 2001/12/30 21:43:15 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1096,9 +1096,9 @@ static int checkFileInfo(State * pState, FSItem * fsi)
       printf("%s: initialization too large (%ld), should be %ld",
          printFileName(pState, fsi->id),
          fsi->info.csSet, csSet);
+      fsi->info.csSet = csSet;
       if (pState->flags & FSCK_FIX) {
          printf(", resetting\n");
-         fsi->info.csSet = csSet;
          res |= writeFileInfo(pState, fsi);
          if (STOP(res)) return res;
       } else printf("\n");
@@ -1321,7 +1321,7 @@ static int isBadEntry(State * pState, FSItem * fsi,
    for (p = pszName; *p; p++) {
       fEmpty = false;
       fWhite = (*p == ' ');
-      if (*p < 32 || *p == 127) fBad = true;
+      if ((*p >= 0 && *p < 32) || *p == 127) fBad = true;
    }
    
    if (fEmpty)
