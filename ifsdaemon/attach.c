@@ -1,7 +1,7 @@
 /* attach.h -- Handles (at|de)tachments and other volume stuff.
-   Copyright (C) 1999, 2001 Eelco Dolstra (eelco@cs.uu.nl).
+   Copyright (C) 1999, 2002 Eelco Dolstra (eelco@cs.uu.nl).
 
-   $Id: attach.c,v 1.10 2001/12/06 16:08:18 eelco Exp $
+   $Id: attach.c,v 1.11 2002/02/16 18:32:21 eelco Exp $
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -414,7 +414,7 @@ static APIRET getSetAllocInfo(ServerData * pServerData,
    PFSALLOCATE pfsalloc;
    FSALLOCATE fsallocReal;
    APIRET rc;
-   uint64 cbUnit, cbTotal, cbAvail;
+   uint64 cbUnit, cbTotal = 1 << 30, cbAvail = cbTotal / 2;
    
    if (pfsinfo->fsFlag == INFO_RETRIEVE) {
       
@@ -428,10 +428,7 @@ static APIRET getSetAllocInfo(ServerData * pServerData,
          FSIL_ALLOC,
          &fsallocReal,
          sizeof(fsallocReal));
-      if (rc) {
-         cbTotal = 1024 * 1024 * 1024;
-         cbAvail = 512 * 1024 * 1024;
-      } else {
+      if (!rc) {
          cbUnit = fsallocReal.cbSector * fsallocReal.cSectorUnit;
          cbTotal = cbUnit * fsallocReal.cUnit;
          cbAvail = cbUnit * fsallocReal.cUnitAvail;
