@@ -787,6 +787,11 @@ int main(int argc, char * * argv)
         return 1;
     }
 
+    /* Passphrase specified in the environment? */
+    if (!pszPassPhrase) {
+        pszPassPhrase = getenv("AEFS_PASSPHRASE");
+    }
+
     /* Ask the user to enter the passphrase, if it wasn't specified
        with "-k". */
     if (!pszPassPhrase) {
@@ -797,8 +802,9 @@ int main(int argc, char * * argv)
         }
     }
 
-    run(szPassPhrase);
-    memset(szPassPhrase, 0, sizeof(szPassPhrase)); /* burn */
+    run(pszPassPhrase);
+    
+    memset(pszPassPhrase, 0, strlen(pszPassPhrase)); /* burn */
 
     /* Read the result. */
     if (read(fdRes[0], &cr, sizeof(cr)) != sizeof(cr)) {

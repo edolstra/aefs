@@ -612,6 +612,11 @@ int main(int argc, char * * argv)
    pszBasePath = argv[optind++];
    pszCommand = argv[optind++];
 
+   /* Passphrase specified in the environment? */
+   if (!pszPassPhrase) {
+      pszPassPhrase = getenv("AEFS_PASSPHRASE");
+   }
+
    /* Ask the user to enter the passphrase, if it wasn't specified
       with "-k". */
    if (!pszPassPhrase) {

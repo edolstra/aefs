@@ -231,6 +231,9 @@
   For all programs that allow you to enter a key, you may set the
   environment variable þtt{AEFS_ECHO} to þtt{1} to have them echo the
   key you type to the screen; otherwise, user input it is not echoed.
+  Also, for programs that allow you to enter a key, you may use the
+  environment variable þtt{AEFS_PASSPHRASE} to pass the key
+  non-interactively.  This is safer than using the þsy{--key} option.
 
 
 þh2 mkaefs
@@ -246,7 +249,9 @@
 þitem þsy{--key <key>, -k <key>}
 
   Use the specified key.  If the key is not specified, you will be
-  asked to type it in.
+  asked to type it in.  This is unsafe on most multi-user systems,
+  since other users may be able to see the command-line arguments of
+  processes started by you (e.g., through þtt{ps}).
 
 þitem þsy{--cipher <cipher>, -c <cipher>}
 

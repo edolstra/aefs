@@ -145,6 +145,11 @@ int main(int argc, char * * argv)
       return 0;
    }
    
+   /* Passphrase specified in the environment? */
+   if (!pszPassPhrase) {
+      pszPassPhrase = getenv("AEFS_PASSPHRASE");
+   }
+
    if (!pszPassPhrase) {
       pszPassPhrase = szPassPhrase;
       if (readPhrase("passphrase: ", sizeof(szPassPhrase), szPassPhrase)) {

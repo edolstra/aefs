@@ -416,6 +416,11 @@ int main(int argc, char * * argv)
 
    pszBasePath = argv[optind++];
 
+   /* Passphrase specified in the environment? */
+   if (!pszPassPhrase) {
+      pszPassPhrase = getenv("AEFS_PASSPHRASE");
+   }
+
    /* Make the volume. */
    res = createVolumeInPath(pszBasePath, pszCipher, pszPassPhrase, 
       fUseCBC, fDataKey);
