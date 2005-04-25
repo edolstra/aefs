@@ -368,7 +368,7 @@ int createFile(CryptedFileID idDir, char * pszName,
         case CFF_IFDIR: /* directory */
             break;
         default: /* device nodes are not supported */
-            return -EACCES;
+            return -ENOTSUP;
     }
 
     /* Create the file. */
