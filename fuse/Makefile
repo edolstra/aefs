@@ -18,7 +18,8 @@ LIBS = $(BASE)/corefs/corefs.a $(BASE)/ciphers/ciphers.a \
 
 SYSLIBS += -lfuse -lpthread
 
-CFLAGS += -D_FILE_OFFSET_BITS=64
+# !!! fix the -I...
+CFLAGS += -D_FILE_OFFSET_BITS=64 -I../../fuse/include -L/sw/pkg/fuse/lib
 
 $(PROG): $(SRCS:.c=.o) $(LIBS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(SRCS:.c=.o) $(LIBS) $(SYSLIBS) -o $@
