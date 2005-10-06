@@ -75,6 +75,8 @@ static int core2sys(CoreResult cr)
         case CORERC_READ_ONLY: return -EROFS;
         case CORERC_ISF_CORRUPT: return -EIO;
         case CORERC_ID_EXISTS: return -EIO;
+        case CORERC_NOT_SYMLINK: return -EINVAL;
+        case CORERC_NAME_TOO_LONG: return -ENAMETOOLONG;
         default:
             if (IS_CORERC_SYS(cr)) return -EIO;
             logMsg(LOG_ERR, "unexpected corefs error %d", cr);
@@ -229,21 +231,11 @@ int do_readlink(struct fuse_in_header * in, char * outbuf)
 {
     CoreResult cr;
     CryptedFileID idLink = in->nodeid;
-    CryptedFileInfo info;
-    CryptedFilePos cbRead;
 
     logMsg(LOG_DEBUG, "readlink %ld", idLink);
 
-    cr = coreQueryFileInfo(pVolume, idLink, &info);
+    cr = coreReadSymlink(pVolume, idLink, PATH_MAX, &outbuf);
     if (cr) return core2sys(cr);
-
-    if (!CFF_ISLNK(info.flFlags)) return -EINVAL;
-    if (info.cbFileSize >= PATH_MAX) return -ENAMETOOLONG;
-
-    cr = coreReadFromFile(pVolume, idLink, 0,
-        info.cbFileSize, (octet *) outbuf, &cbRead);
-    if (cr) return core2sys(cr);
-    outbuf[info.cbFileSize] = 0;
 
     return 0;
 }
@@ -465,7 +457,6 @@ int do_symlink(struct fuse_in_header * in,
     char * pszName, char * pszTarget, struct fuse_entry_out * out)
 {
     CoreResult cr;
-    CryptedFilePos cbWritten;
     int res;
 
     res = createFile(in->nodeid, pszName, 
@@ -474,8 +465,7 @@ int do_symlink(struct fuse_in_header * in,
     
     logMsg(LOG_DEBUG, "symlink %ld %s", out->nodeid, pszTarget);
 
-    cr = coreWriteToFile(pVolume, out->nodeid, 0,
-        strlen(pszTarget), (octet *) pszTarget, &cbWritten);
+    cr = coreWriteSymlink(pVolume, out->nodeid, pszTarget);
     if (cr) return core2sys(cr);
 
     return 0;

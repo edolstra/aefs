@@ -55,6 +55,8 @@ typedef unsigned int CoreResult;
 #define CORERC_READ_ONLY           15
 #define CORERC_ISF_CORRUPT         16
 #define CORERC_ID_EXISTS           17
+#define CORERC_NOT_SYMLINK         18
+#define CORERC_NAME_TOO_LONG       19
 #define CORERC_SYS                 100 /* SYS_* added to this */
 #define IS_CORERC_SYS(x) ((x) >= 100 && (x) <= 200)
 CoreResult sys2core(SysResult sr);
@@ -442,6 +444,17 @@ CoreResult coreQueryEAs(CryptedVolume * pVolume,
 
 CoreResult coreSetEAs(CryptedVolume * pVolume,
    CryptedFileID id, CryptedEA * pEAs);
+
+
+/*
+ * Symlinks
+ */
+
+CoreResult coreWriteSymlink(CryptedVolume * pVolume,
+   CryptedFileID id, char * pszTarget);
+
+CoreResult coreReadSymlink(CryptedVolume * pVolume,
+   CryptedFileID id, unsigned int cbMaxTarget, char * * pszTarget);
 
 
 #endif /* !_COREFS_H */
