@@ -77,6 +77,7 @@ static int core2sys(CoreResult cr)
         case CORERC_ID_EXISTS: return -EIO;
         case CORERC_NOT_SYMLINK: return -EINVAL;
         case CORERC_NAME_TOO_LONG: return -ENAMETOOLONG;
+        case CORERC_BAD_SYMLINK: return -EIO;
         default:
             if (IS_CORERC_SYS(cr)) return -EIO;
             logMsg(LOG_ERR, "unexpected corefs error %d", cr);

@@ -142,8 +142,9 @@ static CoreResult getInfoAndVerify(CryptedVolume * pVolume,
    cr = coreQueryFileInfo(pVolume, id, pInfo);
    if (cr) return cr;
 
-   /* Only regular files and directories can have EAs. */
-   if (!CFF_ISREG(pInfo->flFlags) && !CFF_ISDIR(pInfo->flFlags))
+   /* Only regular files, directories and symlinks can have EAs. */
+   if (!CFF_ISREG(pInfo->flFlags) && !CFF_ISDIR(pInfo->flFlags)
+       && !CFF_ISLNK(pInfo->flFlags))
       return CORERC_BAD_TYPE;
 
    return CORERC_OK;

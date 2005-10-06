@@ -57,6 +57,7 @@ typedef unsigned int CoreResult;
 #define CORERC_ID_EXISTS           17
 #define CORERC_NOT_SYMLINK         18
 #define CORERC_NAME_TOO_LONG       19
+#define CORERC_BAD_SYMLINK         20
 #define CORERC_SYS                 100 /* SYS_* added to this */
 #define IS_CORERC_SYS(x) ((x) >= 100 && (x) <= 200)
 CoreResult sys2core(SysResult sr);
@@ -431,7 +432,8 @@ struct _CryptedEA {
 
 /* Flags for CryptedEA.flFlags. */
 #define CEF_NOT_EOL           1 /* on-disk only */
-#define CEF_CRITICAL          2
+#define CEF_CRITICAL          2 /* EA cannot be omitted when copying
+                                   to a non-EA file system */
 
 
 CoreResult coreAllocEA(char * pszName, unsigned int cbValue, 
@@ -449,6 +451,8 @@ CoreResult coreSetEAs(CryptedVolume * pVolume,
 /*
  * Symlinks
  */
+
+#define CEANAME_SYMLINK "$SYMLINK"
 
 CoreResult coreWriteSymlink(CryptedVolume * pVolume,
    CryptedFileID id, char * pszTarget);

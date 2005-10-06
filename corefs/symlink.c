@@ -26,30 +26,91 @@
 CoreResult coreWriteSymlink(CryptedVolume * pVolume,
    CryptedFileID id, char * pszTarget)
 {
-   CryptedFilePos cbWritten;
-   return coreWriteToFile(pVolume, id, 0,
-      strlen(pszTarget), (octet *) pszTarget, &cbWritten);
+   CoreResult cr;
+   CryptedFileInfo info;
+    
+   cr = coreQueryFileInfo(pVolume, id, &info);
+   if (cr) return cr;
+
+   if (!CFF_ISLNK(info.flFlags)) return CORERC_NOT_SYMLINK;
+
+   CryptedEA * pEAs, * pCurEA, * * ppPrevEA;
+   cr = coreQueryEAs(pVolume, id, &pEAs);
+   if (cr) return cr;
+
+   /* Remove the current CEA_SYMLINK attribute. */
+   for (pCurEA = pEAs, ppPrevEA = &pEAs; pCurEA; )
+   {
+      if (strcmp(pCurEA->pszName, CEANAME_SYMLINK) == 0) {
+         *ppPrevEA = pCurEA->pNext;
+         pCurEA->pNext = 0;
+         coreFreeEAs(pCurEA);
+         pCurEA = *ppPrevEA;
+      } else {
+         ppPrevEA = &pCurEA->pNext;
+         pCurEA = pCurEA->pNext;
+      }
+   }
+
+   CryptedEA * pNewEA;
+   cr = coreAllocEA(CEANAME_SYMLINK, strlen(pszTarget), CEF_CRITICAL, &pNewEA);
+   if (cr) {
+      coreFreeEAs(pEAs);
+      return cr;
+   }
+
+   strncpy((char *) pNewEA->pabValue, pszTarget, strlen(pszTarget));
+   pNewEA->pNext = pEAs;
+   
+   cr = coreSetEAs(pVolume, id, pNewEA);
+      
+   coreFreeEAs(pNewEA);
+
+   return cr;
 }
 
 
 CoreResult coreReadSymlink(CryptedVolume * pVolume,
    CryptedFileID id, unsigned int cbMaxTarget, char * * pszTarget)
 {
-    CoreResult cr;
-    CryptedFilePos cbRead;
-    CryptedFileInfo info;
+   CoreResult cr;
+   CryptedFilePos cbRead;
+   CryptedFileInfo info;
     
-    cr = coreQueryFileInfo(pVolume, id, &info);
-    if (cr) return cr;
+   cr = coreQueryFileInfo(pVolume, id, &info);
+   if (cr) return cr;
 
-    if (!CFF_ISLNK(info.flFlags)) return CORERC_NOT_SYMLINK;
-    if (info.cbFileSize >= cbMaxTarget) return CORERC_NAME_TOO_LONG;
+   if (!CFF_ISLNK(info.flFlags)) return CORERC_NOT_SYMLINK;
 
-    cr = coreReadFromFile(pVolume, id, 0,
-        info.cbFileSize, (octet *) *pszTarget, &cbRead);
-    if (cr) return cr;
-    (*pszTarget)[info.cbFileSize] = 0;
+   CryptedEA * pEAs, * pCurEA;
+   cr = coreQueryEAs(pVolume, id, &pEAs);
+   if (cr) return cr;
 
-    return CORERC_OK;
+   for (pCurEA = pEAs; pCurEA; pCurEA = pCurEA->pNext) {
+      if (strcmp(pCurEA->pszName, CEANAME_SYMLINK) == 0) {
+         if (pCurEA->cbValue >= cbMaxTarget) {
+            coreFreeEAs(pEAs);
+            return CORERC_NAME_TOO_LONG;
+         }
+         strncpy(*pszTarget, (char *) pCurEA->pabValue, pCurEA->cbValue);
+         (*pszTarget)[pCurEA->cbValue] = 0;
+         coreFreeEAs(pEAs);
+         return 0;
+      }
+   }
+   
+   coreFreeEAs(pEAs);
+    
+   /* Use old-style symlinks, which store the target in the file
+      contents. */
+   if (info.cbFileSize == 0) return CORERC_BAD_SYMLINK;
+   if (info.cbFileSize >= cbMaxTarget) return CORERC_NAME_TOO_LONG;
+                                            
+   cr = coreReadFromFile(pVolume, id, 0,
+      info.cbFileSize, (octet *) *pszTarget, &cbRead);
+   if (cr) return cr;
+   (*pszTarget)[info.cbFileSize] = 0;
+
+   return CORERC_OK;
 }
 
