@@ -26,6 +26,7 @@
 
 extern bool fDebug;
 
-void logMsg(int level, char * pszMsg, ...);
+void logMsg(int level, char * pszMsg, ...)
+     __attribute__ ((format (printf, 2, 3)));
 
 #endif /* !_LOGGING_H */
