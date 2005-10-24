@@ -1,8 +1,7 @@
 BASE = ..
 include $(BASE)/Makefile.incl
 
-MANIFEST := Makefile \
- aefsfuse.c aefsfuse.h loop.c
+MANIFEST := Makefile aefsfuse.c 
 
 ifeq ($(BUILD_FUSE), 1)
 
@@ -10,7 +9,7 @@ PROG = aefsfuse$(EXE)
 
 all: $(PROG)
 
-SRCS = aefsfuse.c loop.c
+SRCS = aefsfuse.c
 
 LIBS = $(BASE)/corefs/corefs.a $(BASE)/ciphers/ciphers.a \
  $(BASE)/system/$(SYSTEM)/sysdep.a $(BASE)/misc/misc.a \
@@ -19,7 +18,7 @@ LIBS = $(BASE)/corefs/corefs.a $(BASE)/ciphers/ciphers.a \
 SYSLIBS += -lfuse -lpthread
 
 # !!! fix the -I...
-CFLAGS += -D_FILE_OFFSET_BITS=64 -I../../fuse/include -L/sw/pkg/fuse/lib
+CFLAGS += -D_FILE_OFFSET_BITS=64 -I/sw/pkg/fuse/include -L/sw/pkg/fuse/lib
 
 $(PROG): $(SRCS:.c=.o) $(LIBS)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(SRCS:.c=.o) $(LIBS) $(SYSLIBS) -o $@

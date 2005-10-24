@@ -40,7 +40,15 @@
 #include "superblock.h"
 #include "utilutils.h"
 
-#include "aefsfuse.h"
+#include "sysdep.h"
+#include "logging.h"
+
+#include <fuse/fuse.h>
+#include <fuse/fuse_kernel.h>
+#include <fuse/fuse_lowlevel.h>
+
+
+void commitVolume();
 
 
 char * pszProgramName;
@@ -60,49 +68,48 @@ static int core2sys(CoreResult cr)
 {
     switch (cr) {
         case CORERC_OK: return 0;
-        case CORERC_FILE_NOT_FOUND: return -ENOENT;
-        case CORERC_NOT_ENOUGH_MEMORY: return -ENOMEM;
-        case CORERC_FILE_EXISTS: return -EEXIST;
+        case CORERC_FILE_NOT_FOUND: return ENOENT;
+        case CORERC_NOT_ENOUGH_MEMORY: return ENOMEM;
+        case CORERC_FILE_EXISTS: return EEXIST;
         case CORERC_INVALID_PARAMETER: abort();
-        case CORERC_INVALID_NAME: return -EINVAL;
-        case CORERC_BAD_CHECKSUM: return -EIO;
-        case CORERC_BAD_INFOSECTOR: return -EIO;
-        case CORERC_NOT_DIRECTORY: return -ENOTDIR;
-        case CORERC_BAD_DIRECTORY: return -EIO;
-        case CORERC_BAD_TYPE: return -EIO;
-        case CORERC_BAD_EAS: return -EIO;
+        case CORERC_INVALID_NAME: return EINVAL;
+        case CORERC_BAD_CHECKSUM: return EIO;
+        case CORERC_BAD_INFOSECTOR: return EIO;
+        case CORERC_NOT_DIRECTORY: return ENOTDIR;
+        case CORERC_BAD_DIRECTORY: return EIO;
+        case CORERC_BAD_TYPE: return EIO;
+        case CORERC_BAD_EAS: return EIO;
         case CORERC_CACHE_OVERFLOW: abort();
-        case CORERC_READ_ONLY: return -EROFS;
-        case CORERC_ISF_CORRUPT: return -EIO;
-        case CORERC_ID_EXISTS: return -EIO;
-        case CORERC_NOT_SYMLINK: return -EINVAL;
-        case CORERC_NAME_TOO_LONG: return -ENAMETOOLONG;
-        case CORERC_BAD_SYMLINK: return -EIO;
+        case CORERC_READ_ONLY: return EROFS;
+        case CORERC_ISF_CORRUPT: return EIO;
+        case CORERC_ID_EXISTS: return EIO;
+        case CORERC_NOT_SYMLINK: return EINVAL;
+        case CORERC_NAME_TOO_LONG: return ENAMETOOLONG;
+        case CORERC_BAD_SYMLINK: return EIO;
         default:
-            if (IS_CORERC_SYS(cr)) return -EIO;
+            if (IS_CORERC_SYS(cr)) return EIO;
             logMsg(LOG_ERR, "unexpected corefs error %d", cr);
-            return -EPERM;
+            return EPERM;
     }
 }
 
 
 static void storeAttr(CryptedFileID idFile, CryptedFileInfo * info,
-    struct fuse_attr * attr)
+    struct stat * st)
 {
-    memset(attr, 0, sizeof(struct fuse_attr));
-    attr->ino = idFile;
-    attr->mode = info->flFlags;
-    attr->nlink = info->cRefs;
-    attr->uid = getuid();
-    attr->gid = getgid();
-    attr->rdev = 0;
-    attr->size = info->cbFileSize;
-/*     attr->blksize = SECTOR_SIZE; !!! */
-    attr->blocks = info->csSet;
-    attr->atime = info->timeAccess;
-    attr->mtime = info->timeWrite;
-    attr->ctime = info->timeAccess; /* !!! */
-    attr->atimensec = attr->mtimensec = attr->ctimensec = 0;
+    memset(st, 0, sizeof(struct stat));
+    st->st_ino = idFile;
+    st->st_mode = info->flFlags;
+    st->st_nlink = info->cRefs;
+    st->st_uid = getuid();
+    st->st_gid = getgid();
+    st->st_rdev = 0;
+    st->st_size = info->cbFileSize;
+    st->st_blksize = SECTOR_SIZE;
+    st->st_blocks = info->csSet;
+    st->st_atime = info->timeAccess;
+    st->st_mtime = info->timeWrite;
+    st->st_ctime = info->timeAccess; /* !!! */
 }
 
 
@@ -128,117 +135,119 @@ static CoreResult stampFile(CryptedFileID idFile)
 static unsigned long generation = 0;
 
 
-static void fillEntryOut(struct fuse_entry_out * out,
-    CryptedFileID idFile, CryptedFileInfo * info, struct fuse_attr * attr)
+static void fillEntryOut(struct fuse_entry_param * out,
+    CryptedFileID idFile, CryptedFileInfo * info)
 {
-    out->nodeid = idFile;
+    out->ino = idFile;
     out->generation = generation++;
-    out->entry_valid = 1; /* sec */
-    out->entry_valid_nsec = 0;
-    out->attr_valid = 1; /* sec */
-    out->attr_valid_nsec = 0;
-    storeAttr(idFile, info, attr);
+    out->entry_timeout = 1.0; /* sec */
+    out->attr_timeout = 1.0; /* sec */
+    storeAttr(idFile, info, &out->attr);
 }
 
 
-int do_lookup(struct fuse_in_header * in, char * name, struct fuse_entry_out * out)
+static void do_lookup(fuse_req_t req, fuse_ino_t parent, const char * name)
 {
     CoreResult cr;
-    CryptedFileID idDir = in->nodeid, idFile;
+    CryptedFileID idDir = parent, idFile;
     CryptedFileInfo info;
 
     logMsg(LOG_DEBUG, "lookup %ld %s", idDir, name);
 
     cr = coreQueryIDFromPath(pVolume, idDir, name, &idFile, 0);
-    if (cr) return core2sys(cr);
+    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 
     cr = coreQueryFileInfo(pVolume, idFile, &info);
-    if (cr) return core2sys(cr);
+    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 
-    fillEntryOut(out, idFile, &info, &out->attr);
-    
-    return 0;
+    struct fuse_entry_param entry;
+    fillEntryOut(&entry, idFile, &info);
+
+    fuse_reply_entry(req, &entry);
 }
 
 
-int do_setattr(struct fuse_in_header * in, struct fuse_setattr_in * arg, 
-    struct fuse_attr_out * out)
+static void do_setattr(fuse_req_t req, fuse_ino_t ino, struct stat * attr,
+    int to_set, struct fuse_file_info * fi)
 {
     CoreResult cr;
-    CryptedFileID idFile = in->nodeid;
+    CryptedFileID idFile = ino;
     CryptedFileInfo info;
 
     logMsg(LOG_DEBUG, "setattr %ld", idFile);
 
     cr = coreQueryFileInfo(pVolume, idFile, &info);
-    if (cr) return core2sys(cr);
+    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 
-    if (arg->valid & FATTR_MODE) {
-	logMsg(LOG_DEBUG, "set mode %od", arg->attr.mode);
+    if (to_set & FUSE_SET_ATTR_MODE) {
+	logMsg(LOG_DEBUG, "set mode %od", attr->st_mode);
 	info.flFlags = 
-	    (info.flFlags & ~07777) | (arg->attr.mode & 07777);
+	    (info.flFlags & ~07777) | (attr->st_mode & 07777);
     }
 
-    if (arg->valid & FATTR_UID) {
-	logMsg(LOG_DEBUG, "set uid %d", arg->attr.uid);
-	info.uid = arg->attr.uid;
+    if (to_set & FUSE_SET_ATTR_UID) {
+	logMsg(LOG_DEBUG, "set uid %d", attr->st_uid);
+	info.uid = attr->st_uid;
     }
 
-    if (arg->valid & FATTR_GID) {
-	logMsg(LOG_DEBUG, "set gid %d", arg->attr.gid);
-	info.gid = arg->attr.gid;
+    if (to_set & FUSE_SET_ATTR_GID) {
+	logMsg(LOG_DEBUG, "set gid %d", attr->st_gid);
+	info.gid = attr->st_gid;
     }
 
-    if (arg->valid & FATTR_MTIME) {
-	logMsg(LOG_DEBUG, "set mtime %ld", arg->attr.mtime);
-	info.timeWrite = arg->attr.mtime;
+    if (to_set & FUSE_SET_ATTR_MTIME) {
+	logMsg(LOG_DEBUG, "set mtime %ld", attr->st_mtime);
+	info.timeWrite = attr->st_mtime;
     }
 
     cr = coreSetFileInfo(pVolume, idFile, &info);
-    if (cr) return core2sys(cr);
+    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 
-    if (arg->valid & FATTR_SIZE) {
-	logMsg(LOG_DEBUG, "set size %Ld", arg->attr.size);
-	cr = coreSetFileSize(pVolume, idFile, arg->attr.size);
-	if (cr) return core2sys(cr);
+    if (to_set & FUSE_SET_ATTR_SIZE) {
+	logMsg(LOG_DEBUG, "set size %Ld", attr->st_size);
+	cr = coreSetFileSize(pVolume, idFile, attr->st_size);
+	if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 	cr = coreQueryFileInfo(pVolume, idFile, &info);
-	if (cr) return core2sys(cr);
+	if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
     }
 
-    storeAttr(idFile, &info, &out->attr);
+    struct stat st;
+    storeAttr(idFile, &info, &st);
 
-    return 0;
+    fuse_reply_attr(req, &st, 1.0);
 }
 
 
-int do_getattr(struct fuse_in_header * in, struct fuse_attr_out * out)
+static void do_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
     CoreResult cr;
-    CryptedFileID idFile = in->nodeid;
+    CryptedFileID idFile = ino;
     CryptedFileInfo info;
 
     logMsg(LOG_DEBUG, "getattr %ld", idFile);
 
     cr = coreQueryFileInfo(pVolume, idFile, &info);
-    if (cr) return core2sys(cr);
+    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 
-    storeAttr(idFile, &info, &out->attr);
+    struct stat st;
+    storeAttr(idFile, &info, &st);
 
-    return 0;
+    fuse_reply_attr(req, &st, 1.0);
 }
 
 
-int do_readlink(struct fuse_in_header * in, char * outbuf)
+static void do_readlink(fuse_req_t req, fuse_ino_t ino)
 {
     CoreResult cr;
-    CryptedFileID idLink = in->nodeid;
+    CryptedFileID idLink = ino;
 
     logMsg(LOG_DEBUG, "readlink %ld", idLink);
 
-    cr = coreReadSymlink(pVolume, idLink, PATH_MAX, &outbuf);
-    if (cr) return core2sys(cr);
+    char link[PATH_MAX + 1];
+    cr = coreReadSymlink(pVolume, idLink, PATH_MAX, link);
+    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 
-    return 0;
+    fuse_reply_readlink(req, link);
 }
 
 
@@ -252,42 +261,42 @@ static CoreResult filler(DirContents * contents, CryptedFileID id, char * name)
 {
     /* Copied from fill_dir() in FUSE. */
     size_t namelen = strlen(name);
-    size_t entsize = FUSE_DIRENT_ALIGN(FUSE_NAME_OFFSET + namelen);
-    struct fuse_dirent *dirent;
+    size_t entsize = fuse_dirent_size(namelen);
     
     if (namelen > FUSE_NAME_MAX) return CORERC_INVALID_NAME;
 
     contents->buffer = realloc(contents->buffer, contents->len + entsize); /* !!! insecure */
     if (!contents->buffer) return CORERC_NOT_ENOUGH_MEMORY;
 
-    dirent = (struct fuse_dirent *) (contents->buffer + contents->len);
-    memset(dirent, 0, entsize);
-    dirent->ino = id;
-    dirent->namelen = namelen;
-    strncpy(dirent->name, name, namelen);
-    dirent->type = 0;
-    contents->len += FUSE_DIRENT_SIZE(dirent);
+    struct stat st;
+    memset(&st, 0, sizeof(struct stat));
+    st.st_ino = id;
+    
+    fuse_add_dirent(
+        contents->buffer + contents->len,
+        name, &st, contents->len + entsize);
+
+    contents->len += entsize;
     
     return CORERC_OK;
 }
 
 
-int do_opendir(struct fuse_in_header * in, struct fuse_open_in * arg,
-    struct fuse_open_out * out)
+static void do_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info * fi)
 {
     CoreResult cr;
-    CryptedFileID idDir = in->nodeid;
+    CryptedFileID idDir = ino;
     CryptedFileInfo info;
     CryptedDirEntry * pFirst, * pCur;
     DirContents * contents;
 
-    logMsg(LOG_DEBUG, "getdir %ld", idDir);
+    logMsg(LOG_DEBUG, "opendir %ld", idDir);
         
     cr = coreQueryFileInfo(pVolume, idDir, &info);
-    if (cr) return core2sys(cr);
+    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 
     contents = malloc(sizeof(DirContents));
-    if (!contents) return -ENOMEM;
+    if (!contents) { fuse_reply_err(req, ENOMEM); return; }
 
     contents->len = 0;
     contents->buffer = 0;
@@ -296,63 +305,73 @@ int do_opendir(struct fuse_in_header * in, struct fuse_open_in * arg,
     if (cr = filler(contents, info.idParent, "..")) goto barf;
 
     cr = coreQueryDirEntries(pVolume, idDir, &pFirst);
-    if (cr) return core2sys(cr);
+    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 
     for (pCur = pFirst; pCur; pCur = pCur->pNext) {
         if (cr = filler(contents, pCur->idFile, pCur->pszName)) goto barf;
     }
 
-    coreFreeDirEntries(pFirst); /* !!! */
+    coreFreeDirEntries(pFirst);
+    pFirst = 0;
 
-    out->fh = (unsigned long) contents;
+    fi->fh = (unsigned long) contents;
     
-    return 0;
+    logMsg(LOG_DEBUG, "opendir result %p len %d", contents, contents->len);
+
+    fuse_reply_open(req, fi);
+    return;
 
  barf:
+    if (pFirst) coreFreeDirEntries(pFirst);
     free(contents->buffer);
     free(contents);
-    return core2sys(cr);
+    fuse_reply_err(req, core2sys(cr));
 }
 
 
-int do_readdir(struct fuse_in_header * in, struct fuse_read_in * arg, 
-    char * outbuf)
+static void do_readdir(fuse_req_t req, fuse_ino_t ino,
+    size_t size, off_t off, struct fuse_file_info * fi)
 {
-    DirContents * contents = (DirContents *) arg->fh;
+    DirContents * contents = (DirContents *) fi->fh;
     
-    size_t size = 0;
+    logMsg(LOG_DEBUG, "readdir offset %Ld size %d", off, size);
+    logMsg(LOG_DEBUG, "readdir %p len %d", contents, contents->len);
     
-    if (arg->offset < contents->len) {
-        size = arg->size;
-        if (arg->offset + size > contents->len)
-            size = contents->len - arg->offset;
-        memcpy(outbuf, contents->buffer + arg->offset, size);
+    size_t outSize = 0;
+    
+    if (off < contents->len) {
+        outSize = size;
+        if (off + outSize > contents->len)
+            outSize = contents->len - off;
     }
     
-    return size;
+    logMsg(LOG_DEBUG, "readdir result %d", outSize);
+
+    fuse_reply_buf(req, contents->buffer + off, outSize);
 }
 
 
-int do_releasedir(struct fuse_in_header * in, struct fuse_release_in * arg)
+static void do_releasedir(fuse_req_t req, fuse_ino_t ino,
+    struct fuse_file_info * fi)
 {
-    DirContents * contents = (DirContents *) arg->fh;
+    DirContents * contents = (DirContents *) fi->fh;
     logMsg(LOG_DEBUG, "releasedir");
     free(contents->buffer);
     free(contents);
-    return 0;
+    fuse_reply_err(req, 0);
 }
 
 
-int createFile(CryptedFileID idDir, char * pszName,
-    unsigned int mode, unsigned int rdev,
-    struct fuse_entry_out * out)
+int createFile(fuse_req_t req, fuse_ino_t parent,
+    const char * pszName, mode_t mode,
+    struct fuse_entry_param * entry)
 {
     CoreResult cr;
-    CryptedFileID idFile;
+    CryptedFileID idDir = parent, idFile;
     CryptedFileInfo info;
 
-    logMsg(LOG_DEBUG, "create %ld %s %ho %hx",
-	idDir, pszName, mode, rdev);
+    logMsg(LOG_DEBUG, "create %ld %s %ho",
+	idDir, pszName, mode);
 
     mode = mode & (CFF_IFMT | 07777);
     switch (mode & CFF_IFMT) {
@@ -361,7 +380,7 @@ int createFile(CryptedFileID idDir, char * pszName,
         case CFF_IFDIR: /* directory */
             break;
         default: /* device nodes are not supported */
-            return -ENOTSUP;
+            return ENOTSUP;
     }
 
     /* Create the file. */
@@ -380,40 +399,48 @@ int createFile(CryptedFileID idDir, char * pszName,
     cr = coreAddEntryToDir(pVolume, idDir, pszName, idFile, 0);
     if (cr) {
 	coreDeleteFile(pVolume, idFile);
-	return core2sys(cr);
+        return core2sys(cr);
     }
 
     cr = stampFile(idDir);
     if (cr) return core2sys(cr);
 
-    fillEntryOut(out, idFile, &info, &out->attr);
+    fillEntryOut(entry, idFile, &info);
 
     return 0;
 }
 
 
-int do_mknod(struct fuse_in_header * in, struct fuse_mknod_in * arg, 
-    char * pszName, struct fuse_entry_out * out)
+static void do_mknod(fuse_req_t req, fuse_ino_t parent,
+    const char * name, mode_t mode, dev_t rdev)
 {
-    return createFile(in->nodeid, pszName, arg->mode, arg->rdev, out);
+    struct fuse_entry_param entry;
+    int res = createFile(req, parent, name, mode, &entry);
+    if (res)
+        fuse_reply_err(req, res);
+    else
+        fuse_reply_entry(req, &entry);
 }
 
 
-int do_mkdir(struct fuse_in_header * in, struct fuse_mkdir_in * arg,
-    char * pszName, struct fuse_entry_out * out)
+static void do_mkdir(fuse_req_t req, fuse_ino_t parent,
+    const char * name, mode_t mode)
 {
-    return createFile(in->nodeid, pszName, arg->mode | CFF_IFDIR, 0, out);
+    struct fuse_entry_param entry;
+    int res = createFile(req, parent, name, mode | CFF_IFDIR, &entry);
+    if (res)
+        fuse_reply_err(req, res);
+    else
+        fuse_reply_entry(req, &entry);
 }
 
 
-int removeFile(CryptedFileID idDir, char * pszName)
+int removeFile(CryptedFileID idDir, const char * pszName)
 {
     CoreResult cr;
     CryptedFileID idFile;
     CryptedFileInfo info;
     CryptedDirEntry * pFirstEntry;
-
-    logMsg(LOG_DEBUG, "remove %ld %s", idDir, pszName);
 
     cr = coreQueryIDFromPath(pVolume, idDir, pszName, &idFile, 0);
     if (cr) return core2sys(cr);
@@ -424,8 +451,8 @@ int removeFile(CryptedFileID idDir, char * pszName)
     if (CFF_ISDIR(info.flFlags)) {
 	cr = coreQueryDirEntries(pVolume, idFile, &pFirstEntry);
 	coreFreeDirEntries(pFirstEntry);
-	if (cr) return core2sys(cr);
-	if (pFirstEntry) return -ENOTEMPTY;
+        if (cr) return core2sys(cr);
+	if (pFirstEntry) return ENOTEMPTY;
     }
 
     /* Remove the directory entry. */
@@ -447,163 +474,169 @@ int removeFile(CryptedFileID idDir, char * pszName)
 }
 
 
-
-int do_remove(struct fuse_in_header * in, char * pszName)
+static void do_unlink(fuse_req_t req, fuse_ino_t parent, const char * pszName)
 {
-    return removeFile(in->nodeid, pszName);
+    logMsg(LOG_DEBUG, "remove %ld %s", parent, pszName);
+
+    int res = removeFile(parent, pszName);
+    fuse_reply_err(req, res);
 }
 
 
-int do_symlink(struct fuse_in_header * in, 
-    char * pszName, char * pszTarget, struct fuse_entry_out * out)
+static void do_rmdir(fuse_req_t req, fuse_ino_t parent, const char * pszName)
+{
+    do_unlink(req, parent, pszName);
+}
+
+
+static void do_symlink(fuse_req_t req, const char * pszTarget,
+    fuse_ino_t parent, const char * pszName)
 {
     CoreResult cr;
-    int res;
-
-    res = createFile(in->nodeid, pszName, 
-        0777 | CFF_IFLNK, 0, out);
-    if (res) return res;
     
-    logMsg(LOG_DEBUG, "symlink %ld %s", out->nodeid, pszTarget);
-
-    cr = coreWriteSymlink(pVolume, out->nodeid, pszTarget);
-    if (cr) return core2sys(cr);
-
-    return 0;
+    logMsg(LOG_DEBUG, "symlink %ld %s", parent, pszName);
+    
+    struct fuse_entry_param entry;
+    int res = createFile(req, parent, pszName, 0777 | CFF_IFLNK, &entry);
+    if (res)
+        fuse_reply_err(req, res);
+    else {
+        cr = coreWriteSymlink(pVolume, entry.ino, pszTarget);
+        if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
+        
+        fuse_reply_entry(req, &entry);
+    }
 }
 
 
-int do_rename(struct fuse_in_header * in, struct fuse_rename_in * arg,
-    char * pszFrom, char * pszTo)
+static void do_rename(fuse_req_t req, fuse_ino_t parent, const char * pszFrom,
+    fuse_ino_t newparent, const char * pszTo)
 {
     CoreResult cr;
-    CryptedFileID idFrom = in->nodeid, idTo = arg->newdir;
+    CryptedFileID idFrom = parent, idTo = newparent;
     int res;
 
     logMsg(LOG_DEBUG, "rename %ld %s %ld %s", idFrom, pszFrom, idTo, pszTo);
 
     /* Remove the to-name, if it exists. */
     res = removeFile(idTo, pszTo);
-    if (res && res != -ENOENT) return res;
+    if (res && res != ENOENT) { fuse_reply_err(req, res); return; }
     
     /* Rename. */
     cr = coreMoveDirEntry(pVolume,
         pszFrom, idFrom,
         pszTo, idTo);
-    if (cr) return core2sys(cr);
+    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 
     /* Stamp the mtimes of the directories. */
-    if (cr = stampFile(idFrom)) return core2sys(cr);
-    if ((idFrom != idTo) && (cr = stampFile(idTo))) return core2sys(cr);
+    if ((cr = stampFile(idFrom)) ||
+        ((idFrom != idTo) && (cr = stampFile(idTo))))
+    {
+        fuse_reply_err(req, core2sys(cr));
+        return;
+    }
 
-    return 0;
+    fuse_reply_err(req, 0);
 }
 
 
-int do_link(struct fuse_in_header * in, struct fuse_link_in * arg,
-    char * pszName, struct fuse_entry_out * out)
-{
-    return -ENOTSUP; /* !!! */
-}
-
-
-int do_open(struct fuse_in_header * in, struct fuse_open_in * arg)
+static void do_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info * fi)
 {
     CoreResult cr;
-    CryptedFileID idFile = in->nodeid;
+    CryptedFileID idFile = ino;
     CryptedFileInfo info;
 
     logMsg(LOG_DEBUG, "open %ld", idFile);
 
     cr = coreQueryFileInfo(pVolume, idFile, &info);
-    if (cr) return core2sys(cr);
+    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 
-    return 0;
+    fuse_reply_open(req, fi);
 }
 
 
-int do_read(struct fuse_in_header * in, struct fuse_read_in * arg, char * outbuf)
+static void do_read(fuse_req_t req, fuse_ino_t ino,
+    size_t size, off_t off, struct fuse_file_info * fi)
 {
     CoreResult cr;
-    CryptedFileID idFile = in->nodeid;
+    CryptedFileID idFile = ino;
     CryptedFilePos cbRead;
 
-    logMsg(LOG_DEBUG, "read %ld %Ld %d", idFile, arg->offset, arg->size);
+    logMsg(LOG_DEBUG, "read %ld %Ld %d", idFile, off, size);
 
-    cr = coreReadFromFile(pVolume, idFile, arg->offset, arg->size, outbuf, &cbRead);
-    if (cr) return core2sys(cr);
+    octet * buffer = malloc(size);
+    if (!buffer) { fuse_reply_err(req, ENOMEM); return; }
 
-    return cbRead;
+    cr = coreReadFromFile(pVolume, idFile, off, size, buffer, &cbRead);
+    logMsg(LOG_DEBUG, "error %d", cr);
+    if (cr) { free(buffer); fuse_reply_err(req, core2sys(cr)); return; }
+
+    fuse_reply_buf(req, buffer, cbRead);
+    free(buffer);
 }
 
 
-int do_write(struct fuse_in_header * in, struct fuse_write_in * arg,
-    void * pData, struct fuse_write_out * out)
+static void do_write(fuse_req_t req, fuse_ino_t ino, const char * buf,
+    size_t size, off_t off, struct fuse_file_info * fi)
 {
     CoreResult cr;
-    CryptedFileID idFile = in->nodeid;
+    CryptedFileID idFile = ino;
     CryptedFilePos cbWritten;
-    int res = 0;
 
-    logMsg(LOG_DEBUG, "write %ld %Ld %d", idFile, arg->offset, arg->size);
+    logMsg(LOG_DEBUG, "write %ld %Ld %d", idFile, off, size);
 
     cr = coreWriteToFile(pVolume, idFile, 
-        arg->offset, arg->size, pData, &cbWritten);
-    out->size = cbWritten;
-    if (cr) res = core2sys(cr);
-    else if (arg->size != cbWritten) abort(); /* can't happen */
-    else {
-        cr = stampFile(idFile);
-        res = core2sys(cr);
-    }
-
-    return 0;
-}
-
-
-int do_statfs(struct fuse_in_header * in, struct fuse_statfs_out * out)
-{
-    int res;
-    struct statfs st;
-    unsigned long long cbTotal, cbFree;
-
-    logMsg(LOG_DEBUG, "statfs");
-
-    res = statfs(pSuperBlock->szBasePath, &st);
-    if (res != 0) return -errno;
-
-    cbTotal = st.f_bsize * (unsigned long long) st.f_blocks;
-    cbFree = st.f_bsize * (unsigned long long) st.f_bfree;
+        off, size, buf, &cbWritten);
+    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
     
-    out->st.bsize = PAYLOAD_SIZE;
-    out->st.blocks = cbTotal / PAYLOAD_SIZE; /* nonsensical */
-    out->st.bfree = out->st.bavail = cbFree / PAYLOAD_SIZE;
-    out->st.files = st.f_files; /* nonsensical */
-    out->st.ffree = st.f_ffree; /* idem */
-    out->st.namelen = 1024; /* !!! arbitrary */
+    if (size != cbWritten) abort(); /* can't happen */
+    
+    cr = stampFile(idFile);
+    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 
-    return 0;
+    fuse_reply_write(req, cbWritten);
 }
 
 
-int do_fsync(struct fuse_in_header * in, struct fuse_fsync_in * arg)
+static void do_release(fuse_req_t req, fuse_ino_t ino,
+    struct fuse_file_info * fi)
+{
+    commitVolume();
+    fuse_reply_err(req, 0);
+}
+
+
+static void do_fsync(fuse_req_t req, fuse_ino_t ino, int datasync,
+    struct fuse_file_info * fi)
 {
     logMsg(LOG_DEBUG, "fsync");
     commitVolume();
     /* Maybe we should also sync the underlying files, but that's
        hard (e.g., how do we sync closed storage files?). */
-    return 0;
+    fuse_reply_err(req, 0);
 }
 
-
-int do_init(struct fuse_in_header * in, struct fuse_init_in_out * arg,
-    struct fuse_init_in_out * out)
+static void do_statfs(fuse_req_t req)
 {
-    logMsg(LOG_DEBUG, "init %u %u", arg->major, arg->minor);
-    memset(out, 0, sizeof(*out));
-    out->major = FUSE_KERNEL_VERSION;
-    out->minor = FUSE_KERNEL_MINOR_VERSION;
-    return 0;
+    int res;
+    struct statfs st;
+
+    logMsg(LOG_DEBUG, "statfs");
+
+    res = statfs(pSuperBlock->szBasePath, &st);
+    if (res != 0) { fuse_reply_err(req, errno); return; }
+
+    struct statfs st2;
+    memset(&st2, 0, sizeof(struct statfs));
+    st2.f_bsize = PAYLOAD_SIZE;
+    st2.f_blocks = (st.f_bsize * (unsigned long long) st.f_blocks) / PAYLOAD_SIZE;
+    st2.f_bfree = (st.f_bsize * (unsigned long long) st.f_bfree) / PAYLOAD_SIZE;
+    st2.f_bavail = (st.f_bsize * (unsigned long long) st.f_bavail) / PAYLOAD_SIZE;
+    st2.f_files = st.f_files; /* nonsensical */
+    st2.f_ffree = st.f_ffree; /* idem */
+    st2.f_namelen = PATH_MAX; /* !!! arbitrary */
+
+    fuse_reply_statfs(req, &st2);
 }
 
 
@@ -660,19 +693,33 @@ void commitVolume()
 }
 
 
-static void unmount()
-{
-    if (fork() == 0) {
-        execlp("fusermount", "fusermount", "-u", szMountPoint, 0);
-        exit(0);
-    }
-}
-
-
 static void writeResult(CoreResult cr)
 {
     write(fdRes[1], &cr, sizeof cr);
 }
+
+
+static struct fuse_lowlevel_ops aefs_oper = {
+    .lookup     = do_lookup,
+    .getattr    = do_getattr,
+    .setattr    = do_setattr,
+    .readlink   = do_readlink,
+    .opendir    = do_opendir,
+    .readdir    = do_readdir,
+    .releasedir = do_releasedir,
+    .mknod      = do_mknod,
+    .mkdir      = do_mkdir,
+    .unlink     = do_unlink,
+    .rmdir      = do_rmdir,
+    .symlink    = do_symlink,
+    .rename     = do_rename,
+    .open       = do_open,
+    .read       = do_read,
+    .write      = do_write,
+    .release    = do_release,
+    .fsync      = do_fsync,
+    .statfs     = do_statfs,
+};
 
 
 /* Return true iff somebody unmounted us. */
@@ -682,7 +729,7 @@ static void run(char * pszPassPhrase)
     CoreResult cr;
     int fd, fd2;
     pid_t pid;
-
+ 
     /* Daemonize. */
     if (!fDebug) {
         pid = fork();
@@ -728,25 +775,46 @@ retry:
        doesn't have to be.  We should fix this (in FUSE, probably). */
     assert(pSuperBlock->idRoot == FUSE_ROOT_ID);
 
-    /* `large_read' causes reads to be done in 64 KB chunks instead of
-       4 KB (only works on kernel 2.4). */
-    fd = fuse_mount(szMountPoint, "large_read");
-    if (fd == -1) {
-        writeResult(CORERC_SYS + SYS_UNKNOWN);
-        unmount();
-        goto exit;
-    }
-    setFuseFD(fd);
-    
-    writeResult(CORERC_OK);
-    
     pVolume = pSuperBlock->pVolume;
 
-    if (!runLoop()) 
-        unmount();
+    /* `large_read' causes reads to be done in 64 KB chunks instead of
+       4 KB (only works on kernel 2.4). */
+    int error = 1;
+    fd = fuse_mount(szMountPoint, "large_read");
+    if (fd != -1) {
 
+        struct fuse_session * session =
+            fuse_lowlevel_new("debug", &aefs_oper, sizeof(aefs_oper), 0);
+
+        if (session) {
+            
+            struct fuse_chan * channel = fuse_kern_chan_new(fd);
+            if (channel) {
+                error = 0;
+                
+                writeResult(CORERC_OK);
+
+                /* !!! We really need a way to periodically call
+                   commitVolume, as we did in the old FUSE-based
+                   implementation.  Then do_release can go. */
+    
+                fuse_session_add_chan(session, channel);
+                fuse_session_loop(session);
+            }
+            
+            fuse_session_destroy(session);
+        }
+    }
+
+    fuse_unmount(szMountPoint);
+    
     commitVolume();
     coreDropSuperBlock(pSuperBlock);
+
+    if (error) {
+        writeResult(CORERC_SYS + SYS_UNKNOWN);
+        goto exit;
+    }
 
  exit:
     if (!fDebug) exit(0); /* daemon exit */
