@@ -24,7 +24,7 @@
 #include "sysdep.h"
 
 
-CoreResult coreAllocDirEntry(octet * pszName,
+CoreResult coreAllocDirEntry(const octet * pszName,
    CryptedFileID idFile, unsigned int flFlags, 
    CryptedDirEntry * * ppEntry)
 {

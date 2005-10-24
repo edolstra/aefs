@@ -22,13 +22,13 @@
 #include "corefs.h"
 
 
-int coreNameCompSens(octet * p, octet * q)
+int coreNameCompSens(const octet * p, const octet * q)
 {
    return strcmp(p, q);
 }
 
 
-int coreNameCompInsens(octet * p, octet * q)
+int coreNameCompInsens(const octet * p, const octet * q)
 {
    return stricmp(p, q);
 }

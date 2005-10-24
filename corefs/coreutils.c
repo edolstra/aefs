@@ -135,7 +135,7 @@ CoreResult coreDeleteFile(CryptedVolume * pVolume, CryptedFileID id)
 }
 
 
-static CoreResult addToList(CoreNameComp comp, char * pszName,
+static CoreResult addToList(CoreNameComp comp, const char * pszName,
    CryptedFileID idFile, unsigned int flFlags, 
    CryptedDirEntry * * ppEntries)
 {
@@ -163,7 +163,7 @@ static CoreResult addToList(CoreNameComp comp, char * pszName,
 
 
 static CryptedDirEntry * removeFromList(CoreNameComp comp, 
-   char * pszName, CryptedDirEntry * * ppEntries)
+   const char * pszName, CryptedDirEntry * * ppEntries)
 {
    CryptedDirEntry * * ppCur = ppEntries, * pCur = *ppEntries;
    while (pCur) {
@@ -180,7 +180,7 @@ static CryptedDirEntry * removeFromList(CoreNameComp comp,
 
 
 CoreResult coreAddEntryToDir(CryptedVolume * pVolume, CryptedFileID id,
-   char * pszName, CryptedFileID idFile, unsigned int flFlags)
+   const char * pszName, CryptedFileID idFile, unsigned int flFlags)
 {
    CoreResult cr;
    CoreNameComp comp = coreQueryVolumeParms(pVolume)->nameComp;
@@ -211,9 +211,9 @@ CoreResult coreAddEntryToDir(CryptedVolume * pVolume, CryptedFileID id,
 
 CoreResult coreMoveDirEntry(
    CryptedVolume * pVolume,
-   char * pszSrcName,
+   const char * pszSrcName,
    CryptedFileID idSrcDir,
-   char * pszDstName,
+   const char * pszDstName,
    CryptedFileID idDstDir)
 {
    CoreResult cr;

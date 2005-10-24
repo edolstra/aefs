@@ -259,7 +259,7 @@ static CoreResult zeroSectors(CryptedVolume * pVolume,
    number of bytes succesfully written is stored in *pcbWritten, which
    may be less than the given number of bytes iff an error occurs. */
 CoreResult coreWriteToFile(CryptedVolume * pVolume, CryptedFileID id,
-   CryptedFilePos fpStart, CryptedFilePos cbLength, octet * pabBuffer,
+   CryptedFilePos fpStart, CryptedFilePos cbLength, const octet * pabBuffer,
    CryptedFilePos * pcbWritten)
 {
    CoreResult cr;

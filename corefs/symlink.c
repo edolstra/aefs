@@ -24,7 +24,7 @@
 
 
 CoreResult coreWriteSymlink(CryptedVolume * pVolume,
-   CryptedFileID id, char * pszTarget)
+   CryptedFileID id, const char * pszTarget)
 {
    CoreResult cr;
    CryptedFileInfo info;
@@ -71,7 +71,7 @@ CoreResult coreWriteSymlink(CryptedVolume * pVolume,
 
 
 CoreResult coreReadSymlink(CryptedVolume * pVolume,
-   CryptedFileID id, unsigned int cbMaxTarget, char * * pszTarget)
+   CryptedFileID id, unsigned int cbMaxTarget, char * pszTarget)
 {
    CoreResult cr;
    CryptedFilePos cbRead;
@@ -92,8 +92,8 @@ CoreResult coreReadSymlink(CryptedVolume * pVolume,
             coreFreeEAs(pEAs);
             return CORERC_NAME_TOO_LONG;
          }
-         strncpy(*pszTarget, (char *) pCurEA->pabValue, pCurEA->cbValue);
-         (*pszTarget)[pCurEA->cbValue] = 0;
+         strncpy(pszTarget, (char *) pCurEA->pabValue, pCurEA->cbValue);
+         pszTarget[pCurEA->cbValue] = 0;
          coreFreeEAs(pEAs);
          return 0;
       }
@@ -107,9 +107,9 @@ CoreResult coreReadSymlink(CryptedVolume * pVolume,
    if (info.cbFileSize >= cbMaxTarget) return CORERC_NAME_TOO_LONG;
                                             
    cr = coreReadFromFile(pVolume, id, 0,
-      info.cbFileSize, (octet *) *pszTarget, &cbRead);
+      info.cbFileSize, (octet *) pszTarget, &cbRead);
    if (cr) return cr;
-   (*pszTarget)[info.cbFileSize] = 0;
+   pszTarget[info.cbFileSize] = 0;
 
    return CORERC_OK;
 }

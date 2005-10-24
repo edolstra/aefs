@@ -30,13 +30,13 @@ CoreResult coreQueryIDFromPath(CryptedVolume * pVolume,
 CoreResult coreDeleteFile(CryptedVolume * pVolume, CryptedFileID id);
 
 CoreResult coreAddEntryToDir(CryptedVolume * pVolume, CryptedFileID id,
-   char * pszName, CryptedFileID idFile, unsigned int flFlags);
+   const char * pszName, CryptedFileID idFile, unsigned int flFlags);
 
 CoreResult coreMoveDirEntry(
    CryptedVolume * pVolume,
-   char * pszSrcName,
+   const char * pszSrcName,
    CryptedFileID idSrcDir,
-   char * pszDstName,
+   const char * pszDstName,
    CryptedFileID idDstDir);
 
 

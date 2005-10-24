@@ -22,9 +22,9 @@
 
 #include "types.h"
 
-typedef int (* CoreNameComp)(octet *, octet *);
+typedef int (* CoreNameComp)(const octet *, const octet *);
 
-int coreNameCompSens(octet *, octet *);
-int coreNameCompInsens(octet *, octet *);
+int coreNameCompSens(const octet *, const octet *);
+int coreNameCompInsens(const octet *, const octet *);
 
 #endif /* !_COMPARATORS_H */

@@ -185,7 +185,7 @@ CoreResult coreQuerySectorData(CryptedVolume * pVolume,
 
 CoreResult coreSetSectorData(CryptedVolume * pVolume,
    CryptedFileID id, SectorNumber s, unsigned int offset,
-   unsigned int bytes, unsigned int flFlags, void * pBuffer);
+   unsigned int bytes, unsigned int flFlags, const void * pBuffer);
 
 
 /*
@@ -358,7 +358,7 @@ CoreResult coreReadFromFile(CryptedVolume * pVolume, CryptedFileID id,
    CryptedFilePos * pcbRead);
 
 CoreResult coreWriteToFile(CryptedVolume * pVolume, CryptedFileID id,
-   CryptedFilePos fpStart, CryptedFilePos cbLength, octet * pabBuffer,
+   CryptedFilePos fpStart, CryptedFilePos cbLength, const octet * pabBuffer,
    CryptedFilePos * pcbWritten);
 
 CoreResult coreSetFileSize(CryptedVolume * pVolume, CryptedFileID id,
@@ -398,7 +398,7 @@ struct _CryptedDirEntry {
 #define CDF_HIDDEN            2  
 
 
-CoreResult coreAllocDirEntry(octet * pszName,
+CoreResult coreAllocDirEntry(const octet * pszName,
    CryptedFileID idFile, unsigned int flFlags, 
    CryptedDirEntry * * ppEntry);
 
@@ -455,10 +455,10 @@ CoreResult coreSetEAs(CryptedVolume * pVolume,
 #define CEANAME_SYMLINK "$SYMLINK"
 
 CoreResult coreWriteSymlink(CryptedVolume * pVolume,
-   CryptedFileID id, char * pszTarget);
+   CryptedFileID id, const char * pszTarget);
 
 CoreResult coreReadSymlink(CryptedVolume * pVolume,
-   CryptedFileID id, unsigned int cbMaxTarget, char * * pszTarget);
+   CryptedFileID id, unsigned int cbMaxTarget, char * pszTarget);
 
 
 #endif /* !_COREFS_H */

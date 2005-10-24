@@ -1253,7 +1253,7 @@ CoreResult coreQuerySectorData(CryptedVolume * pVolume,
    case. */
 CoreResult coreSetSectorData(CryptedVolume * pVolume,
    CryptedFileID id, SectorNumber s, unsigned int offset,
-   unsigned int bytes, unsigned int flFlags, void * pBuffer)
+   unsigned int bytes, unsigned int flFlags, const void * pBuffer)
 {
    CoreResult cr;
    CryptedSector * pSector;
