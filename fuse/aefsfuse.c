@@ -44,7 +44,6 @@
 #include "logging.h"
 
 #include <fuse/fuse.h>
-#include <fuse/fuse_kernel.h>
 #include <fuse/fuse_lowlevel.h>
 
 
@@ -263,8 +262,6 @@ static CoreResult filler(DirContents * contents, CryptedFileID id, char * name)
     size_t namelen = strlen(name);
     size_t entsize = fuse_dirent_size(namelen);
     
-    if (namelen > FUSE_NAME_MAX) return CORERC_INVALID_NAME;
-
     contents->buffer = realloc(contents->buffer, contents->len + entsize); /* !!! insecure */
     if (!contents->buffer) return CORERC_NOT_ENOUGH_MEMORY;
 

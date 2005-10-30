@@ -24,11 +24,14 @@ AC_SEARCH_LIBS(xdr_void, nsl rpc)
 AC_SEARCH_LIBS(syslog, syslog)
 
 
+CPPFLAGS="-D_FILE_OFFSET_BITS=64 $CPPFLAGS"
+AC_ARG_WITH(fuse, AC_HELP_STRING([--with-fuse=PATH],
+  [prefix of the FUSE package]), CPPFLAGS="-I$withval/include $CPPFLAGS"; LDFLAGS="-L$withval/lib $LDFLAGS")
 AC_CHECK_HEADER(fuse/fuse.h, BUILD_FUSE=1, BUILD_FUSE=0)
 AC_SUBST(BUILD_FUSE)
 if test "$BUILD_FUSE" = 0; then
     AC_MSG_WARN([the FUSE server will not be built])
-fi    
+fi
 
 
 AC_CHECK_PROG(RPCGEN, rpcgen, rpcgen, false)
@@ -60,8 +63,6 @@ os2_emx)
         ;;
 *)
         SYSTEM=posix
-        SHELL=/bin/sh
-        EXEEXT=
         ;;
 esac        
 AC_SUBST(SYSTEM)
@@ -70,7 +71,6 @@ AC_SUBST(SYSINCL)
 AC_SUBST(SYSCFLAGS)
 AC_SUBST(SYSLDFLAGS)
 AC_SUBST(SYSLIBS)
-AC_SUBST(EXEEXT)
 
 case $build_cpu in
 i[[567]]86)
