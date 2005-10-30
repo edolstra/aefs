@@ -1,3 +1,4 @@
+
 BASE = ..
 include $(BASE)/Makefile.incl
 
@@ -6,6 +7,8 @@ MANIFEST := Makefile \
  aefsctrl.h aefsctrl.x aefsctrl_clnt.c aefsctrl_svc.c aefsctrl_xdr.c \
  nfs_prot.h nfs_prot.x nfs_prot_svc.c nfs_prot_xdr.c \
  mount.h mount.x mount_svc.c mount_xdr.c
+
+ifeq ($(BUILD_NFSD), 1)
 
 PROG1 = aefsnfsd$(EXE)
 PROG2 = aefsadd$(EXE)
@@ -43,4 +46,6 @@ install: all
 
 ifneq ($(MAKECMDGOALS),clean)
 include $(SRCS:.c=.d)
+endif
+
 endif

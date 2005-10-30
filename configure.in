@@ -23,8 +23,24 @@ AC_SEARCH_LIBS(socket, socket)
 AC_SEARCH_LIBS(xdr_void, nsl rpc)
 AC_SEARCH_LIBS(syslog, syslog)
 
+
 AC_CHECK_HEADER(fuse/fuse.h, BUILD_FUSE=1, BUILD_FUSE=0)
 AC_SUBST(BUILD_FUSE)
+if test "$BUILD_FUSE" = 0; then
+    AC_MSG_WARN([the FUSE server will not be built])
+fi    
+
+
+AC_CHECK_PROG(RPCGEN, rpcgen, rpcgen, false)
+
+if test "$RPCGEN" = false; then
+    BUILD_NFSD=0
+    AC_MSG_WARN([the NFS server will not be built])
+else    
+    BUILD_NFSD=1
+fi
+AC_SUBST(BUILD_NFSD)
+
 
 AC_C_INLINE
 
