@@ -149,6 +149,7 @@ SysResult sysOpenFile(char * pszName, int flFlags, Cred cred,
       /* Check that we have permission to access this file.  We have
          to do this *after* opening the file to prevent someone from
          exploiting the time window between stat() and open(). */
+      struct stat st;
       if (fstat(h, &st)) {
          close(h);
          return unix2sys();
