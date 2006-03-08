@@ -112,6 +112,10 @@ char * core2str(CoreResult cr)
       case CORERC_READ_ONLY: return "file system is read-only";
       case CORERC_ISF_CORRUPT: return "corrupt infosector file";
       case CORERC_ID_EXISTS: return "file ID exists";
+      case CORERC_NOT_SYMLINK: return "not a symbolic link";
+      case CORERC_NAME_TOO_LONG: return "file name is too long";
+      case CORERC_BAD_SYMLINK: return "corrupt symbolic link";
+      case CORERC_SHORT_FILE: return "truncated storage file";
       case CORERC_BAD_SUPERBLOCK: return "corrupt superblock";
       case CORERC_UNKNOWN_CIPHER: return "unknown cipher";
       case CORERC_MISC_CIPHER: return "unknown cryptographic error";

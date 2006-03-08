@@ -18,6 +18,7 @@
    Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
 
 #include <string.h>
+#include <assert.h>
 
 #include "corefs.h"
 
@@ -173,7 +174,7 @@ CoreResult coreReadFromFile(CryptedVolume * pVolume, CryptedFileID id,
    CryptedFilePos fpStart, CryptedFilePos cbLength, octet * pabBuffer,
    CryptedFilePos * pcbRead)
 {
-   CoreResult cr;
+   CoreResult cr, finalcr = CORERC_OK;
    CryptedFileInfo info;
    SectorNumber csExtent;
    SectorNumber sCurrent;
@@ -199,6 +200,16 @@ CoreResult coreReadFromFile(CryptedVolume * pVolume, CryptedFileID id,
    /* Read the data. */
    while (cbLength && (sCurrent < info.csSet)) {
 
+      /* Note: in case of I/O errors, we always try to read as much as
+         can be salvaged.  Of course, an error code will be returned
+         to the caller, who can then decide what to with the data in
+         pabBuffer.  So we don't bail out if coreFetchSectors returns
+         an error.  Since coreFetchSectors tries to read multiple
+         sectors at once, it might not recover all it can if part of
+         an extent is unreadable.  However, that's not a problem: the
+         call to coreQuerySectorData will try again on a per-sector
+         basis. */
+
       /* Fetch at most csIOGranularity sectors. */
       csExtent = (offset + cbLength - 1) / PAYLOAD_SIZE + 1;
       if (sCurrent + csExtent > info.csSet)
@@ -206,7 +217,7 @@ CoreResult coreReadFromFile(CryptedVolume * pVolume, CryptedFileID id,
       if (csExtent > pParms->csIOGranularity)
          csExtent = pParms->csIOGranularity;
       cr = coreFetchSectors(pVolume, id, sCurrent, csExtent, 0);
-      if (cr) return cr;
+      if (cr) finalcr = cr;
 
       /* Copy the sectors we just fetched into the buffer. */
       while (csExtent--) {
@@ -215,7 +226,7 @@ CoreResult coreReadFromFile(CryptedVolume * pVolume, CryptedFileID id,
 
          cr = coreQuerySectorData(pVolume, id, sCurrent,
             offset, read, 0, pabBuffer);
-         if (cr) return cr; /* shouldn't happen */
+         if (cr && finalcr == CORERC_OK) finalcr = cr;
       
          pabBuffer += read;
          *pcbRead += read;
@@ -230,7 +241,7 @@ CoreResult coreReadFromFile(CryptedVolume * pVolume, CryptedFileID id,
       *pcbRead += cbLength;
    }
 
-   return CORERC_OK;
+   return finalcr;
 }
 
 

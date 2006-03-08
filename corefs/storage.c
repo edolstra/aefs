@@ -962,9 +962,11 @@ static CoreResult readBuffer(CryptedFile * pFile,
       return sys2core(sr);
    
    if (sr = sysReadFromFile(pFile->pStorageFile,
-      SECTOR_SIZE * csExtent, pabBuffer, &cbRead) ||
-      (cbRead != SECTOR_SIZE * csExtent))
-      return sys2core(sr);
+       SECTOR_SIZE * csExtent, pabBuffer, &cbRead))
+       return sys2core(sr);
+
+   if (cbRead != SECTOR_SIZE * csExtent)
+      return CORERC_SHORT_FILE;
 
    return CORERC_OK;
 }

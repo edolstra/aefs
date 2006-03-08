@@ -58,6 +58,7 @@ typedef unsigned int CoreResult;
 #define CORERC_NOT_SYMLINK         18
 #define CORERC_NAME_TOO_LONG       19
 #define CORERC_BAD_SYMLINK         20
+#define CORERC_SHORT_FILE          21
 #define CORERC_SYS                 100 /* SYS_* added to this */
 #define IS_CORERC_SYS(x) ((x) >= 100 && (x) <= 200)
 CoreResult sys2core(SysResult sr);
