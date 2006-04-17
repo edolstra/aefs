@@ -257,11 +257,11 @@ typedef struct {
 } DirContents;
 
 
-static CoreResult filler(DirContents * contents, CryptedFileID id, char * name)
+static CoreResult filler(fuse_req_t req,
+    DirContents * contents, CryptedFileID id, char * name)
 {
     /* Copied from fill_dir() in FUSE. */
-    size_t namelen = strlen(name);
-    size_t entsize = fuse_dirent_size(namelen);
+    size_t entsize = fuse_add_direntry(req, 0, 0, name, 0, 0);
     
     contents->buffer = realloc(contents->buffer, contents->len + entsize); /* !!! insecure */
     if (!contents->buffer) return CORERC_NOT_ENOUGH_MEMORY;
@@ -270,9 +270,9 @@ static CoreResult filler(DirContents * contents, CryptedFileID id, char * name)
     memset(&st, 0, sizeof(struct stat));
     st.st_ino = id;
     
-    fuse_add_dirent(
+    fuse_add_direntry(req,
         contents->buffer + contents->len,
-        name, &st, contents->len + entsize);
+        entsize, name, &st, contents->len + entsize);
 
     contents->len += entsize;
     
@@ -299,14 +299,14 @@ static void do_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info * f
     contents->len = 0;
     contents->buffer = 0;
 
-    if (cr = filler(contents, idDir, ".")) goto barf;
-    if (cr = filler(contents, info.idParent, "..")) goto barf;
+    if (cr = filler(req, contents, idDir, ".")) goto barf;
+    if (cr = filler(req, contents, info.idParent, "..")) goto barf;
 
     cr = coreQueryDirEntries(pVolume, idDir, &pFirst);
     if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 
     for (pCur = pFirst; pCur; pCur = pCur->pNext) {
-        if (cr = filler(contents, pCur->idFile, (char *) pCur->pszName)) goto barf;
+        if (cr = filler(req, contents, pCur->idFile, (char *) pCur->pszName)) goto barf;
     }
 
     coreFreeDirEntries(pFirst);
@@ -727,7 +727,6 @@ static void run(char * pszPassPhrase)
 {
     CryptedVolumeParms parms;
     CoreResult cr;
-    int fd, fd2;
     pid_t pid;
  
     /* Daemonize. */
@@ -741,7 +740,7 @@ static void run(char * pszPassPhrase)
         if (pid != 0) return;
         setsid();
         chdir("/");
-        fd2 = open("/dev/null", O_RDWR);
+        int fd2 = open("/dev/null", O_RDWR);
         if (fd2 == -1) abort();
         dup2(fd2, 0);
         dup2(fd2, 1);
@@ -787,18 +786,15 @@ retry:
     /* `large_read' causes reads to be done in 64 KB chunks instead of
        4 KB (only works on kernel 2.4). */
     int error = 1;
-    fd = fuse_mount(szMountPoint, &args);
-    if (fd != -1) {
+    struct fuse_chan * channel = fuse_mount(szMountPoint, &args);
+    if (channel) {
 
         struct fuse_session * session =
             fuse_lowlevel_new(&args, &aefs_oper, sizeof(aefs_oper), 0);
 
         if (session) {
 
-            /* !!! Call fuse_set_signal_handlers. */
-            
-            struct fuse_chan * channel = fuse_kern_chan_new(fd);
-            if (channel) {
+            if (fuse_set_signal_handlers(session) != -1) {
                 error = 0;
                 
                 writeResult(CORERC_OK);
@@ -808,14 +804,20 @@ retry:
                    implementation.  Then do_release can go. */
     
                 fuse_session_add_chan(session, channel);
+                
                 fuse_session_loop(session);
+
+                fuse_remove_signal_handlers(session);
+                fuse_session_remove_chan(channel);
             }
             
             fuse_session_destroy(session);
         }
-    }
 
-    fuse_unmount(szMountPoint);
+        fuse_unmount(szMountPoint, channel);
+    }
+    
+    fuse_opt_free_args(&args);
     
     commitVolume();
     coreDropSuperBlock(pSuperBlock);
