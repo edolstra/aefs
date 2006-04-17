@@ -31,6 +31,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/vfs.h>
+#include <pthread.h>
 
 #include "getopt.h"
 
@@ -62,6 +63,11 @@ static bool fReadOnly = false;
 static char szBasePath[PATH_MAX + 1];
 static char szMountPoint[PATH_MAX + 1];
 static int fdRes[2];
+
+
+/* For communication with lazy writer thread. */
+volatile int wantFlush = 0;
+volatile int isDirty = 0;
 
 
 static int core2sys(CoreResult cr)
@@ -232,6 +238,14 @@ static void do_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
     struct stat st;
     storeAttr(idFile, &info, &st);
 
+    /* Hack: the lazy writer thread stat()s the root directory of the
+       file system to signal the main thread to synchronously write
+       dirty sectors to disk. */
+    if ((ino == pSuperBlock->idRoot) && wantFlush) {
+        commitVolume();
+        wantFlush = 0;
+    }
+    
     fuse_reply_attr(req, &st, 1.0);
 }
 
@@ -550,6 +564,8 @@ static void do_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info * fi)
     cr = coreQueryFileInfo(pVolume, idFile, &info);
     if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 
+    fi->keep_cache = 1; /* !!! doesn't seem to work */
+
     fuse_reply_open(req, fi);
 }
 
@@ -600,7 +616,6 @@ static void do_write(fuse_req_t req, fuse_ino_t ino, const char * buf,
 static void do_release(fuse_req_t req, fuse_ino_t ino,
     struct fuse_file_info * fi)
 {
-    commitVolume();
     fuse_reply_err(req, 0);
 }
 
@@ -641,6 +656,7 @@ static void do_statfs(fuse_req_t req)
 
 
 /* Called by corefs whenever it marks a sector as dirty. */
+
 static void dirtyCallBack(CryptedVolume * pVolume, bool fDirty)
 {
     CoreResult cr;
@@ -649,6 +665,8 @@ static void dirtyCallBack(CryptedVolume * pVolume, bool fDirty)
 
     if (fDirty) { /* the volume now has dirty sectors */
 
+        isDirty = 1;
+        
         if (!(pSuperBlock->flFlags & SBF_DIRTY)) {
             pSuperBlock->flFlags |= SBF_DIRTY;
             cr = coreWriteSuperBlock(pSuperBlock,
@@ -660,6 +678,7 @@ static void dirtyCallBack(CryptedVolume * pVolume, bool fDirty)
     } else { /* the volume now has no dirty sectors */
         /* Do nothing.  The superblock's dirty flag is periodically
            cleared by the lazy writer or by volumeDirty(). */
+        isDirty = 0;
     }
 
 }
@@ -690,6 +709,21 @@ void commitVolume()
 	    return;
         }
     }
+}
+
+
+void * lazyWriter(void * arg)
+{
+    while (1) {
+        if (isDirty) {
+            struct stat st;
+            wantFlush = 1;
+            stat(szMountPoint, &st);
+            assert(wantFlush == 0);
+        }
+        sleep(10);
+    }
+    return 0;
 }
 
 
@@ -781,10 +815,8 @@ retry:
     args.argc = 0;
     args.argv = 0;
     args.allocated = 1;
-    fuse_opt_add_arg(&args, "debug");
+    fuse_opt_add_arg(&args, pszProgramName);
 
-    /* `large_read' causes reads to be done in 64 KB chunks instead of
-       4 KB (only works on kernel 2.4). */
     int error = 1;
     struct fuse_chan * channel = fuse_mount(szMountPoint, &args);
     if (channel) {
@@ -799,14 +831,16 @@ retry:
                 
                 writeResult(CORERC_OK);
 
-                /* !!! We really need a way to periodically call
-                   commitVolume, as we did in the old FUSE-based
-                   implementation.  Then do_release can go. */
+                /* Start the lazy writer thread. */
+                pthread_t lazyWriterThread;
+                pthread_create(&lazyWriterThread, 0, lazyWriter, 0);
     
                 fuse_session_add_chan(session, channel);
                 
                 fuse_session_loop(session);
 
+                logMsg(LOG_DEBUG, "shutting down");
+                
                 fuse_remove_signal_handlers(session);
                 fuse_session_remove_chan(channel);
             }
