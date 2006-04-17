@@ -43,6 +43,7 @@
 #include "sysdep.h"
 #include "logging.h"
 
+#define FUSE_USE_VERSION 26
 #include <fuse/fuse.h>
 #include <fuse/fuse_lowlevel.h>
 
@@ -252,7 +253,7 @@ static void do_readlink(fuse_req_t req, fuse_ino_t ino)
 
 typedef struct {
     unsigned int len;
-    unsigned char * buffer;
+    char * buffer;
 } DirContents;
 
 
@@ -305,7 +306,7 @@ static void do_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info * f
     if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 
     for (pCur = pFirst; pCur; pCur = pCur->pNext) {
-        if (cr = filler(contents, pCur->idFile, pCur->pszName)) goto barf;
+        if (cr = filler(contents, pCur->idFile, (char *) pCur->pszName)) goto barf;
     }
 
     coreFreeDirEntries(pFirst);
@@ -329,7 +330,8 @@ static void do_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info * f
 static void do_readdir(fuse_req_t req, fuse_ino_t ino,
     size_t size, off_t off, struct fuse_file_info * fi)
 {
-    DirContents * contents = (DirContents *) fi->fh;
+    assert(sizeof(DirContents *) <= sizeof(fi->fh));
+    DirContents * contents = * (DirContents * *) &fi->fh;
     
     logMsg(LOG_DEBUG, "readdir offset %Ld size %d", off, size);
     logMsg(LOG_DEBUG, "readdir %p len %d", contents, contents->len);
@@ -351,7 +353,7 @@ static void do_readdir(fuse_req_t req, fuse_ino_t ino,
 static void do_releasedir(fuse_req_t req, fuse_ino_t ino,
     struct fuse_file_info * fi)
 {
-    DirContents * contents = (DirContents *) fi->fh;
+    DirContents * contents = * (DirContents * *) &fi->fh;
     logMsg(LOG_DEBUG, "releasedir");
     free(contents->buffer);
     free(contents);
@@ -568,7 +570,7 @@ static void do_read(fuse_req_t req, fuse_ino_t ino,
     logMsg(LOG_DEBUG, "error %d", cr);
     if (cr) { free(buffer); fuse_reply_err(req, core2sys(cr)); return; }
 
-    fuse_reply_buf(req, buffer, cbRead);
+    fuse_reply_buf(req, (char *) buffer, cbRead);
     free(buffer);
 }
 
@@ -583,7 +585,7 @@ static void do_write(fuse_req_t req, fuse_ino_t ino, const char * buf,
     logMsg(LOG_DEBUG, "write %ld %Ld %d", idFile, off, size);
 
     cr = coreWriteToFile(pVolume, idFile, 
-        off, size, buf, &cbWritten);
+        off, size, (const octet *) buf, &cbWritten);
     if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
     
     if (size != cbWritten) abort(); /* can't happen */
@@ -616,22 +618,23 @@ static void do_fsync(fuse_req_t req, fuse_ino_t ino, int datasync,
 static void do_statfs(fuse_req_t req)
 {
     int res;
-    struct statfs st;
+    struct statvfs st;
 
     logMsg(LOG_DEBUG, "statfs");
 
-    res = statfs(pSuperBlock->szBasePath, &st);
+    res = statvfs(pSuperBlock->szBasePath, &st);
     if (res != 0) { fuse_reply_err(req, errno); return; }
 
-    struct statfs st2;
-    memset(&st2, 0, sizeof(struct statfs));
+    struct statvfs st2;
+    memset(&st2, 0, sizeof(struct statvfs));
     st2.f_bsize = PAYLOAD_SIZE;
     st2.f_blocks = (st.f_bsize * (unsigned long long) st.f_blocks) / PAYLOAD_SIZE;
     st2.f_bfree = (st.f_bsize * (unsigned long long) st.f_bfree) / PAYLOAD_SIZE;
     st2.f_bavail = (st.f_bsize * (unsigned long long) st.f_bavail) / PAYLOAD_SIZE;
     st2.f_files = st.f_files; /* nonsensical */
     st2.f_ffree = st.f_ffree; /* idem */
-    st2.f_namelen = PATH_MAX; /* !!! arbitrary */
+    st2.f_favail = st.f_favail; /* idem */
+    st2.f_namemax = PATH_MAX; /* !!! arbitrary */
 
     fuse_reply_statfs(req, &st2);
 }
@@ -667,7 +670,7 @@ void commitVolume()
 {
     CoreResult cr;
 
-    //    logMsg(LOG_DEBUG, "flushing volume");
+    logMsg(LOG_DEBUG, "flushing volume");
 
     /* Flush dirty data. */
     cr = coreFlushVolume(pVolume);
@@ -774,16 +777,25 @@ retry:
 
     pVolume = pSuperBlock->pVolume;
 
+    /* Construct the FUSE options. */
+    struct fuse_args args;
+    args.argc = 0;
+    args.argv = 0;
+    args.allocated = 1;
+    fuse_opt_add_arg(&args, "debug");
+
     /* `large_read' causes reads to be done in 64 KB chunks instead of
        4 KB (only works on kernel 2.4). */
     int error = 1;
-    fd = fuse_mount(szMountPoint, "large_read");
+    fd = fuse_mount(szMountPoint, &args);
     if (fd != -1) {
 
         struct fuse_session * session =
-            fuse_lowlevel_new("debug", &aefs_oper, sizeof(aefs_oper), 0);
+            fuse_lowlevel_new(&args, &aefs_oper, sizeof(aefs_oper), 0);
 
         if (session) {
+
+            /* !!! Call fuse_set_signal_handlers. */
             
             struct fuse_chan * channel = fuse_kern_chan_new(fd);
             if (channel) {
