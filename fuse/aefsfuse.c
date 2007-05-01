@@ -63,6 +63,7 @@ static bool fReadOnly = false;
 static char szBasePath[PATH_MAX + 1];
 static char szMountPoint[PATH_MAX + 1];
 static int fdRes[2];
+static char * pszMountOptions = 0;
 
 
 /* For communication with lazy writer thread. */
@@ -816,6 +817,10 @@ retry:
     args.argv = 0;
     args.allocated = 1;
     fuse_opt_add_arg(&args, pszProgramName);
+    if (pszMountOptions) {
+        fuse_opt_add_arg(&args, "-o");
+        fuse_opt_add_arg(&args, pszMountOptions);
+    }
 
     int error = 1;
     struct fuse_chan * channel = fuse_mount(szMountPoint, &args);
@@ -877,12 +882,13 @@ static void printUsage(int status)
 Usage: %s [OPTION]... AEFS-PATH MOUNT-POINT\n\
 Mount the AEFS volume stored in AEFS-PATH onto MOUNT-POINT.\n\
 \n\
-  -d, --debug        don't demonize, print debug info\n\
-  -f, --force        force mount of dirty volume\n\
-  -k, --key=KEY      use specified passphrase, do not ask\n\
-  -r, --readonly     mount read-only\n\
-      --help         display this help and exit\n\
-      --version      output version information and exit\n\
+  -d, --debug         don't demonize, print debug info\n\
+  -f, --force         force mount of dirty volume\n\
+  -k, --key=KEY       use specified passphrase, do not ask\n\
+  -o, --options=OPTS  pass mount options to fusermount\n\
+  -r, --readonly      mount read-only\n\
+      --help          display this help and exit\n\
+      --version       output version information and exit\n\
 \n\
 " STANDARD_KEY_HELP "\
 ",
@@ -904,6 +910,7 @@ int main(int argc, char * * argv)
         { "version", no_argument, 0, 2 },
         { "debug", no_argument, 0, 'd' },
         { "key", required_argument, 0, 'k' },
+        { "options", required_argument, 0, 'o' },
         { "force", no_argument, 0, 'f' },
         { "readonly", no_argument, 0, 'r' },
         { 0, 0, 0, 0 } 
@@ -915,7 +922,7 @@ int main(int argc, char * * argv)
 
     pszProgramName = argv[0];
 
-    while ((c = getopt_long(argc, argv, "dfk:r", options, 0)) != EOF) {
+    while ((c = getopt_long(argc, argv, "dfk:o:r", options, 0)) != EOF) {
         switch (c) {
             case 0:
                 break;
@@ -935,6 +942,10 @@ int main(int argc, char * * argv)
 
             case 'k': /* --key */
                 pszPassPhrase = pszOrigKey = optarg;
+                break;
+
+            case 'o': /* --options */
+                pszMountOptions = optarg;
                 break;
 
             case 'f': /* --force */
