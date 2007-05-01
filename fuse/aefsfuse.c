@@ -631,7 +631,7 @@ static void do_fsync(fuse_req_t req, fuse_ino_t ino, int datasync,
     fuse_reply_err(req, 0);
 }
 
-static void do_statfs(fuse_req_t req)
+static void do_statfs(fuse_req_t req, fuse_ino_t ino)
 {
     int res;
     struct statvfs st;
