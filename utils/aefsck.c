@@ -633,7 +633,7 @@ static int checkISFSize(State * pState)
    assert(csNewSize <= pState->csISFSize);
 
    if (csNewSize < pState->csISFSize) {
-      printf("isf: longer then necessary (%ld instead of %ld, not an error)\n",
+      printf("isf: longer than necessary (%ld instead of %ld, not an error)\n",
           pState->csISFSize, csNewSize);
       pState->csISFSize = csNewSize;
       pState->fRewriteFreeList = true;
