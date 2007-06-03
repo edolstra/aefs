@@ -295,60 +295,78 @@ static CoreResult filler(fuse_req_t req,
 }
 
 
-static void do_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info * fi)
+static CoreResult resetDir(fuse_req_t req, CryptedFileID idDir,
+    DirContents * contents)
 {
     CoreResult cr;
-    CryptedFileID idDir = ino;
+    CryptedDirEntry * pFirst = 0, * pCur;
     CryptedFileInfo info;
-    CryptedDirEntry * pFirst, * pCur;
-    DirContents * contents;
-
-    logMsg(LOG_DEBUG, "opendir %ld", idDir);
-        
-    cr = coreQueryFileInfo(pVolume, idDir, &info);
-    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
-
-    contents = malloc(sizeof(DirContents));
-    if (!contents) { fuse_reply_err(req, ENOMEM); return; }
+    
+    if (contents->buffer) free(contents->buffer);
 
     contents->len = 0;
     contents->buffer = 0;
 
-    if (cr = filler(req, contents, idDir, ".")) goto barf;
-    if (cr = filler(req, contents, info.idParent, "..")) goto barf;
+    if (cr = coreQueryFileInfo(pVolume, idDir, &info)) return cr;
 
-    cr = coreQueryDirEntries(pVolume, idDir, &pFirst);
-    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
+    if (cr = filler(req, contents, idDir, ".")) return cr;
+    if (cr = filler(req, contents, info.idParent, "..")) return cr;
+
+    if (cr = coreQueryDirEntries(pVolume, idDir, &pFirst)) goto barf;
 
     for (pCur = pFirst; pCur; pCur = pCur->pNext) {
         if (cr = filler(req, contents, pCur->idFile, (char *) pCur->pszName)) goto barf;
     }
 
     coreFreeDirEntries(pFirst);
-    pFirst = 0;
-
-    fi->fh = (unsigned long) contents;
-    
-    logMsg(LOG_DEBUG, "opendir result %p len %d", contents, contents->len);
-
-    fuse_reply_open(req, fi);
-    return;
+    return CORERC_OK;
 
  barf:
     if (pFirst) coreFreeDirEntries(pFirst);
-    free(contents->buffer);
-    free(contents);
-    fuse_reply_err(req, core2sys(cr));
+    return cr;
+}
+
+
+static void do_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info * fi)
+{
+    CryptedFileID idDir = ino;
+    DirContents * contents = 0;
+
+    logMsg(LOG_DEBUG, "opendir %ld", idDir);
+        
+    contents = malloc(sizeof(DirContents));
+    if (!contents) { fuse_reply_err(req, ENOMEM); return; }
+    
+    contents->len = 0;
+    contents->buffer = 0;
+
+    fi->fh = (unsigned long) contents;
+    
+    logMsg(LOG_DEBUG, "opendir result %p", contents);
+
+    fuse_reply_open(req, fi);
 }
 
 
 static void do_readdir(fuse_req_t req, fuse_ino_t ino,
     size_t size, off_t off, struct fuse_file_info * fi)
 {
+    CoreResult cr;
+    CryptedFileID idDir = ino;
     assert(sizeof(DirContents *) <= sizeof(fi->fh));
     DirContents * contents = * (DirContents * *) &fi->fh;
     
-    logMsg(LOG_DEBUG, "readdir offset %Ld size %d", off, size);
+    logMsg(LOG_DEBUG, "readdir %ld offset %Ld size %d", idDir, off, size);
+
+    /* An offset of zero means that we need to reload the directory
+       contents. */
+    if (off == 0) {
+        if (cr = resetDir(req, idDir, contents)) {
+            fuse_reply_err(req, core2sys(cr));
+            return;
+        }
+    }
+    
     logMsg(LOG_DEBUG, "readdir %p len %d", contents, contents->len);
     
     size_t outSize = 0;
@@ -720,7 +738,6 @@ void * lazyWriter(void * arg)
             struct stat st;
             wantFlush = 1;
             stat(szMountPoint, &st);
-            assert(wantFlush == 0);
         }
         sleep(10);
     }
