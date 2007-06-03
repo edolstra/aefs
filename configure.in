@@ -73,9 +73,6 @@ AC_SUBST(SYSLDFLAGS)
 AC_SUBST(SYSLIBS)
 
 case $build_cpu in
-i[[567]]86)
-        OPTFLAGS="-O2 -mcpu=pentium -fomit-frame-pointer"
-        ;;
 *)
         OPTFLAGS="-O2"
         ;;
