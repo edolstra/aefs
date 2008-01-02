@@ -218,7 +218,7 @@ int coreTimeToOS2(CoreTime time, FDATE * pfdate, FTIME * pftime)
       *pfdate = mindate;
       *pftime = mintime;
       return 1;
-   } else if (tm->tm_year > 107 /* 2107 */ ) {
+   } else if (tm->tm_year > 207 /* 2107 */ ) {
       *pfdate = maxdate;
       *pftime = maxtime;
       return 1;
