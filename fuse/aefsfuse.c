@@ -211,7 +211,7 @@ static void do_setattr(fuse_req_t req, fuse_ino_t ino, struct stat * attr,
     if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 
     if (to_set & FUSE_SET_ATTR_SIZE) {
-	logMsg(LOG_DEBUG, "set size %Ld", attr->st_size);
+	logMsg(LOG_DEBUG, "set size %zd", attr->st_size);
 	cr = coreSetFileSize(pVolume, idFile, attr->st_size);
 	if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
 	cr = coreQueryFileInfo(pVolume, idFile, &info);
@@ -356,7 +356,7 @@ static void do_readdir(fuse_req_t req, fuse_ino_t ino,
     assert(sizeof(DirContents *) <= sizeof(fi->fh));
     DirContents * contents = * (DirContents * *) &fi->fh;
     
-    logMsg(LOG_DEBUG, "readdir %ld offset %Ld size %d", idDir, off, size);
+    logMsg(LOG_DEBUG, "readdir %ld offset %zd size %zd", idDir, off, size);
 
     /* An offset of zero means that we need to reload the directory
        contents. */
@@ -377,7 +377,7 @@ static void do_readdir(fuse_req_t req, fuse_ino_t ino,
             outSize = contents->len - off;
     }
     
-    logMsg(LOG_DEBUG, "readdir result %d", outSize);
+    logMsg(LOG_DEBUG, "readdir result %zd", outSize);
 
     fuse_reply_buf(req, contents->buffer + off, outSize);
 }
@@ -521,6 +521,34 @@ static void do_rmdir(fuse_req_t req, fuse_ino_t parent, const char * pszName)
 }
 
 
+static void do_link(fuse_req_t req, fuse_ino_t ino,
+    fuse_ino_t targetDir, const char * pszName)
+{
+    CoreResult cr;
+    CryptedFileID idDir = targetDir, idFile = ino;
+    
+    logMsg(LOG_DEBUG, "link %ld %ld %s", ino, targetDir, pszName);
+
+    CryptedFileInfo info;
+    cr = coreQueryFileInfo(pVolume, idFile, &info);
+    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
+
+    /* Add an entry for the newly created file to the directory. */
+    cr = coreAddEntryToDir(pVolume, idDir, pszName, idFile, 0);
+    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
+
+    /* Increase the reference count of the file. */
+    info.cRefs++;
+    cr = coreSetFileInfo(pVolume, idFile, &info);
+    if (cr) { fuse_reply_err(req, core2sys(cr)); return; }
+
+    struct fuse_entry_param entry;
+    fillEntryOut(&entry, idFile, &info);
+
+    fuse_reply_entry(req, &entry);
+}
+
+
 static void do_symlink(fuse_req_t req, const char * pszTarget,
     fuse_ino_t parent, const char * pszName)
 {
@@ -596,7 +624,7 @@ static void do_read(fuse_req_t req, fuse_ino_t ino,
     CryptedFileID idFile = ino;
     CryptedFilePos cbRead;
 
-    logMsg(LOG_DEBUG, "read %ld %Ld %d", idFile, off, size);
+    logMsg(LOG_DEBUG, "read %ld %zd %zd", idFile, off, size);
 
     octet * buffer = malloc(size);
     if (!buffer) { fuse_reply_err(req, ENOMEM); return; }
@@ -617,7 +645,7 @@ static void do_write(fuse_req_t req, fuse_ino_t ino, const char * buf,
     CryptedFileID idFile = ino;
     CryptedFilePos cbWritten;
 
-    logMsg(LOG_DEBUG, "write %ld %Ld %d", idFile, off, size);
+    logMsg(LOG_DEBUG, "write %ld %zd %zd", idFile, off, size);
 
     cr = coreWriteToFile(pVolume, idFile, 
         off, size, (const octet *) buf, &cbWritten);
@@ -763,6 +791,7 @@ static struct fuse_lowlevel_ops aefs_oper = {
     .mkdir      = do_mkdir,
     .unlink     = do_unlink,
     .rmdir      = do_rmdir,
+    .link       = do_link,
     .symlink    = do_symlink,
     .rename     = do_rename,
     .open       = do_open,

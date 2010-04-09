@@ -28,7 +28,7 @@ CoreResult coreAllocDirEntry(const octet * pszName,
    CryptedFileID idFile, unsigned int flFlags, 
    CryptedDirEntry * * ppEntry)
 {
-   int cbName = strlen(pszName);
+   int cbName = strlen((const char *) pszName);
    CryptedDirEntry * pEntry;
 
    pEntry = sysAllocSecureMem(sizeof(CryptedDirEntry) + cbName + 1);
