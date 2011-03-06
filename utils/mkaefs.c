@@ -55,7 +55,8 @@ static CoreResult makeRootDir(CryptedVolume * pVolume,
    info.cbFileSize = 0;
    info.timeWrite = info.timeAccess = info.timeCreation = time(0);
    info.idParent = 0;
-   /* uid and gid are set to 0 */
+   info.uid = getuid();
+   info.gid = getgid();
    cr = coreCreateBaseFile(pVolume, &info, &idRootDir);
    if (cr) return cr;
 

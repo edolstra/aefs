@@ -108,8 +108,8 @@ static void storeAttr(CryptedFileID idFile, CryptedFileInfo * info,
     st->st_ino = idFile;
     st->st_mode = info->flFlags;
     st->st_nlink = info->cRefs;
-    st->st_uid = getuid();
-    st->st_gid = getgid();
+    st->st_uid = info->uid;
+    st->st_gid = info->gid;
     st->st_rdev = 0;
     st->st_size = info->cbFileSize;
     st->st_blksize = SECTOR_SIZE;
@@ -396,6 +396,7 @@ static void do_releasedir(fuse_req_t req, fuse_ino_t ino,
 
 int createFile(fuse_req_t req, fuse_ino_t parent,
     const char * pszName, mode_t mode,
+    const struct fuse_ctx * ctx,
     struct fuse_entry_param * entry)
 {
     CoreResult cr;
@@ -422,8 +423,8 @@ int createFile(fuse_req_t req, fuse_ino_t parent,
     info.cbFileSize = 0;
     info.timeCreation = info.timeAccess = info.timeWrite = time(0);
     info.idParent = CFF_ISDIR(info.flFlags) ? idDir : 0;
-    info.uid = getuid();
-    info.gid = getgid();
+    info.uid = ctx->uid;
+    info.gid = ctx->gid;
     cr = coreCreateBaseFile(pVolume, &info, &idFile);
     if (cr) return core2sys(cr);
 
@@ -447,7 +448,7 @@ static void do_mknod(fuse_req_t req, fuse_ino_t parent,
     const char * name, mode_t mode, dev_t rdev)
 {
     struct fuse_entry_param entry;
-    int res = createFile(req, parent, name, mode, &entry);
+    int res = createFile(req, parent, name, mode, fuse_req_ctx(req), &entry);
     if (res)
         fuse_reply_err(req, res);
     else
@@ -459,7 +460,7 @@ static void do_mkdir(fuse_req_t req, fuse_ino_t parent,
     const char * name, mode_t mode)
 {
     struct fuse_entry_param entry;
-    int res = createFile(req, parent, name, mode | CFF_IFDIR, &entry);
+    int res = createFile(req, parent, name, mode | CFF_IFDIR, fuse_req_ctx(req), &entry);
     if (res)
         fuse_reply_err(req, res);
     else
@@ -557,7 +558,7 @@ static void do_symlink(fuse_req_t req, const char * pszTarget,
     logMsg(LOG_DEBUG, "symlink %ld %s", parent, pszName);
     
     struct fuse_entry_param entry;
-    int res = createFile(req, parent, pszName, 0777 | CFF_IFLNK, &entry);
+    int res = createFile(req, parent, pszName, 0777 | CFF_IFLNK, fuse_req_ctx(req), &entry);
     if (res)
         fuse_reply_err(req, res);
     else {
@@ -630,7 +631,6 @@ static void do_read(fuse_req_t req, fuse_ino_t ino,
     if (!buffer) { fuse_reply_err(req, ENOMEM); return; }
 
     cr = coreReadFromFile(pVolume, idFile, off, size, buffer, &cbRead);
-    logMsg(LOG_DEBUG, "error %d", cr);
     if (cr) { free(buffer); fuse_reply_err(req, core2sys(cr)); return; }
 
     fuse_reply_buf(req, (char *) buffer, cbRead);
