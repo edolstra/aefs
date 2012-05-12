@@ -205,11 +205,13 @@ CoreResult coreQueryEAs(CryptedVolume * pVolume,
 
 
 static CoreResult encodeEAs(CryptedEA * pEAs, unsigned int * pcbEAs,
-   octet * * ppabEAs)
+   octet * * ppabEAs, CryptedFilePos * pcbSymlinkSize)
 {
    CryptedEA * pCur;
    unsigned int cbEAs = 1, cb;
    octet * pabEAs, * pabCur;
+
+   *pcbSymlinkSize = 0;
 
    if (!pEAs) {
       *pcbEAs = 0;
@@ -237,6 +239,8 @@ static CoreResult encodeEAs(CryptedEA * pEAs, unsigned int * pcbEAs,
       pabCur += 4;
       memcpy(pabCur, pCur->pabValue, pCur->cbValue);
       pabCur += pCur->cbValue;
+      if (strcmp(pCur->pszName, CEANAME_SYMLINK) == 0)
+         *pcbSymlinkSize = pCur->cbValue;
    }
    *pabCur = 0;
 
@@ -292,7 +296,8 @@ static CoreResult writeInternalEAs(CryptedVolume * pVolume,
 
 
 static CoreResult storeEAs(CryptedVolume * pVolume,
-   CryptedFileID id, unsigned int cbEAs, octet * pabEAs)
+   CryptedFileID id, unsigned int cbEAs, octet * pabEAs,
+   CryptedFilePos cbSymlinkSize)
 {
    CoreResult cr;
    CryptedFileInfo info, info2;
@@ -341,6 +346,8 @@ static CoreResult storeEAs(CryptedVolume * pVolume,
 
    info.cbEAs = cbEAs;
 
+   if (CFF_ISLNK(info.flFlags)) info.cbFileSize = cbSymlinkSize;
+
    cr = coreSetFileInfo(pVolume, id, &info);
    if (cr) return cr;
 
@@ -354,12 +361,13 @@ CoreResult coreSetEAs(CryptedVolume * pVolume,
    CoreResult cr;
    octet * pabEAs;
    unsigned int cbEAs;
+   CryptedFilePos cbSymlinkSize;
    
    /* Encode the EAs. */
-   cr = encodeEAs(pEAs, &cbEAs, &pabEAs);
+   cr = encodeEAs(pEAs, &cbEAs, &pabEAs, &cbSymlinkSize);
    if (cr) return cr;
 
-   cr = storeEAs(pVolume, id, cbEAs, pabEAs);
+   cr = storeEAs(pVolume, id, cbEAs, pabEAs, cbSymlinkSize);
    sysFreeSecureMem(pabEAs);
    return cr;
 }
