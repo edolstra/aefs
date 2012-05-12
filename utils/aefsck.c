@@ -1067,7 +1067,7 @@ static int checkEAs(State * pState, FSItem * fsi)
 {
    int res = 0;
    CoreResult cr;
-   CryptedEA * pFirstEA;
+   CryptedEA * pFirstEA, * pCurEA;
 
    cr = coreQueryEAs(pState->pVolume, fsi->id, &pFirstEA);
    
@@ -1103,6 +1103,24 @@ static int checkEAs(State * pState, FSItem * fsi)
       } else printf("\n");
       
    }
+
+   if (CFF_ISLNK(fsi->info.flFlags)) {
+      for (pCurEA = pFirstEA; pCurEA; pCurEA = pCurEA->pNext)
+         if (strcmp(pCurEA->pszName, CEANAME_SYMLINK) == 0) {
+            if (pCurEA->cbValue != fsi->info.cbFileSize) {
+               printf("%s: size of symlink is %d, should be %d",
+                  printFileName(pState, fsi->id),
+                  fsi->info.cbFileSize, pCurEA->cbValue);
+               if (pState->flags & FSCK_FIX) {
+                  printf(", fixing\n");
+                  fsi->info.cbFileSize = pCurEA->cbValue;
+                  res |= writeFileInfo(pState, fsi);
+                  if (STOP(res)) return res;
+               } else printf("\n");
+            }
+         }
+   }
+   
 
    coreFreeEAs(pFirstEA);
    
