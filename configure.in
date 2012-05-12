@@ -74,7 +74,7 @@ AC_SUBST(SYSLIBS)
 
 case $build_cpu in
 *)
-        OPTFLAGS="-O2"
+        OPTFLAGS="-O3"
         ;;
 esac                
 AC_SUBST(OPTFLAGS)
