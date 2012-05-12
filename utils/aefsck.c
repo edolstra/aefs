@@ -1627,8 +1627,8 @@ static int followExtEAFile(State * pState, FSItem * fsi)
 
       /* If the EAs are bad, checkEAs() will have detached the current
          EA file and created a new one.  In that case, the old one
-         must be moved to `/lost+found' (so we shouldn't increase it's
-         reference count). */ 
+         must be moved to `/lost+found' (so we shouldn't increase its
+         reference count). */
 
       if (fsi->info.idEAFile == fsic->id)
          fsic->cRefs++;
@@ -1799,9 +1799,7 @@ static int checkRefCounts(State * pState)
    for (fsi = pState->pFirstSorted; fsi; fsi = fsi->pNextSorted) {
       if (CFF_ISDIR(fsi->info.flFlags) && !(fsi->flags & FSI_IGNORE))
          res |= followDirEntries(pState, fsi);
-      if ((CFF_ISDIR(fsi->info.flFlags) ||
-           CFF_ISREG(fsi->info.flFlags)) &&
-          (fsi->info.flFlags & CFF_EXTEAS)) 
+      if (fsi->info.flFlags & CFF_EXTEAS)
          res |= followExtEAFile(pState, fsi);
       if (STOP(res)) return res;
       if (fInterrupted) return res | AEFSCK_INTERRUPT;
