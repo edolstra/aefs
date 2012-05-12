@@ -1745,15 +1745,6 @@ static int moveToLostFoundDir(State * pState, FSItem * fsi)
 
    res |= findLostFoundDir(pState);
    if (STOP(res)) return res;
-   
-   if (!CFF_ISREG(fsi->info.flFlags) &&
-       !CFF_ISDIR(fsi->info.flFlags)) {
-      printf(
-         "file %s: changing to regular file before "
-         "adding to lost+found\n", printFileName(pState, fsi->id));
-      res |= changeToRegularFile(pState, fsi);
-      if (STOP(res)) return res;
-   }
 
    for (i = 0; 1; i++) {
       
@@ -1774,6 +1765,14 @@ static int moveToLostFoundDir(State * pState, FSItem * fsi)
             printFileName(pState, fsi->id), core2str(cr));
          return res | AEFSCK_ABORT;
       }
+   }
+
+   if (!CFF_ISREG(fsi->info.flFlags) && !CFF_ISDIR(fsi->info.flFlags)) {
+      printf(
+         "file %s: changing to regular file before "
+         "adding to lost+found\n", printFileName(pState, fsi->id));
+      res |= changeToRegularFile(pState, fsi);
+      if (STOP(res)) return res;
    }
 
    fsi->info.cRefs = 1;
