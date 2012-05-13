@@ -60,3 +60,9 @@ os2dist: all dist
 #	cp -p nfsd/aefsadd.exe $(distdir)/bin
 	for i in $(distdir)/bin/*.exe; do emxbind -s $$i; done
 	cd $(distdir) ; make CHECKSUMS
+
+tarball:
+	relname=aefs-$(VERSION); \
+	rm -rf $$relname; \
+        make dist distdir=$$(pwd)/$$relname; \
+	tar cvfj $$relname.tar.bz2 $$relname

@@ -2,7 +2,8 @@ include $(BASE)/Makefile.conf
 
 DEBUG=0
 
-AEFS_VERSION = "\"AEFS 0.3pre2\""
+VERSION = 0.4pre$(shell git rev-list HEAD | wc -l)
+AEFS_VERSION = "\"AEFS $(VERSION)\""
 
 DEFS = -DSYSTEM_$(SYSTEM) -DAEFS_VERSION=$(AEFS_VERSION)
 
