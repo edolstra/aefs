@@ -329,6 +329,7 @@ static char * printFileName(State * pState, CryptedFileID id)
          } else {
             switch (fsi->info.flFlags & CFF_IFMT) {
                case CFF_IFDIR: strcpy(szBuffer, "directory "); break;
+               case CFF_IFLNK: strcpy(szBuffer, "symlink "); break;
                default: strcpy(szBuffer, "file "); break;
             }
             printFileName2(pState, id, strchr(szBuffer, 0));
