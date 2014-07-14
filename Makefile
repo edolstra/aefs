@@ -20,10 +20,10 @@ all-local: docs
 
 docs: readme.txt readme.html
 
-readme.txt: readme.src
+readme.txt: readme.src all-sub
 	$(EMXDOC) -T -o $@ $<
 
-readme.html: readme.src
+readme.html: readme.src all-sub
 	$(EMXDOC) -H -o $@ $<
 
 install-local: readme.html
@@ -33,7 +33,7 @@ install-local: readme.html
 ifeq ($(SYSTEM), os2)
 docs: readme.inf
 
-readme.inf: readme.src
+readme.inf: readme.src all-sub
 	$(EMXDOC) -I -o readme.ipf $<
 	ipfc readme.ipf $@
 	rm readme.ipf
