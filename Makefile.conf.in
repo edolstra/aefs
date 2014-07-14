@@ -6,6 +6,7 @@ exec_prefix = @exec_prefix@
 
 bindir = @bindir@
 mandir = @mandir@
+docdir = @docdir@
 
 INSTALL = @INSTALL@
 INSTALL_DIR = $(INSTALL) -d

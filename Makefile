@@ -26,6 +26,10 @@ readme.txt: readme.src
 readme.html: readme.src
 	$(EMXDOC) -H -o $@ $<
 
+install-local: readme.html
+	$(INSTALL_DIR) $(docdir)
+	$(INSTALL_DATA) readme.html $(docdir)
+
 ifeq ($(SYSTEM), os2)
 docs: readme.inf
 
