@@ -1715,8 +1715,6 @@ static int findLostFoundDir(State * pState)
    CoreResult cr;
    CryptedFileID id;
    CryptedFileInfo info;
-   /* !!! hack! coreQueryIDFromPath temporarily modifies its argument
-      in place, so it shouldn't be a read-only string. */
    char szLostFound[32] = "lost+found";
    
    if (pState->idLostFound) return res;
@@ -1931,6 +1929,18 @@ static int checkFiles(State * pState)
       files. */
    res |= checkNonDirFiles(pState);
    if (STOP(res)) return res;
+
+   /* If the root directory is corrupt, we need to rewrite it now,
+      otherwise moveToLostFoundDir() may fail. */
+   if (pState->flags & FSCK_FIX) {
+       FSItem * fsiroot = findFile(pState, pState->pSuperBlock->idRoot);
+       assert(fsiroot);
+       if (!(fsiroot->flags & FSI_IGNORE) && (fsiroot->flags & FSI_REWRITEDIR)) {
+           if (pState->flags & FSCK_VERBOSE)
+               printf("phase: rewriting root directory...\n");
+           writeDirectory(pState, fsiroot);
+       }
+   }
 
    res |= checkRefCounts(pState);
    if (STOP(res)) return res;
