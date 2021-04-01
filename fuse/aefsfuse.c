@@ -30,8 +30,13 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <sys/vfs.h>
 #include <pthread.h>
+
+#ifdef __APPLE__
+#include <sys/mount.h>
+#else
+#include <sys/vfs.h>
+#endif
 
 #include "getopt.h"
 
